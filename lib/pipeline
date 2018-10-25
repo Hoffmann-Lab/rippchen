@@ -1020,13 +1020,13 @@ pipeline::coexpression() {
 			cmd2+=("wgcna.R $threads $[$memory/1024/2] FALSE $outdir/coexpressed/$r/experiments.filtered.tpm $outdir/coexpressed/$r/experiments.filtered\0")
 		fi
 
-		cmd1+=("cp $outdir/counted/$r/experiments.tpm $outdir/coexpressed/$r/\0")
-		cmd1+=("cp $outdir/counted/$r/experiments.mean.tpm $outdir/coexpressed/$r/\0")
+		#use cat to not copy permissions or use cp --no-preserve=mode,ownership
+		cmd1+=("cat $outdir/counted/$r/experiments.tpm > $outdir/coexpressed/$r/experiments.tpm\0")
+		cmd1+=("cat $outdir/counted/$r/experiments.mean.tpm > $outdir/coexpressed/$r/experiments.mean.tpm\0")
 		cmd1+=("awk 'NR>1' $outdir/counted/$r/experiments.tpm | cut -f 1 > $outdir/coexpressed/$r/experiments.genes\0")
 		#~10k blocksize returns different results but is 10 times faster
 		#cmd2+=("wgcna.R $threads 6 TRUE $outdir/coexpressed/$r/experiments.tpm $outdir/coexpressed/$r/experiments\0")
 		[[ $allclust ]] && cmd2+=("wgcna.R $threads $[$memory/1024/2] TRUE $outdir/coexpressed/$r/experiments.tpm $outdir/coexpressed/$r/experiments\0")
-
 
 		#cmd+=("DP_GP_cluster -i $o -o $o -t State -p svg pdf --plot\0") 
 		#cmd+=("DP_GP_cluster -i $o -o ${o}_BURNIN -t State -p svg pdf --plot --check_burnin_convergence\0")
@@ -1042,7 +1042,7 @@ pipeline::coexpression() {
 	if [[ ! $Sclust ]]; then
 		{	echo -ne ${cmd1[@]} | /usr/bin/time -v xargs -0 -P $threads -I {} bash -c {} && \
 			conda activate py2r && \
-			echo -ne ${cmd2[@]} | /usr/bin/time -v xargs -0 -P 1 -I {} bash -c {} && \
+			#echo -ne ${cmd2[@]} | /usr/bin/time -v xargs -0 -P 1 -I {} bash -c {} && \
 			pipeline::_vizcoexpression && \
 			conda activate py2
 		} || return 1
@@ -1060,9 +1060,9 @@ pipeline::_vizcoexpression() {
 			rm -f $o.cluster.dge_enrichment
 			head -1 $o.mean.tpm | sed -r "s/(.+)/\1\tID/" > $o.cluster.mean.tpm
 			for i in $(sort -k2,2n $o.cluster.tsv | perl -lane 'BEGIN{$c=-1} unless ($F[1]==$c){close F; $i=("0"x(3-length($F[1]))).$F[1]; open F,">'$o'.cluster.$i.genes" or die $!; $c=$F[1]; print $i} print F $F[0]; END{close F}'); do
-				head -1 $o.mean.tpm > $o.cluster.$i.tpm
+				head -1 $o.cluster.mean.tpm > $o.cluster.$i.tpm
 				grep -f $o.cluster.$i.genes $o.mean.tpm | sed -r "s/(.+)/\1\tCluster$i/" > $tmpdir/tmp
-				cat $tmpdir/tmp > $o.cluster.$i.tpm
+				cat $tmpdir/tmp >> $o.cluster.$i.tpm
 				cat $tmpdir/tmp >> $o.cluster.mean.tpm
 				[[ $f == "experiments" ]] && Rscript -e "ALL=scan('$o.genes', character(), quiet=T); A=scan('$o.filtered.genes', character(), quiet=T); B=scan('$o.cluster.$i.genes', character(), quiet=T); overlap=intersect(A,B); cat('cluster.$i',phyper(length(overlap), length(A), length(ALL)-length(A), length(B), lower.tail = F)); cat('\n')" >> $o.cluster.dge_enriched
 				# cmd+=("Rscript -e \"data = read.table('$o.cluster.$i.tpm', header=T, sep='\\\t', row.names=1); data = log((data+1)/rowMeans(data+1)); pdf('$o.cluster.$i.pdf'); plot(1, type='n', xlim=c(1,4), ylim=c(min(data),max(data)), ylab='Mean-relative log TPM', xlab='', xaxt='n'); axis(1, at=c(1:ncol(data)), labels=colnames(data)); apply(data, 1, function(x) lines(c(1:ncol(data)),x,col='grey')); lines(c(1:ncol(data)),colMeans(data),col='blue'); sd = apply(data,2,sd); lines(c(1:ncol(data)),colMeans(data)+sd,col='red'); lines(c(1:ncol(data)),colMeans(data)-sd,col='red'); graphics.off()\"\0")
