@@ -1,0 +1,1552 @@
+#! /usr/bin/env bash
+# (c) Konstantin Riege
+pipeline::fastqc() {
+	[[ $noqual ]] && return 0
+	echo ":INFO: calculating qualities"
+
+	cmd=()
+	for f in {${fastq1[@]},${fastq2[@]}}; do
+		cmd+=("fastqc -outdir $outdir/qualities $f\0")
+	done
+
+	echo -n ${cmd[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+	if [[ ! $Squal ]]; then
+		{	mkdir -p $outdir/qualities && \
+			echo -ne ${cmd[@]} | /usr/bin/time -v xargs -0 -P $threads -I {} bash -c {}
+		} || return 1
+	fi
+
+	return 0
+}
+
+pipeline::cutadapt() {
+	[[ ! ${fastq1[0]} ]] || [[ ! $adapter ]] && return 0
+	echo ":INFO: clipping"
+
+	[[ thr=10 -gt $threads ]] && thr=$threads
+	[[ instances=${#fastq1[@]} -gt $[threads/thr] ]] && instances=$[threads/thr]
+	thr=$[threads/instances]
+
+	cmd=()
+	if [[ ${fastq2[0]} ]]; then
+		for i in ${!fastq1[@]}; do
+			o1=$outdir/clipped/${fq1basename[$i]}
+			o2=$outdir/clipped/${fq2basename[$i]}
+			params=''
+			for a in ${adapter[@]}; do
+				params="$params -b $a -B $a"
+			done
+			cmd+=("cutadapt -j $thr $params -m 18 -o $o1 -p $o2 ${fastq1[$i]} ${fastq2[$i]}\0")
+			fastq1[$i]=$o1
+			fastq2[$i]=$o2
+		done 
+	else 
+		for i in ${!fastq1[@]}; do
+			o=$outdir/clipped/${fq1basename[$i]}
+			params=''
+			for a in ${adapter[@]}; do
+				params="$params -b $a"
+			done
+			cmd+=("cutadapt -j $thr $params -m 18 -o ${fastq1[$i]}\0")
+			fastq1[$i]=$o
+		done 
+	fi
+
+	echo -n ${cmd[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+	if [[ ! $Sclip ]]; then 
+		{	mkdir -p $outdir/clipped && \
+			conda activate py3 && \
+			echo -ne ${cmd[@]} | /usr/bin/time -v xargs -0 -P $instances -I {} bash -c {} && \
+			conda activate py2
+		} || return 1
+	fi
+
+	return 0
+}
+
+pipeline::trimmomatic() {
+	[[ ! ${fastq1[0]} ]] || [[ $notrim ]] && return 0
+	echo ":INFO: trimming"
+	
+	for i in ${!fastq1[@]}; do
+		if [[ ${fqextractcmd[$i]} ]]; then
+			phred=$(${fqextractcmd[$i]} $f | head -400 | awk '{if(NR%4==0) printf("%s",$0);}' | od -A n -t u1 | awk 'BEGIN{min=100;max=0;}{for(i=1;i<=NF;i++) {if($i>max) max=$i; if($i<min) min=$i;}}END{if(max<=74 && min<59) print "phred33"; else if(max>73 && min>=64) print "phred64"; else if(min>=59 && min<64 && max>73) print "solexa64"; else print "unknown";}')
+		else
+			phred=$(head -400 $f | awk '{if(NR%4==0) printf("%s",$0);}' | od -A n -t u1 | awk 'BEGIN{min=100;max=0;}{for(i=1;i<=NF;i++) {if($i>max) max=$i; if($i<min) min=$i;}}END{if(max<=74 && min<59) print "phred33"; else if(max>73 && min>=64) print "phred64"; else if(min>=59 && min<64 && max>73) print "solexa64"; else print "unknown";}')
+		fi
+		[[ ! $phred =~ ^phred ]] && echo ":ERROR: detected $phred fastq encoding - need sanger (phred33) or illumina (phred64)" && return 1
+		if [[ $phred == "phred64" ]]; then
+			# echo ":INFO: converting quality scores"
+			echo ":ERROR: $phred fastq encoding - need sanger (phred33)" && return 1
+		fi
+	done
+
+	[[ thr=10 -gt $threads ]] && thr=$threads
+	[[ instances=${#fastq1[@]} -gt $[threads/thr] ]] && instances=$[threads/thr]
+	thr=$[threads/instances]
+	jmem=$[memory/instances]
+	[[ $jmem -gt $mem ]] && jmem=$mem
+	jgct=$[(3+5*threads/8)/instances]
+	[[ $jgct -eq 0 ]] && jgct=1
+	jmgct=$[jgct/4]
+	[[ $jmgct -eq 0 ]] && jmgct=1
+
+	cmd1=()
+	cmd2=()
+	if [[ ${fastq2[0]} ]]; then
+		for i in ${!fastq1[@]}; do
+			o1=$outdir/trimmed/${fq1basename[$i]}
+			o2=$outdir/trimmed/${fq2basename[$i]}
+			o1single=$outdir/trimmed/${fq1basenoex[$i]}
+			o2single=$outdir/trimmed/${fq2basenoex[$i]}
+
+			cmd1+=("trimmomatic -Xmx${jmem}m -XX:ParallelGCThreads=$jgct -XX:ConcGCThreads=$jmgct -Djava.io.tmpdir=$tmpdir PE -threads $thr -$phred ${fastq1[$i]} ${fastq2[$i]} $o1 $o1single.singletons.${fqextension[$i]} $o2 $o2single.singletons.${fqextension[$i]} SLIDINGWINDOW:5:22 MINLEN:18 TOPHRED33\0")
+			cmd2+=("pigz -p $threads -k -c $o1single.singletons.${fqextension[$i]} > $o1single.singletons.${fqextension[$i]}.gz; true\0")
+			cmd2+=("pigz -p $threads -k -c $o2single.singletons.${fqextension[$i]} > $o2single.singletons.${fqextension[$i]}.gz; true\0")
+
+			if [[ ${fqextractcmd[$i]} ]]; then
+				fastq1[$i]=$o1
+				fastq2[$i]=$o2
+			else
+				cmd2+=("pigz -p $threads -k -c $o1 > $o1.gz\0")
+				cmd2+=("pigz -p $threads -k -c $o2 > $o2.gz\0")
+				fastq1[$i]=$o1.gz
+				fastq2[$i]=$o2.gz
+				fqextractcmd[$i]="gzip -cd"
+			fi
+		done
+	else
+		for i in ${!fastq1[@]}; do
+			o=$outdir/trimmed/${fq1basename[$i]}
+			cmd1+=("trimmomatic -Xmx${jmem}m -XX:ParallelGCThreads=$jgct -XX:ConcGCThreads=$jmgct -Djava.io.tmpdir=$tmpdir SE -threads $thr -$phred ${fastq1[$i]} $o SLIDINGWINDOW:5:22 MINLEN:18 TOPHRED33\0")
+			if [[ ${fqextractcmd[$i]} ]]; then
+				fastq1[$i]=$o
+			else
+				cmd2+=("pigz -p $threads -k -c $o > $o.gz\0")
+				fastq1[$i]=$o.gz
+				fqextractcmd[$i]="gzip -cd"
+			fi
+		done
+	fi
+
+	echo -n ${cmd1[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+	echo -n ${cmd2[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+	if [[ ! $Strim ]]; then 
+		{	mkdir -p $outdir/trimmed && \
+			echo -ne ${cmd1[@]} | /usr/bin/time -v xargs -0 -P $instances -I {} bash -c {} && \
+			echo -ne ${cmd2[@]} | /usr/bin/time -v xargs -0 -P 1 -I {} bash -c {}
+		} || return 1
+	fi
+
+	return 0
+}
+
+pipeline::rcorrector() {   # adjust picard regex accoring to added l:INT m:INT h:INT 
+	[[ $nocor ]] && return 0
+	echo ":INFO: correcting read errors"
+
+	cmd1=()
+	cmd2=()
+	if [[ ${fastq2[0]} ]]; then
+		for i in ${!fastq1[@]}; do
+			o1=$outdir/corrected/${fq1basename[$i]}
+			o2=$outdir/corrected/${fq2basename[$i]}
+			tmp1=$outdir/corrected/${fq1basenoex[$i]}
+			tmp2=$outdir/corrected/${fq2basenoex[$i]}
+
+			cmd1+=("cd $tmpdir && run_rcorrector.pl -1 ${fastq1[$i]} -2 ${fastq2[$i]} -od $outdir/corrected -t $threads && mv $tmp1.cor.fq* $o1 && mv $tmp2.cor.fq* $o2\0")
+
+			if [[ ${fqextractcmd[$i]} ]]; then
+				fastq1[$i]=$o1
+				fastq2[$i]=$o2
+			else
+				cmd2+=("pigz -p $threads -k -c $o1 > $o1.gz\0")
+				cmd2+=("pigz -p $threads -k -c $o2 > $o2.gz\0")
+				fastq1[$i]=$o1.gz
+				fastq2[$i]=$o2.gz
+				fqextractcmd[$i]="gzip -cd"
+			fi
+		done
+	else 
+		for i in ${!fastq1[@]}; do
+			o=$outdir/corrected/$(basename ${fastq1[$i]})
+			tmp=$outdir/corrected/${fq1basenoex[$i]}
+			cmd1+=("cd $tmpdir && run_rcorrector.pl -s ${fastq1[$i]} -od $outdir/corrected -t $threads && mv $tmp.cor.fq* $o\0")
+			if [[ ${fqextractcmd[$i]} ]]; then
+				fastq1[$i]=$o
+			else
+				cmd2+=("pigz -p $threads -k -c $o > $o.gz\0")
+				fastq1[$i]=$o.gz
+				fqextractcmd[$i]="gzip -cd"
+			fi
+		done
+	fi
+
+	echo -n ${cmd1[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+	echo -n ${cmd2[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+	if [[ ! $Scor ]]; then 
+		{	mkdir -p $outdir/corrected && \
+			echo -ne ${cmd1[@]} | /usr/bin/time -v xargs -0 -P 1 -I {} bash -c {} && \
+			echo -ne ${cmd2[@]} | /usr/bin/time -v xargs -0 -P 1 -I {} bash -c {}
+		} || return 1
+	fi
+
+	return 0
+}
+
+pipeline::sortmerna() {
+	[[ $norrm ]] && return 0
+	echo ":INFO: filtering rRNA fragments"
+
+	cmd1=()
+	cmd2=()
+	cmd3=()
+	if [[ ${fastq2[0]} ]]; then
+		for i in ${!fastq1[@]}; do
+			tmp=$tmpdir/${fq1basenoex[$i]}.${fqextension[$i]}
+			o1=$outdir/rrnafiltered/${fq1basenoex[$i]}
+			o2=$outdir/rrnafiltered/${fq2basenoex[$i]}
+
+			cmd1+=("mergefq -t $threads -m ${memory}M -d $tmpdir -i ${fastq1[$i]} -j ${fastq2[$i]} -o $tmp\0")
+			cmd2+=("sortmerna --ref $sortmernaref --reads $tmp --fastx --paired_out --aligned $o1.rRNA --other $o1 -a $threads\0")
+			cmd3+=("mergefq -t $threads -u 1 -i $o1.${fqextension[$i]} -z -o $o1.${fqextension[$i]}.gz\0")
+			cmd3+=("mergefq -t $threads -u 2 -i $o1.${fqextension[$i]} -z -o $o2.${fqextension[$i]}.gz\0")
+			cmd3+=("mergefq -t $threads -u 1 -i $o1.rRNA.${fqextension[$i]} -z -o $o1.rRNA.${fqextension[$i]}.gz\0")
+			cmd3+=("mergefq -t $threads -u 2 -i $o1.rRNA.${fqextension[$i]} -z -o $o2.rRNA.${fqextension[$i]}.gz\0")
+
+			fastq1[$i]=$o1.${fqextension[$i]}.gz
+			fastq2[$i]=$o1.${fqextension[$i]}.gz
+			fqextractcmd[$i]="gzip -cd"
+		done
+		thr=1
+	else
+		for i in ${!fastq1[@]}; do
+			tmp=$tmpdir/${fq1basenoex[$i]}.${fqextension[$i]}
+			o=$outdir/rrnafiltered/${fq1basenoex[$i]}
+
+			if [[ ${fqextractcmd[$i]} ]]; then
+				cmd1+=("${fqextractcmd[$i]} ${fastq1[$i]} > $tmp\0")
+				cmd2+=("sortmerna --ref $sortmernaref --reads $tmp --fastx --aligned $o.rRNA --other $o -a $threads\0")
+			else
+				cmd2+=("sortmerna --ref $sortmernaref --reads ${fastq1[$i]} --fastx --aligned $o.rRNA --other $o -a $threads\0")
+			fi
+			cmd3+=("pigz -p $threads -k -c $o.${fqextension[$i]} > $o.${fqextension[$i]}.gz\0")
+			cmd3+=("pigz -p $threads -k -c $o.rRNA.${fqextension[$i]} > $o.rRNA.${fqextension[$i]}.gz\0")
+
+			fastq1[$i]=$o.${fqextension[$i]}.gz
+			fqextractcmd[$i]="gzip -cd"
+		done
+		thr=$threads
+	fi
+
+	echo -n ${cmd1[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+	echo -n ${cmd2[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+	echo -n ${cmd3[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+	if [[ ! $Srrm ]]; then
+		{	mkdir -p $outdir/rrnafiltered/ $tmpdir && \
+			echo -ne ${cmd1[@]} | /usr/bin/time -v xargs -0 -P $thr -I {} bash -c {} && \
+			echo -ne ${cmd2[@]} | /usr/bin/time -v xargs -0 -P 1 -I {} bash -c {} && \
+			echo -ne ${cmd3[@]} | /usr/bin/time -v xargs -0 -P 1 -I {} bash -c {}
+		} || return 1
+	fi
+
+	return 0
+}
+
+pipeline::segemehl() {
+	[[ ! ${fastq1[0]} ]] || [[ $nosege ]] && return 0
+	echo ":INFO: mapping - segemehl"
+
+	if [[ ! $Smd5 ]] && [[ ! $Ssege ]]; then
+		echo ":INFO: checking segemehl index md5sum"
+		thismd5segemehl=$(md5sum $genome.segemehl.idx 2> /dev/null | cut -d ' ' -f 1)
+		if [[ ! $thismd5segemehl ]] || [[ $thismd5genome != $md5genome ]] || [[ $thismd5segemehl != $md5segemehl ]]; then
+			echo ":INFO: indexing genome for segemehl"
+			echo ":CMD: segemehl.x -x $genome.segemehl.idx -d $genome"
+			/usr/bin/time -v segemehl.x -x $genome.segemehl.idx -d $genome || return 1		
+			thismd5segemehl=$(md5sum $genome.segemehl.idx | cut -d ' ' -f 1)
+			sed -i "s/md5segemehl=.*/md5segemehl=$thismd5segemehl/" $genome.md5s
+			echo ":INFO: indexing genome for segemehl finished"
+		fi
+	fi
+
+	[[ thr=$[threads/${#fastq1[@]}] -eq 0 ]] && thr=1
+	segemehl=()
+	cmd1=()
+	cmd2=()
+	cmd3=()
+	for i in ${!fastq1[@]}; do
+		o=$outdir/mapped/segemehl/${fq1basenoex[$i]}
+		# read not properly paired - additional tag:
+		# YI:i:0 (orientation)
+		# YI:i:1 (laenge)
+		# YI:i:2 (orientation + laenge)
+		# YI:i:3 (chimeric)
+		if [[ ${fastq2[0]} ]]; then
+			cmd1+=("segemehl -S $o.dummy -I $insertsize -i $genome.segemehl.idx -d $genome -q ${fastq1[$i]} -p ${fastq2[$i]} -A $accuracy -t $threads | samtools view -@ $threads -b > $o.all && mv $o.sngl.bed $o.sj\0")
+			cmd2+=("samtools view -@ $threads -b -F 4 -f 2 $o.all > $o.bam\0")
+		else
+			cmd1+=("segemehl -S $o.dummy -i $genome.segemehl.idx -d $genome -q ${fastq1[$i]} -A $accuracy -t $threads | samtools view -@ $threads -b > $o.all && mv $o.sngl.bed $o.sj\0")
+			cmd2+=("samtools view -@ $threads -b -F 4 $o.all > $o.bam\0")
+		fi
+		
+		cmd2+=("samtools view -@ $threads -b -f 4 $o.all > $o.unmapped.bam\0")
+		cmd3+=("LC_ALL=C samtools view -h -F 256 $o.bam | sed -n '/^@/p; /\tNH:i:1\t/p' | samtools view -@ $thr -b > $o.unique.bam\0")
+		segemehl+=($o.unique.bam)
+	done
+
+	mapper+=(segemehl)
+	echo -n ${cmd1[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+	echo -n ${cmd2[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+	echo -n ${cmd3[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+	if [[ ! $Ssege ]]; then
+		{	mkdir -p $outdir/mapped/segemehl && \
+			echo -ne ${cmd1[@]} | /usr/bin/time -v xargs -0 -P 1 -I {} bash -c {} && \
+			echo -ne ${cmd2[@]} | /usr/bin/time -v xargs -0 -P 1 -I {} bash -c {} && \
+			echo -ne ${cmd3[@]} | /usr/bin/time -v xargs -0 -P $threads -I {} bash -c {}
+		} || return 1
+	fi
+
+	return 0
+}
+
+pipeline::star() {
+	[[ ! ${fastq1[0]} ]] || [[ $nostar ]] && return 0
+	echo ":INFO: mapping - star"
+
+	idxdir=$genome-staridx
+	if [[ ! $Smd5 ]] && [[ ! $Sstar ]]; then
+		mkdir -p $idxdir
+		echo ":INFO: checking star index md5sum"
+		thismd5star=$(md5sum $idxdir/SA 2> /dev/null | cut -d ' ' -f 1)
+		[[ $annotation ]] && thismd5gtf=$(md5sum $annotation 2> /dev/null | cut -d ' ' -f 1)
+		if [[ ! $thismd5star ]] || [[ $thismd5genome != $md5genome ]] || [[ $thismd5star != $md5star ]] || ([[ $thismd5gtf ]] && [[ $thismd5gtf != $md5gtf ]]); then
+			echo ":INFO: indexing genome for star"
+			starcmd="STAR --runThreadN $threads --runMode genomeGenerate --genomeDir $idxdir --sjdbOverhang 100 --genomeFastaFiles $genome"
+			[[ $annotation ]] && starcmd="$starcmd --sjdbGTFfile $annotation"
+			genomesize=$(du -sb $genome | cut -f 1)
+			[[ $(echo $genomesize | awk '{printf("%d",$1/1024/1024)'}) -lt 10 ]] && starcmd="$starcmd --genomeSAindexNbases "$(echo $genomesize | perl -M'use List::Util qw(min)' -lane 'printf("%d",min(14, log($_)/2 - 1))')
+			genomeseqs=$(grep -c '^>' $genome)
+			[[ $genomeseqs -gt 5000 ]] && starcmd="$starcmd --genomeChrBinNbits "$(echo "$genomesize $genomeseqs" | perl -M'use List::Util qw(min)' -lane 'printf("%d",min(18, log($F[0]/$F[1]))')
+			echo ":CMD: $starcmd"
+			/usr/bin/time -v $starcmd || return 1
+			thismd5star=$(md5sum $idxdir/SA | cut -d ' ' -f 1)
+			sed -i "s/md5star=.*/md5star=$thismd5star/" $genome.md5s
+			echo ":INFO: indexing genome for star finished"
+		fi
+	fi
+
+	star=()	
+	cmd1=()
+	cmd2=()
+	cmd3=()
+	a=$(echo $accuracy | awk '{print 1-$1/100}')
+	for i in ${!fastq1[@]}; do
+		o=$outdir/mapped/star/${fq1basenoex[$i]}
+
+		if [[ ${fqextractcmd[$i]} ]]; then
+			starcmd="STAR --readFilesCommand '${fqextractcmd[$i]}'"
+		else
+			starcmd="STAR"
+		fi
+
+		if [[ ${fastq2[0]} ]]; then
+			# --alignIntronMax $insertsize
+			cmd1+=("$starcmd --outFilterMismatchNoverReadLmax $a --alignMatesGapMax $insertsize --runThreadN $threads --runMode alignReads --genomeDir $idxdir --readFilesIn ${fastq1[$i]} ${fastq2[$i]} --outFileNamePrefix $o. --runRNGseed 12345 --genomeLoad NoSharedMemory --outSAMtype BAM Unsorted --outBAMsortingThreadN $threads --quantMode GeneCounts --outMultimapperOrder Random && mv $o.Aligned.out.bam $o.all && mv $o.SJ.out.tab $o.sj\0")
+		else
+			cmd1+=("$starcmd --outFilterMismatchNoverReadLmax $a --runThreadN $threads --runMode alignReads --genomeDir $idxdir --readFilesIn ${fastq1[$i]} --outFileNamePrefix $o. --runRNGseed 12345 --genomeLoad NoSharedMemory --outSAMtype BAM Unsorted --outBAMsortingThreadN $threads --quantMode GeneCounts --outMultimapperOrder Random && mv $o.Aligned.out.bam $o.all && mv $o.SJ.out.tab $o.sj\0")
+		fi
+		cmd2+=("samtools view -@ $threads -b -F 4 $o.all > $o.bam\0")
+		cmd2+=("samtools view -@ $threads -b -f 4 $o.all > $o.unmapped.bam\0")
+		cmd3+=("samtools view -@ $threads -b -F 256 -q 255 $o.bam > $o.unique.bam\0")
+		star+=($o.unique.bam)
+	done
+
+	mapper+=(star)
+	echo -n ${cmd1[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+	echo -n ${cmd2[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+	echo -n ${cmd3[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+	if [[ ! $Sstar ]]; then
+		{	mkdir -p $outdir/mapped/star && \
+			echo -ne ${cmd1[@]} | /usr/bin/time -v xargs -0 -P 1 -I {} bash -c {} && \
+			echo -ne ${cmd2[@]} | /usr/bin/time -v xargs -0 -P 1 -I {} bash -c {} && \
+			echo -ne ${cmd3[@]} | /usr/bin/time -v xargs -0 -P 1 -I {} bash -c {}
+		} || return 1
+	fi
+
+	return 0
+}
+
+pipeline::makereplicates() {
+	[[ $norepl ]] && return 0
+
+	cmd1=()
+	cmd2=()
+	cmd3=()
+	if [[ ${#ridx[@]} -gt 0 ]]; then # pool replicates: m[N1 N2 T1 T2 R1 R2] -> m[N1 N2 T1 T2 R1 R2 P1 P2]
+		echo ":INFO: generating pools"
+		for r in ${mapper[@]}; do
+			declare -n m=$r
+			j=$[${#m[@]}-1]
+			mkdir -p $tmpdir/$r
+			for i in ${!nidx[@]}; do
+				tf=${m[${tidx[$i]}]}
+				rf=${m[${ridx[$i]}]}
+				pidx+=($((++j)))
+				o=${nf%.*}.rippchen_pool.bam
+				tmp=$tmpdir/$r/$(basename $o)
+				cmd1+=("samtools collate -@ $threads -n $threads -O $tf | samtools view -@ $threads -b -s 0.5 - | samtools reheader -P <(echo) - > $tmp\0")
+				cmd2+=("samtools collate -@ $threads -n $threads -O $rf | samtools view -@ $threads -b -s 0.5 - | samtools reheader -P <(echo) - >> $tmp\0")
+				cmd3+=("samtools reheader -P <(samtools view -H $tf) $tmp > $o\0")
+				m+=($o)
+			done
+		done
+
+		thr=1
+	else # make pseudo-replicates from pseudo-pool: # m[N1 N2 P1 P2] -> m[N1 N2 P1 P2 T1 R1 T2 R2]
+		echo ":INFO: generating pseudo-replicates"
+		instances=0
+		for r in ${mapper[@]}; do
+			declare -n m=$r
+			instances=$[instances+${#m[@]}]
+		done
+		[[ thr=$[threads/instances] -eq 0 ]] && thr=1
+
+		for r in ${mapper[@]}; do
+			declare -n m=$r
+			j=$[${#m[@]}-1]
+			mkdir -p $tmpdir/$r
+			for i in ${!nidx[@]}; do
+				pf=${m[${pidx[$i]}]}
+				tidx+=($((++j)))
+				ridx+=($((++j)))
+				o=${pf%.*}.rippchen_rep
+				tmp=$tmpdir/$r/$(basename $o)
+				# -u not equals --output-fmt SAM => a small compression level reduces stream amount which finally make decompression faster (optimum -l 3)
+				# tested with 223G bam (~1m30 vs ~1m) and 650M bam (~1m30 vs ~1m)
+				cmd1+=("samtools collate -@ $thr -n $thr -u -l 3 -O $pf $tmp | samtools view -@ $thr - | split --numeric-suffixes=1 --additional-suffix=.bam -a 1 -l $[($(samtools flagstat -@ $thr $pf | head -1 | cut -d ' ' -f 1)+1)/2] --filter='cat <(samtools view -H $pf) - | samtools view -@ $thr -b > \$FILE' - $o\0")
+				m+=(${o}1.bam)
+				m+=(${o}2.bam)
+			done
+		done
+
+		thr=$threads
+	fi
+
+	echo -n ${cmd1[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+	echo -n ${cmd2[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+	echo -n ${cmd3[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+	if [[ ! $Srep ]]; then
+		{	echo -ne ${cmd1[@]} | /usr/bin/time -v xargs -0 -P $thr -I {} bash -c {} && \
+			echo -ne ${cmd2[@]} | /usr/bin/time -v xargs -0 -P $thr -I {} bash -c {} && \
+			echo -ne ${cmd3[@]} | /usr/bin/time -v xargs -0 -P $threads -I {} bash -c {}
+		} || return 1
+	fi
+
+	return 0
+}
+
+pipeline::sortsambam() {
+	echo ":INFO: sorting alignments"
+	cmd1=()
+	cmd2=()
+	for r in ${mapper[@]}; do
+		declare -n m=$r
+		mkdir -p $tmpdir/$r
+		for i in ${!m[@]}; do
+			o=${m[$i]}
+			o=${o%.*}
+			tmp=$tmpdir/$r/$(basename $o).tmp
+			if [[ $(file ${m[$i]} | grep -F ASCII) ]]; then
+				cmd1+=("rm -f $tmp.* && samtools view -@ $threads -b ${m[$i]} | samtools sort -@ $threads -T $tmp - > $o.sorted.bam\0")
+			else
+				cmd1+=("rm -f $tmp.* && samtools sort -@ $threads -T $tmp ${m[$i]} > $o.sorted.bam\0")
+			fi
+			m[$i]=$o.sorted.bam
+		done
+	done
+
+	echo -n ${cmd1[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+	if [[ ! $Ssort ]]; then
+		{	echo -ne ${cmd1[@]} | /usr/bin/time -v xargs -0 -P 1 -I {} bash -c {}
+		} || return 1
+	fi
+
+	return 0
+}
+
+pipeline::mappingstats() {
+	[[ $nostats ]] && return 0
+	echo ":INFO: inferring mapping statistics"
+
+	declare -a cmd1=()
+	declare -a cmd2=()
+	IFS=','
+	for f in {$nfq1,$tfq1,$rfq1}; do
+		unset IFS
+
+		fname=$(basename $f)
+		fname=${fname%.*}
+		[[ $(file $f | grep -F compressed) ]] && fname=${fname%.*}
+
+		o=$outdir/statistics/$fname.fastq.txt
+		[[ ! $Sstats ]] && rm -f $o
+		
+		if [[ -e $outdir/qualities/${fname}_fastqc.zip ]]; then
+			cmd1+=("echo -e $fname'.fastq\tNo. raw fragments:\n'\$(unzip -p $outdir/qualities/${fname}_fastqc.zip ${fname}_fastqc/fastqc_data.txt | grep -m 1 -F Total | awk '{print \$3}') >> $o\0")
+		else
+			if [[ $(file $f | grep -F compressed) ]]; then
+				if [[ $(file $f | grep gzip) ]]; then
+					cmd1+=("echo -e '$fname.fastq\tNo. raw fragments:\n'\$[\$(gzip -cd $f | wc -l)/4] >> $o\0")
+				else
+					cmd1+=("echo -e '$fname.fastq\tNo. raw fragments:\n'\$[\$(bzip2 -cd $f | wc -l)/4] >> $o\0")
+				fi
+			else
+				cmd1+=("echo -e '$fname.fastq\tNo. raw fragments:\n'\$[\$(wc -l $f | cut -d ' ' -f 1)/4] >> $o\0")
+			fi
+		fi
+		
+		for f in $outdir/*/$(basename $f); do
+			if [[ $(file $f | grep -F compressed) ]]; then
+				if [[ $(file $f | grep gzip) ]]; then
+					cmd1+=("echo -e '$fname.fastq\tNo. $(basename $(dirname $f)) fragments:\n'\$[\$(gzip -cd $f | wc -l)/4] >> $o\0")
+				else
+					cmd1+=("echo -e '$fname.fastq\tNo. $(basename $(dirname $f)) fragments:\n'\$[\$(bzip2 -cd $f | wc -l)/4] >> $o\0")
+				fi
+			else 
+				cmd1+=("echo -e '$fname.fastq\tNo. $(basename $(dirname $f)) fragments:\n'\$[\$(wc -l $f | cut -d ' ' -f 1)/4] >> $o\0")
+			fi
+		done
+	done
+	unset IFS
+
+	for r in ${mapper[@]}; do
+		declare -n m=$r
+		for f in ${m[@]}; do
+			fdir=$(dirname $f)
+			fname=$(basename $f | sed 's/\.unique\..*//')
+
+			o=$outdir/statistics/$fname.bam.txt
+			[[ ! $Sstats ]] && rm -f $o
+			
+			for f in $(ls $fdir/$fname*.bai | grep -v readgrouped); do
+				echo $f;
+				f=${f%.*}.bam
+				[[ ! -e $f ]] && continue
+				cmd1+=("tac <(tac <(LC_ALL=C samtools view $f | perl -M'List::Util qw(sum)' -F'\\\t' -lane '@x=\$F[5]=~/(\d+N)/g; \$s{\$#x+2}++; END{print \$_.\" \".\$s{\$_} for sort {\$a<=>\$b} keys %s}'); echo -e '$(basename $f)\t$r splits:\n') >> $o\0")
+				cmd2+=("tac <(tac <(samtools flagstat -@ $threads $f); echo -e '$(basename $f)\t$r mappings:\n') >> $o\0")
+			done
+		done
+	done
+
+	echo -n ${cmd1[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+	echo -n ${cmd2[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+	if [[ ! $Sstats ]]; then 
+		{	mkdir -p $outdir/statistics
+			echo -ne ${cmd1[@]} | /usr/bin/time -v xargs -0 -P $threads -I {} bash -c {} && \
+			echo -ne ${cmd2[@]} | /usr/bin/time -v xargs -0 -P 1 -I {} bash -c {}
+		} || return 1
+	fi
+
+	return 0
+}
+
+pipeline::_regionsperthread() {
+	echo ":INFO: inferring equal genome regions"
+	for r in ${mapper[@]}; do
+		declare -n m=$r
+		x=$[threads+1]
+		t=$x
+		genomesize=$(samtools view -H ${m[0]} | grep '^@SQ' | perl -lane '$l+=(split/^LN:/,$F[2])[1]; END{print $l}') || return 1
+		chromosomes=($(samtools view -H ${m[0]} | grep '^@SQ' | perl -lane 'push @c, (split/^SN:/,$F[1])[1].".".(split/^LN:/,$F[2])[1]; END{print join(" ",@c)}'))
+		while [[ $t -gt 1 && $x -gt $threads ]]; do
+			x=0
+			regions=()
+			((t--))
+			chunksize=$[genomesize/t]
+			for l in ${chromosomes[@]}; do
+				chr=${l%.*}
+				l=${l##*.}
+				[[ c=$[l/chunksize] -eq 0 ]] && c=1
+				[[ $[l-c*chunksize] -gt $[chunksize/3] ]] && ((c++))
+				x=$[x+c]
+			done
+		done
+		chunksize=$[genomesize/t]
+		for l in ${chromosomes[@]}; do
+			chr=${l%.*}
+			l=${l##*.}
+			[[ c=$[l/chunksize] -eq 0 ]] && c=1
+			[[ $[l-c*chunksize] -gt $[chunksize/3] ]] && ((c++))
+			sto=0
+			for i in $(seq 1 $[c-1]); do
+				sta=$[sto+1]
+				sto=$[sta+l/c]
+				regions+=("$chr:$sta-$sto")
+			done
+			sta=$[sto+1]
+			sto=$l
+			regions+=("$chr:$sta-$sto")
+		done
+		break
+	done
+
+	return 0
+}
+
+pipeline::_slicebam() {
+	echo ":INFO: slicing bams"
+	for r in ${mapper[@]}; do
+		declare -n m=$r
+		c=$(samtools idxstats ${m[0]} | grep -Evc '^\*\s+') || return 1
+		break
+	done
+
+	# mapper=[segemehl, star, ...]
+	# segemehl=[1.bam, 2.bam, ...]
+	# star=[1.bam, 2.bam]
+	# declare -n r=${mapper[0]}
+	# -> segemehl
+	# declare -n r=${mapper[0]}[$i]
+	# -> segemehl1=[1.slice1.bam, 1.slice2.bam, ...]
+	# -> segemehl2=[2.slice1.bam, 2.slice2.bam, ...]
+	# ...
+
+	declare -a cmd1=()
+	if [[ $c -gt $memthreads ]]; then
+		for r in ${mapper[@]}; do
+			mkdir -p $tmpdir/$r
+			declare -n m=$r
+			for i in ${!m[@]}; do
+				o=$tmpdir/$r/$(basename ${m[$i]})
+				o=${o%.*}
+				reads=$(samtools idxstats ${m[$i]} | awk '{c=c+$3}END{print c}')
+				t=$memthreads
+				chunksize=$[reads/t]
+				c=$(samtools idxstats ${m[$i]} | perl -lane 'next if $F[0] eq "*"; if($c+$F[2]>'$chunksize'){$o=join" ",@chr; @chr=(); $c=0; if($o){print $o}else{print $F[0]; next}} push @chr,$F[0]; $c+=$F[2]; END{$o2=join" ",@chr; print $o2 unless $o eq $o2}' | wc -l)
+				while [[ $c -gt 0 && $c -gt $memthreads ]]; do
+					((t--))
+					chunksize=$[reads/t]
+					c=$(samtools idxstats $f | perl -lane 'next if $F[0] eq "*"; if($c+$F[2]>'$chunksize'){$o=join" ",@chr; @chr=(); $c=0; if($o){print $o}else{print $F[0]; next}} push @chr,$F[0]; $c+=$F[2]; END{$o2=join" ",@chr; print $o2 unless $o eq $o2}' | wc -l)
+				done
+				IFS=$'\n'
+				j=0
+				for chr in $(samtools idxstats ${m[$i]} | perl -lane 'next if $F[0] eq "*"; if($c+$F[2]>'$chunksize'){$o=join" ",@chr; @chr=(); $c=0; if($o){print $o}else{print $F[0]; next}} push @chr,$F[0]; $c+=$F[2]; END{$o2=join" ",@chr; print $o2 unless $o eq $o2}'); do
+					((j++))
+					cmd1+=("samtools view -@ $threads -b ${m[$i]} $chr > $o.slice$j.bam\0")
+					eval "$r$i+=($o.slice$j.bam)"
+				done
+				unset IFS
+			done
+		done
+	else
+		t=0
+		for r in ${mapper[@]}; do
+			mkdir -p $tmpdir/$r
+			declare -n m=$r
+			for i in ${!m[@]}; do
+				o=$tmpdir/$r/$(basename ${m[$i]})
+				o=${o%.*}
+				j=0
+				for chr in $(samtools view -H ${m[$i]} | grep -Eo '^@SQ\s+SN:\S+' | cut -d ':' -f 2-); do 
+					((j++))
+					cmd1+=("samtools view -@ $threads -b ${m[$i]} $chr > $o.slice$j.bam\0")
+					eval "$r$i+=($o.slice$j.bam)"
+				done
+				t=$[t+j]
+			done
+		done
+		[[ $t -lt $memthreads ]] && memthreads=$t
+	fi
+
+	echo -n ${cmd1[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+	if [[ ! $Sslice ]]; then
+		{	echo -ne ${cmd1[@]} | /usr/bin/time -v xargs -0 -P 1 -I {} bash -c {}
+		} || return 1
+	fi
+
+	return 0
+}
+
+pipeline::removeduplicates() {
+	[[ $normd ]] && return 0
+	if [[ $reslice && ! $Srmd ]]; then 
+		pipeline::_slicebam || return 1
+		reslice=''
+	fi
+	echo ":INFO: removing duplicates"
+
+	jmem=$[memory/memthreads]
+	[[ $jmem -gt $mem ]] && jmem=$mem
+	jgct=$[(3+5*threads/8)/memthreads]
+	[[ $jgct -eq 0 ]] && jgct=1
+	jmgct=$[jgct/4]
+	[[ $jmgct -eq 0 ]] && jmgct=1
+	ulimit -n $(ulimit -Hn)
+	nfh=$[$(ulimit -n)/memthreads]
+	[[ ! $nfh ]] || [[ $nfh -le 1 ]] && nfh=$[1024/memthreads] #sge workaround
+
+	declare -a cmd1=()
+	declare -a cmd2=()
+	declare -a cmd3=()
+	for r in ${mapper[@]}; do
+		declare -n m=$r
+		for i in ${!m[@]}; do
+			declare -n s=$r$i
+			for f in ${s[@]}; do
+				cmd1+=("samtools index $f ${f%.*}.bai\0")
+				cmd2+=("picard -Xmx${jmem}m -XX:ParallelGCThreads=$jgct -XX:ConcGCThreads=$jmgct -Djava.io.tmpdir=$tmpdir MarkDuplicates I=$f O=$f.rmdup M=$f.metrics READ_NAME_REGEX='$regex' REMOVE_DUPLICATES=true ASSUME_SORT_ORDER=coordinate VALIDATION_STRINGENCY=SILENT VERBOSITY=WARNING MAX_FILE_HANDLES=$nfh && mv $f.rmdup $f\0")
+			done
+			m[$i]=${m[$i]%.*}.rmdup.bam
+			cmd3+=("samtools merge -@ $threads -f ${m[$i]} ${s[*]}\0")
+		done
+	done
+
+	echo -n ${cmd1[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+	echo -n ${cmd2[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+	echo -n ${cmd3[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+	if [[ ! $Srmd ]]; then
+		{	echo -ne ${cmd1[@]} | /usr/bin/time -v xargs -0 -P $threads -I {} bash -c {} && \
+			echo -ne ${cmd2[@]} | /usr/bin/time -v xargs -0 -P $memthreads -I {} bash -c {} && \
+			echo -ne ${cmd3[@]} | /usr/bin/time -v xargs -0 -P 1 -I {} bash -c {}
+		} || return 1
+	fi
+
+	return 0
+}
+
+pipeline::bamindex() {
+	echo ":INFO: indexing bam"
+	instances=0
+	for r in ${mapper[@]}; do
+		declare -n m=$r
+		instances=$[instances+${#m[@]}]
+	done
+	[[ thr=$[threads/instances] -eq 0 ]] && thr=1
+
+	cmd=()
+	for r in ${mapper[@]}; do
+		declare -n m=$r
+		for f in ${m[@]}; do
+			cmd+=("samtools index -@ $thr $f ${f%.*}.bai\0")
+		done
+	done
+
+	echo -n ${cmd[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+	if [[ ! $Sidx ]]; then
+		{	echo -ne ${cmd[@]} | /usr/bin/time -v xargs -0 -P $threads -I {} bash -c {}
+		} || return 1
+	fi
+
+	return 0
+}
+
+#######################
+#DEG detection
+#######################
+
+pipeline::_inferstrandness() {
+	echo ":INFO: inferring strand specificity"
+	strandness=()
+	pairedness=()
+	head -4000 $annotation | perl -lane 'next unless $F[2] eq "gene"; print join("\t",($F[0],$F[3],$F[4],$F[1],0,$F[6]))' > $tmpdir/gtf
+	for r in ${mapper[@]}; do
+		declare -n m=$r
+		for f in ${m[@]}; do
+			tmp=$(infer_experiment.py -q 0 -i $f -r $tmpdir/gtf 2>&1 | perl -lane '$p=1 if /This is PairEnd Data/; $s1=$F[-1] if $F[-2]=~/^\"\d?\+\+/; $s2=$F[-1] if $F[-2]=~/^\"\d?\+-/; END{exit 1 unless $s1 && $s2; $p=0 unless $p; print $s1 > 0.7 ? "$p 1" : $s2 > 0.7 ? "$p 2" : "$p 0"}')
+			[[ $? -gt 0 ]] && return 1
+			pairedness+=($(echo $tmp | cut -d ' ' -f 1))
+			strandness+=($(echo $tmp | cut -d ' ' -f 2))
+		done
+		break
+	done
+
+	return 0
+}
+
+pipeline::featurecounts() {
+	[[ $noquant ]] && return 0
+	if [[ ${#strandness[@]} -eq 0 ]]; then
+		pipeline::_inferstrandness || return 1
+	fi
+	echo ":INFO: quantifying gene expression"
+
+	instances=1
+	if [[ thr=$threads -gt 64 ]]; then
+		instances=$[threads/64]
+		thr=$[threads/instances]
+	fi
+
+	cmd1=()
+	cmd2=()
+	for r in ${mapper[@]}; do
+		declare -n m=$r
+		for i in ${!m[@]}; do
+			o=$outdir/counted/$r/$(basename ${m[$i]})
+			o=${o%.*}
+			if [[ ${fastq2[0]} ]] || [[ ${pairedness[$i]} -gt 0 ]]; then
+				cmd1+=("featureCounts -p --minOverlap 10 -s ${strandness[$i]} -T $thr -t exon -g gene_id -a $annotation -o $o.genes ${m[$i]}\0")
+			else 
+				cmd1+=("featureCounts --minOverlap 10 -s ${strandness[$i]} -T $thr -t exon -g gene_id -a $annotation -o $o.genes ${m[$i]}\0")
+			fi
+			cmd2+=("awk 'NR>2{print \$1\"\t\"\$NF}' $o.genes > $o.genes.reduced\0")
+		done
+	done
+
+	echo -n ${cmd1[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+	echo -n ${cmd2[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+	if [[ ! $Scount ]]; then
+		{	mkdir -p $outdir/counted/$r && \
+			conda activate py2r && \
+			echo -ne ${cmd1[@]} | /usr/bin/time -v xargs -0 -P $instances -I {} bash -c {} && \
+			conda activate py2 && \
+			echo -ne ${cmd2[@]} | /usr/bin/time -v xargs -0 -P $threads -I {} bash -c {}
+		} || return 1
+	fi
+
+	return 0
+}
+
+pipeline::tpm() {
+	[[ $noquant ]] && return 0
+	echo ":INFO: calculating tpm values"
+
+	cmd=()
+	for r in ${mapper[@]}; do
+		mkdir -p $outdir/counted/$r
+		declare -n m=$r
+		for i in ${!m[@]}; do
+			o=$outdir/counted/$r/$(basename ${m[$i]})
+			o=${o%.*}.genes.reduced
+			cmd+=("tpm.pl $annotation $o > $o.tpm\0")
+		done
+	done
+	
+	echo -n ${cmd[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+	if [[ ! $Stpm ]]; then
+		{	echo -ne ${cmd[@]} | /usr/bin/time -v xargs -0 -P $threads -I {} bash -c {} && \
+			pipeline::_jointpm
+		} || return 1
+	fi
+
+	return 0
+}
+
+pipeline::_jointpm() {
+	[[ $noquant ]] && return 0
+
+	for r in ${mapper[@]}; do
+		mkdir -p $outdir/counted/$r
+		o=$outdir/counted/$r/experiments
+		header="gene"
+		header2="gene"
+		rm -f $tmpdir/expression $tmpdir/expressionMean
+		skip=()
+		declare -A skip
+		for f in ${comparisons[@]}; do
+			comp=($(cut -d $'\t' -f 2 $f | uniq))
+			for i in ${!comp[@]}; do
+				[[ ${skip[${comp[$i]}]} ]] && continue || skip[${comp[$i]}]=1
+				n=0
+				for t in $(awk -v o=$outdir/counted/$r -v v=$([[ $rmdup ]] && echo '' || echo '-v') '{while(("ls "o"/"$1"*.reduced.tpm | grep "v" -F rmdup" | getline l)){print l}}' <(awk -v i=${comp[$i]} '$2==i' $f | sort -k4,4V)); do
+					header="$header ${comp[$i]}_N$((++n))"
+					sort -k 1,1V $t > $tmpdir/tmp1 || return 1
+					if [[ -s $tmpdir/expression ]]; then
+						join $tmpdir/expression $tmpdir/tmp1 > $tmpdir/tmp2 || return 1
+						mv $tmpdir/tmp2 $tmpdir/expression
+					else
+						mv $tmpdir/tmp1 $tmpdir/expression
+					fi
+				done
+
+				header2="$header2 ${comp[$i]}"
+                cat $(awk -v o=$outdir/counted/$r -v v=$([[ $rmdup ]] && echo '' || echo '-v') '{while(("ls "o"/"$1"*.reduced.tpm | grep "v" -F rmdup" | getline l)){print l}}' <(awk -v i=${comp[$i]} '$2==i' $f | sort -k4,4V)) | perl -M'List::Util qw(sum)' -lane 'push @{$m{$F[0]}}, $F[1]; END{print $_." ".(sum(@{$m{$_}})/($#{$m{$_}}+1)) for keys %m}' | sort -k1,1V > $tmpdir/tmp12
+				if [[ -s $tmpdir/expressionMean ]]; then
+					join $tmpdir/expressionMean $tmpdir/tmp12 > $tmpdir/tmp22 || return 1
+					mv $tmpdir/tmp22 $tmpdir/expressionMean
+				else
+					mv $tmpdir/tmp12 $tmpdir/expressionMean
+				fi
+			done
+		done
+		echo $header | sed -r 's/\s+/\t/g' > $o.tpm
+		echo $header2 | sed -r 's/\s+/\t/g' > $o.mean.tpm
+		sed -r 's/\s+/\t/g' $tmpdir/expression  >> $o.tpm || return 1
+		sed -r 's/\s+/\t/g' $tmpdir/expressionMean  >> $o.mean.tpm || return 1
+	done
+		
+	return 0
+}
+
+pipeline::pca() {
+	[[ $nopca ]] && return 0
+	echo ":INFO: performing pca on all samples"
+
+	cmd=()
+	for r in ${mapper[@]}; do
+		cat ${comparisons[@]} | sort -k2,2V -k4,4V | uniq > $tmpdir/comparisons
+		samples=$(awk -v o=$outdir/counted/$r -v v=$([[ $rmdup ]] && echo '' || echo '-v') '{while(("ls "o"/"$1"*.reduced | grep "v" -F rmdup" | getline l)){print l}}' $tmpdir/comparisons | xargs -echo | sed 's/ /,/g')
+		labels=$(awk '{print $2"_"$4}' $tmpdir/comparisons | xargs -echo | sed 's/ /,/g')
+		replicates=$(awk '{print $4}' $tmpdir/comparisons | xargs -echo | sed 's/ /,/g')
+		conditions=$(awk '{print $2}' $tmpdir/comparisons | xargs -echo | sed 's/ /,/g')
+		patients=$(awk '{print $5}' $tmpdir/comparisons | xargs -echo | sed 's/ /,/g')
+		levels=$(cut -d $'\t' -f 2 $tmpdir/comparisons | uniq | xargs -echo | sed 's/ /,/g')
+		o=$outdir/pca/$r
+		mkdir -p $o
+		#R: ?connections - limited to 128 - 3 from stdout
+		cmd+=("pca.R $[$threads>124?124:$threads] $o $samples $labels $replicates $conditions $levels $patients\0")
+	done
+
+	echo -n ${cmd[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+	if [[ ! $Spca ]]; then
+		{	conda activate py2r && \
+			echo -ne ${cmd[@]} | /usr/bin/time -v xargs -0 -P $[$threads/124==0?1:$threads/124] -I {} bash -c {} && \
+			conda activate py2
+		} || return 1
+	fi
+
+	return 0
+}
+
+pipeline::deseq() {
+	[[ $nodea ]] && return 0
+	echo ":INFO: analyzing differential expression"
+
+	instances=1
+	if [[ thr=$threads -gt 124 ]]; then
+		instances=$[threads/124]
+		thr=$[threads/instances]
+		[[ $thr -gt 124 ]] && thr=124
+	fi
+
+	cmd1=()
+	cmd2=()
+	cmd3=()
+	for r in ${mapper[@]}; do
+		for f in ${comparisons[@]}; do
+			comp=($(cut -d $'\t' -f 2 $f | uniq))
+			for i in $(seq 0 $[${#comp[@]}-2]); do
+				for j in $(seq $[i+1] $[${#comp[@]}-1]); do
+					samples=$(awk -v o=$outdir/counted/$r -v v=$([[ $rmdup ]] && echo '' || echo '-v') '{while(("ls "o"/"$1"*.reduced | grep "v" -F rmdup" | getline l)){print l}}' <(awk -v i=${comp[$i]} '$2==i' $f | sort -k4,4V; awk -v j=${comp[$j]} '$2==j' $f | sort -k4,4V) | xargs -echo | sed 's/ /,/g')
+					labels=$(awk '{print $2"_"$4}' <(awk -v i=${comp[$i]} '$2==i' $f | sort -k4,4V; awk -v j=${comp[$j]} '$2==j' $f | sort -k4,4V) | xargs -echo | sed 's/ /,/g')
+					conditions=$(awk '{print $2}' <(awk -v i=${comp[$i]} '$2==i' $f | sort -k4,4V; awk -v j=${comp[$j]} '$2==j' $f | sort -k4,4V) | xargs -echo | sed 's/ /,/g')
+					patients=$(awk '{print $5}' <(awk -v i=${comp[$i]} '$2==i' $f | sort -k4,4V; awk -v j=${comp[$j]} '$2==j' $f | sort -k4,4V) | xargs -echo | sed 's/ /,/g')
+					levels=${comp[$i]}","${comp[$j]}
+					o=$outdir/deseq/$r/${comp[$i]}_${comp[$j]}
+					mkdir -p $o
+					#R: ?connections - limited to 128 - 3 from stdout
+					cmd1+=("deseq2.R $thr $o $samples $labels $conditions $levels $patients\0")
+					if [[ -e $genome.gtf.info ]]; then
+						cmd2+=("annotate.pl $genome.gtf.info $genome.gtf $o/full.csv \$(ls $o/filtered_*.csv | grep -v annotated.csv) \$(ls $o/heatmap_*.ps | grep -v annotated.ps)\0")
+						cmd3+=("ps2pdf $o/heatmap_counts_vsd.annotated.ps $o/heatmap_counts_vsd.annotated.pdf\0")
+						cmd3+=("ps2pdf $o/heatmap_fc_vsd.annotated.ps $o/heatmap_fc_vsd.annotated.pdf\0")
+					else 
+						cmd2+=("annotate.pl 0 $genome.gtf $o/full.csv \$(ls $o/filtered_*.csv | grep -v annotated.csv) \$(ls $o/heatmap_*.ps | grep -v annotated.ps)\0")
+						cmd3+=("ps2pdf $o/heatmap_counts_vsd.annotated.ps $o/heatmap_counts_vsd.annotated.pdf\0")
+						cmd3+=("ps2pdf $o/heatmap_fc_vsd.annotated.ps $o/heatmap_fc_vsd.annotated.pdf\0")
+					fi
+					cmd3+=("ps2pdf $o/heatmap_counts_vsd.ps $o/heatmap_counts_vsd.pdf\0")
+					cmd3+=("ps2pdf $o/heatmap_fc_vsd.ps $o/heatmap_fc_vsd.pdf\0")
+				done
+			done
+		done
+	done
+
+	#TODO1 clustering time/condition courses
+	#https://github.com/PrincetonUniversity/DP_GP_cluster
+	#http://master.bioconductor.org/packages/release/bioc/html/ctsGE.html
+	#https://cran.r-project.org/web/packages/MBCluster.Seq/
+
+	#TODO2 steve plots for pairwise dges
+
+	echo -n ${cmd1[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+	echo -n ${cmd2[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+	echo -n ${cmd3[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+	if [[ ! $Sdiff ]]; then
+		{	conda activate py2r && \
+			echo -ne ${cmd1[@]} | /usr/bin/time -v xargs -0 -P $instances -I {} bash -c {} && \
+			conda activate py2 && \
+			echo -ne ${cmd2[@]} | /usr/bin/time -v xargs -0 -P $threads -I {} bash -c {} && \
+			echo -ne ${cmd3[@]} | /usr/bin/time -v xargs -0 -P $threads -I {} bash -c {}
+		} || return 1
+	fi
+
+	return 0
+}
+
+pipeline::coexpression() {
+	[[ $noclust ]] && return 0
+	echo ":INFO: clustering courses"
+
+	cmd1=()
+	cmd2=()
+	for r in ${mapper[@]}; do
+		mkdir -p $outdir/coexpressed/$r
+		if [[ $(ls $outdir/deseq/$r/*/full.csv &> /dev/null; echo $?) -eq 0 ]]; then
+		 	rm -f $tmpdir/foldchanges
+		 	declare -A skip
+		 	for f in ${comparisons[@]}; do
+		 		comp=($(cut -d $'\t' -f 2 $f | uniq))
+				for i in $(seq 0 $[${#comp[@]}-2]); do
+					j=$[i+1]
+					[[ ${skip["${comp[$i]}_${comp[$j]}"]} ]] && continue || skip["${comp[$i]}_${comp[$j]}"]=1
+
+					awk -F',' 'NR>1{gsub(/"/,"",$1); gsub(/NA/,0,$2); gsub(/NA/,0,$3); print $1" "$2" "$3" "$7}' $outdir/deseq/$r/${comp[$i]}_${comp[$j]}/full.csv | sort -k1,1V > $tmpdir/tmp1 || return 1
+					if [[ -s $tmpdir/foldchanges ]]; then
+						join $tmpdir/foldchanges $tmpdir/tmp1 > $tmpdir/tmp2 || return 1
+						mv $tmpdir/tmp2 $tmpdir/foldchanges
+					else
+						mv $tmpdir/tmp1 $tmpdir/foldchanges
+					fi
+				done
+		 	done
+
+			perl -lane '
+				$okmean=0;
+				$okfc=0;
+				$okpval=0;
+				my @fc;
+				for (my $i=1; $i<$#F; $i+=3){
+					$okmean=1 if $F[$i] > 0;
+					push @fc, $F[$i+1];
+					$okfc=1 if exists $F[$i+4] && abs(abs($F[$i+1])-abs($F[$i+4]))>0.58;
+					$okpval=1 if $F[$i+2] ne "NA" && $F[$i+2] <= 0.05;
+				}
+				print $F[0] if $okmean+$okfc+$okpval == 3;
+			' $tmpdir/foldchanges | sed -r 's/\s+/\t/g' > $outdir/coexpressed/$r/experiments.filtered.genes
+			
+			cmd1+=("head -1 $outdir/counted/$r/experiments.tpm > $outdir/coexpressed/$r/experiments.filtered.tpm && grep -f $outdir/coexpressed/$r/experiments.filtered.genes $outdir/counted/$r/experiments.tpm >> $outdir/coexpressed/$r/experiments.filtered.tpm\0")
+			cmd1+=("head -1 $outdir/counted/$r/experiments.mean.tpm > $outdir/coexpressed/$r/experiments.filtered.mean.tpm && grep -f $outdir/coexpressed/$r/experiments.filtered.genes $outdir/counted/$r/experiments.mean.tpm >> $outdir/coexpressed/$r/experiments.filtered.mean.tpm\0")
+			cmd2+=("wgcna.R $threads $[$memory/1024/2] FALSE $outdir/coexpressed/$r/experiments.filtered.tpm $outdir/coexpressed/$r/experiments.filtered\0")
+		fi
+
+		cmd1+=("cp $outdir/counted/$r/experiments.tpm $outdir/coexpressed/$r/\0")
+		cmd1+=("cp $outdir/counted/$r/experiments.mean.tpm $outdir/coexpressed/$r/\0")
+		cmd1+=("awk 'NR>1' $outdir/counted/$r/experiments.tpm | cut -f 1 > $outdir/coexpressed/$r/experiments.genes\0")
+		#~10k blocksize returns different results but is 10 times faster
+		#cmd2+=("wgcna.R $threads 6 TRUE $outdir/coexpressed/$r/experiments.tpm $outdir/coexpressed/$r/experiments\0")
+		[[ $allclust ]] && cmd2+=("wgcna.R $threads $[$memory/1024/2] TRUE $outdir/coexpressed/$r/experiments.tpm $outdir/coexpressed/$r/experiments\0")
+
+
+		#cmd+=("DP_GP_cluster -i $o -o $o -t State -p svg pdf --plot\0") 
+		#cmd+=("DP_GP_cluster -i $o -o ${o}_BURNIN -t State -p svg pdf --plot --check_burnin_convergence\0")
+		#cmd+=("DP_GP_cluster -i $o -o ${o}_CONV -t State -p svg pdf --plot --check_burnin_convergence --check_convergence\0")
+		#cmd+=("DP_GP_cluster -i $o -o ${o}_FAST -t State -p svg pdf --plot --fast\0")
+		#cmd+=("DP_GP_cluster -i $o -o ${o}_FAST_BURNIN -t State -p svg pdf --plot --fast --check_burnin_convergence\0")
+		#cmd+=("DP_GP_cluster -i $o -o ${o}_FAST_CONV -t State -p svg pdf --plot --fast --check_burnin_convergence --check_convergence\0")
+		#cmd+=("DP_GP_cluster -i $o -o ${o} -t State -p svg pdf --plot --fast --check_burnin_convergence --check_convergence\0")
+	done
+
+	echo -n ${cmd1[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+	echo -n ${cmd2[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+	if [[ ! $Sclust ]]; then
+		{	echo -ne ${cmd1[@]} | /usr/bin/time -v xargs -0 -P $threads -I {} bash -c {} && \
+			conda activate py2r && \
+			echo -ne ${cmd2[@]} | /usr/bin/time -v xargs -0 -P 1 -I {} bash -c {} && \
+			pipeline::_vizcoexpression && \
+			conda activate py2
+		} || return 1
+	fi
+
+	return 0
+}
+
+pipeline::_vizcoexpression() {
+	cmd=()
+	for r in ${mapper[@]}; do
+		for f in experiments experiments.filtered; do
+			o=$outdir/coexpressed/$r/$f
+			[[ ! -s $o.cluster.tsv ]] && continue
+			rm -f $o.cluster.dge_enrichment
+			head -1 $o.mean.tpm | sed -r "s/(.+)/\1\tID/" > $o.cluster.mean.tpm
+			for i in $(sort -k2,2n $o.cluster.tsv | perl -lane 'BEGIN{$c=-1} unless ($F[1]==$c){close F; $i=("0"x(3-length($F[1]))).$F[1]; open F,">'$o'.cluster.$i.genes" or die $!; $c=$F[1]; print $i} print F $F[0]; END{close F}'); do
+				head -1 $o.mean.tpm > $o.cluster.$i.tpm
+				grep -f $o.cluster.$i.genes $o.mean.tpm | sed -r "s/(.+)/\1\tCluster$i/" > $tmpdir/tmp
+				cat $tmpdir/tmp > $o.cluster.$i.tpm
+				cat $tmpdir/tmp >> $o.cluster.mean.tpm
+				[[ $f == "experiments" ]] && Rscript -e "ALL=scan('$o.genes', character(), quiet=T); A=scan('$o.filtered.genes', character(), quiet=T); B=scan('$o.cluster.$i.genes', character(), quiet=T); overlap=intersect(A,B); cat('cluster.$i',phyper(length(overlap), length(A), length(ALL)-length(A), length(B), lower.tail = F)); cat('\n')" >> $o.cluster.dge_enriched
+				# cmd+=("Rscript -e \"data = read.table('$o.cluster.$i.tpm', header=T, sep='\\\t', row.names=1); data = log((data+1)/rowMeans(data+1)); pdf('$o.cluster.$i.pdf'); plot(1, type='n', xlim=c(1,4), ylim=c(min(data),max(data)), ylab='Mean-relative log TPM', xlab='', xaxt='n'); axis(1, at=c(1:ncol(data)), labels=colnames(data)); apply(data, 1, function(x) lines(c(1:ncol(data)),x,col='grey')); lines(c(1:ncol(data)),colMeans(data),col='blue'); sd = apply(data,2,sd); lines(c(1:ncol(data)),colMeans(data)+sd,col='red'); lines(c(1:ncol(data)),colMeans(data)-sd,col='red'); graphics.off()\"\0")
+				cmd+=("vizco.R $o.cluster.$i.tpm $o.cluster.$i.pdf\0")
+			done
+			cmd+=("vizco.R $o.cluster.mean.tpm $o.cluster.mean.pdf\0")
+		done
+	done
+
+	echo -n ${cmd[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+	echo -ne ${cmd[@]} | /usr/bin/time -v xargs -0 -P $threads -I {} bash -c {} || return 1
+
+	return 0
+}
+
+pipeline::goenrichment() {
+	[[ $nogo ]] && return 0
+	echo ":INFO: calculating go enrichment"
+
+	cmd1=()
+	cmd2=()
+	cmd3=()
+	for r in ${mapper[@]}; do
+		for f in ${comparisons[@]}; do
+			comp=($(cut -d $'\t' -f 2 $f | uniq))
+			for i in $(seq 0 $[${#comp[@]}-2]); do
+				for j in $(seq $[i+1] $[${#comp[@]}-1]); do
+					odir=$outdir/enriched/$r/${comp[$i]}_${comp[$j]}
+					mkdir -p $odir
+					for domain in biological_process cellular_component molecular_function; do
+						o=$odir/$domain
+						grep -F $domain $genome.gtf.go > $tmpdir/go
+						perl -F'\t' -lane 'push @{$m{$F[1]}},$F[0]; END{print join"\t",($_,"dummy.com",@{$m{$_}}) for keys %m}' $tmpdir/go > $o.reference.gmt
+						awk '{print $1}' $tmpdir/go | sort | uniq > $o.reference.txt
+						perl -F',' -lane 'BEGIN{open F,"<'$o'.reference.txt"; while(<F>){chomp; $m{$_}=1;} close F} $F[0]=~s/(^\s*"|"\s*$)//g; next if $F[0] eq "" || abs($F[2])<1 || ! exists $m{$F[0]}; print $F[0]' $outdir/deseq/$r/${comp[$i]}_${comp[$j]}/filtered_padj05.csv > $o.interest.txt
+						cmd1+=("/gsc/biosw/bin/Rscript -e \"library(WebGestaltR); res = WebGestaltR(enrichMethod='ORA', organism='others', enrichDatabase='others', enrichDatabaseFile='$o.reference.gmt', interestGeneFile='$o.interest.txt', referenceGeneFile='$o.reference.txt', minNum=5, maxNum=999999, fdrMethod='BH', sigMethod='top', topThr=999999, dNum=20, is.output=FALSE, methodType='R', dagColor='binary', hostName='http://www.webgestalt.org/'); write.table(res,quote=FALSE,row.names=FALSE,col.names=TRUE,sep='\\\t', file='$o.raw')\"\0")
+						cmd2+=("awk 'NR>1{print \$1\"\\t\"\$7}' $o.raw > $o.full.tsv\0")
+						cmd2+=("awk '\$8<=0.05{print \$1\"\\t\"\$7}' $o.raw > $o.fdr05.tsv\0")
+						cmd2+=("awk '\$7<=0.05{print \$1\"\\t\"\$7}' $o.raw > $o.p05.tsv\0")
+						cmd3+=("[[ ! -s $o.full.tsv ]] && true || revigo.R $o.full.tsv $o.full $domain\0")
+						cmd3+=("[[ ! -s $o.fdr05.tsv ]] && true || revigo.R $o.fdr05.tsv $o.fdr05 $domain\0")
+						cmd3+=("[[ ! -s $o.p05.tsv ]] && true || revigo.R $o.p05.tsv $o.p05 $domain\0")
+					done
+				done
+			done
+		done
+
+		# DP_GP_cluster
+		# [[ ! -s $outdir/coexpressed/$r/expression_optimal_clustering.txt ]] && continue
+		for f in experiments experiments.filtered; do
+			[[ ! -s $outdir/coexpressed/$r/$f.cluster.tsv ]] && continue
+			for i in $(ls $outdir/coexpressed/$r/$f.cluster.*.genes | sed -r 's/.+\.([0-9]+)\.genes$/\1/' | sort -n); do
+				odir=$outdir/enriched/$r/$f.cluster.$i
+				mkdir -p $odir
+				for domain in biological_process cellular_component molecular_function; do
+					o=$odir/$domain
+					grep -F $domain $genome.gtf.go > $tmpdir/go
+					perl -F'\t' -lane 'push @{$m{$F[1]}},$F[0]; END{print join"\t",($_,"dummy.com",@{$m{$_}}) for keys %m}' $tmpdir/go > $o.reference.gmt
+					awk '{print $1}' $tmpdir/go | sort | uniq > $o.reference.txt
+					perl -F',' -lane 'BEGIN{open F,"<'$o'.reference.txt"; while(<F>){chomp; $m{$_}=1;} close F} next unless exists $m{$F[0]}; print $F[0]' $outdir/coexpressed/$r/$f.cluster.$i.genes > $o.interest.txt
+					cmd1+=("/gsc/biosw/bin/Rscript -e \"library(WebGestaltR); res = WebGestaltR(enrichMethod='ORA', organism='others', enrichDatabase='others', enrichDatabaseFile='$o.reference.gmt', interestGeneFile='$o.interest.txt', referenceGeneFile='$o.reference.txt', minNum=5, maxNum=999999, fdrMethod='BH', sigMethod='top', topThr=999999, dNum=20, is.output=FALSE, methodType='R', dagColor='binary', hostName='http://www.webgestalt.org/'); write.table(res,quote=FALSE,row.names=FALSE,col.names=TRUE,sep='\\\t', file='$o.raw')\"\0")
+					cmd2+=("awk 'NR>1{print \$1\"\\t\"\$7}' $o.raw > $o.full.tsv\0")
+					cmd2+=("awk '\$8<=0.05{print \$1\"\\t\"\$7}' $o.raw > $o.fdr05.tsv\0")
+					cmd2+=("awk '\$7<=0.05{print \$1\"\\t\"\$7}' $o.raw > $o.p05.tsv\0")
+					cmd3+=("[[ ! -s $o.full.tsv ]] && true || revigo.R $o.full.tsv $o.full $domain\0")
+					cmd3+=("[[ ! -s $o.fdr05.tsv ]] && true || revigo.R $o.fdr05.tsv $o.fdr05 $domain\0")
+					cmd3+=("[[ ! -s $o.p05.tsv ]] && true || revigo.R $o.p05.tsv $o.p05 $domain\0")
+				done
+			done
+		done
+	done
+
+	echo -n ${cmd1[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+	echo -n ${cmd2[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+	echo -n ${cmd3[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+	#do not run revigo cmds in parallel to avoid random download!
+	if [[ ! $Sgo ]]; then
+		{	conda activate py2r && \
+			curl -s webgestalt.org &> /dev/null || false && \
+			echo -ne ${cmd1[@]} | /usr/bin/time -v xargs -0 -P $threads -I {} bash -c {} && \
+			echo -ne ${cmd2[@]} | /usr/bin/time -v xargs -0 -P $threads -I {} bash -c {} && \
+			curl -s revigo.irb.hr &> /dev/null || false && \
+			echo -ne ${cmd3[@]} | /usr/bin/time -v xargs -0 -P 1 -I {} bash -c {} && \
+			conda activate py2
+		} || return 1
+	fi
+
+	return 0
+}
+
+
+
+#######################
+#Peak detection
+#######################
+
+___template() {
+	[[ $notemplate ]] && return 0
+	echo ":INFO: template"
+# (sequence-)tag means read
+# cutting ends are mate pairs
+# narrowpeak file format
+# 1 chrom - Name of the chromosome (or contig, scaffold, etc.).
+# 2 chromStart - The starting position of the feature in the chromosome or scaffold. The first base in a chromosome is numbered 0.
+# 3 chromEnd - The ending position of the feature in the chromosome or scaffold. The chromEnd base is not included in the display of the feature. For example, the first 100 bases of a chromosome are defined aschromStart=0, chromEnd=100, and span the bases numbered 0-99.
+# 4 name - Name given to a region (preferably unique). Use '.' if no name is assigned.
+# 5 score - Indicates how dark the peak will be displayed in the browser (0-1000). If all scores were '0' when the data were submitted to the DCC, the DCC assigned scores 1-1000 based on signal value. Ideally the average signalValue per base spread is between 100-1000.
+# 6 strand - +/- to denote strand or orientation (whenever applicable). Use '.' if no orientation is assigned.
+# 7 signalValue - Measurement of overall (usually, average) enrichment for the region.
+# 8 pValue - Measurement of statistical significance (-log10). Use -1 if no pValue is assigned.
+# 9 qValue - Measurement of statistical significance using false discovery rate (-log10). Use -1 if no qValue is assigned.
+# 10 peak - Point-source called for this peak; 0-based offset from chromStart. Use -1 if no point-source called.
+
+	cmd1=()
+	cmd2=()
+	cmd3=()
+	for r in ${mapper[@]}; do
+		declare -n m=$r #not necessary here
+		mkdir -p $tmpdir/$r
+		for i in ${!nidx[@]}; do
+			declare -n sn=$r${nidx[$i]}
+			declare -n sp=$r${pidx[$i]}
+			declare -n st=$r${tidx[$i]}
+			declare -n sr=$r${ridx[$i]}
+			
+			op=$outdir/peaks/macs/$(basename ${m[${pidx[$i]}]})
+			op=${op%.*}
+			ot=$outdir/peaks/macs/$(basename ${m[${tidx[$i]}]})
+			ot=${ot%.*}
+			or=$outdir/peaks/macs/$(basename ${m[${ridx[$i]}]})
+			or=${or%.*}.narrowPeak
+			tmp=$tmpdir/$r
+			for i in ${!sn[@]}; do
+				cmd1+=("-t ${sp[$i]} -c ${sn[$i]}\0")
+				cmd1+=("-t ${st[$i]} -c ${sn[$i]}\0")
+				cmd1+=("-t ${sr[$i]} -c ${sn[$i]}\0")
+			done
+			cmd2+=("cat $tmp/$(basename $op)*.narrowPeak > $op.narrowPeak\0")
+			cmd2+=("cat $tmp/$(basename $ot)*.narrowPeak > $ot.narrowPeak\0")
+			cmd2+=("cat $tmp/$(basename $or)*.narrowPeak > $or.narrowPeak\0")
+
+			cmd3+=("idr --samples $ot.narrowPeak $or.narrowPeak --peak-list $op.narrowPeak --input-file-type narrowPeak --output-file $op.idr --rank p.value --soft-idr-threshold 0.05 --plot --use-best-multisummit-IDR\0")
+		done
+	done
+
+	echo -n ${cmd1[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+	echo -n ${cmd2[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+	echo -n ${cmd3[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+
+	if [[ ! $Stemplate ]]; then
+		{	echo -ne ${cmd1[@]} | /usr/bin/time -v xargs -0 -P $threads -I {} bash -c {} && \
+			echo -ne ${cmd2[@]} | /usr/bin/time -v xargs -0 -P $threads -I {} bash -c {} && \
+			conda activate py3 && \
+			echo -ne ${cmd2[@]} | /usr/bin/time -v xargs -0 -P $threads -I {} bash -c {} && \
+			conda activate py2
+		} || return 1
+	fi
+
+	return 0
+}
+
+
+pipeline::macs() {
+	[[ $nomacs ]] && return 0
+	echo ":INFO: peak calling - macs"
+
+	cmd1=()
+	cmd2=()
+	cmd3=()
+	cmd4=()
+	cmd5=()
+	for r in ${mapper[@]}; do
+		declare -n m=$r
+		odir=$outdir/peaks/$r/macs
+		tmp=$tmpdir/$r
+		mkdir -p $odir $tmp
+		for i in ${!nidx[@]}; do
+			op=$(basename ${m[${pidx[$i]}]})
+			op=${op%.*}
+			ot=$(basename ${m[${tidx[$i]}]})
+			ot=${ot%.*}
+			or=$(basename ${m[${ridx[$i]}]})
+			or=${or%.*}
+
+			# TODO
+			# some errors can be avoided by converting BAM to SAM !!!!
+			cmd1+=("macs2 callpeak -t ${m[${pidx[$i]}]} -c ${m[${nidx[$i]}]} -f BAM -g hs --outdir $odir -n $op.model --tempdir $tmp -B --SPMR --keep-dup all -q 0.05 --verbose 1 --mfold 3 500 --bw $fragmentsize\0")
+			cmd1+=("macs2 callpeak -t ${m[${pidx[$i]}]} -c ${m[${nidx[$i]}]} -f BAM -g hs --outdir $odir -n $op.nomodel --tempdir $tmp -B --SPMR --keep-dup all -q 0.05 --verbose 1 --nomodel --shift -30 --extsize $[fragmentsize-30]\0")
+			cmd1+=("macs2 callpeak -t ${m[${tidx[$i]}]} -c ${m[${nidx[$i]}]} -f BAM -g hs --outdir $odir -n $ot.model --tempdir $tmp -B --SPMR --keep-dup all -q 0.05 --verbose 1 --mfold 3 500 --bw $fragmentsize\0")
+			cmd1+=("macs2 callpeak -t ${m[${tidx[$i]}]} -c ${m[${nidx[$i]}]} -f BAM -g hs --outdir $odir -n $ot.nomodel --tempdir $tmp -B --SPMR --keep-dup all -q 0.05 --verbose 1 --nomodel --shift -30 --extsize $[fragmentsize-30]\0")
+			cmd1+=("macs2 callpeak -t ${m[${ridx[$i]}]} -c ${m[${nidx[$i]}]} -f BAM -g hs --outdir $odir -n $or.model --tempdir $tmp -B --SPMR --keep-dup all -q 0.05 --verbose 1 --mfold 3 500 --bw $fragmentsize\0")
+			cmd1+=("macs2 callpeak -t ${m[${ridx[$i]}]} -c ${m[${nidx[$i]}]} -f BAM -g hs --outdir $odir -n $or.nomodel --tempdir $tmp -B --SPMR --keep-dup all -q 0.05 --verbose 1 --nomodel --shift -30 --extsize $[fragmentsize-30]\0")
+
+			#cmd2+=("bedtools intersect -sorted -wao -a $odir/$op.nomodel_peaks.narrowPeak -b $odir/$op.model_peaks.narrowPeak | cut -f 1-10 > $tmp/$op.merged_peaks.narrowPeak\0")
+			#cmd2+=("bedtools intersect -sorted -v -b $odir/$op.nomodel_peaks.narrowPeak -a $odir/$op.model_peaks.narrowPeak >> $tmp/$op.merged_peaks.narrowPeak\0")
+			cmd2+=("cat $odir/$op.nomodel_peaks.narrowPeak <(bedtools intersect -sorted -v -b $odir/$op.nomodel_peaks.narrowPeak -a $odir/$op.model_peaks.narrowPeak) | sort -k1,1V -k2,2n -k3,3n > $odir/$op.merged_peaks.narrowPeak\0")
+
+			#cmd2+=("bedtools intersect -sorted -wao -a $odir/$ot.nomodel_peaks.narrowPeak -b $odir/$ot.model_peaks.narrowPeak | cut -f 1-10 > $tmp/$ot.merged_peaks.narrowPeak\0")
+			#cmd2+=("bedtools intersect -sorted -v -b $odir/$ot.nomodel_peaks.narrowPeak -a $odir/$ot.model_peaks.narrowPeak >> $tmp/$ot.merged_peaks.narrowPeak\0")
+			cmd2+=("cat $odir/$ot.nomodel_peaks.narrowPeak <(bedtools intersect -sorted -v -b $odir/$ot.nomodel_peaks.narrowPeak -a $odir/$ot.model_peaks.narrowPeak) | sort -k1,1V -k2,2n -k3,3n > $odir/$ot.merged_peaks.narrowPeak\0")
+
+			#cmd2+=("bedtools intersect -sorted -wao -a $odir/$or.nomodel_peaks.narrowPeak -b $odir/$or.model_peaks.narrowPeak | cut -f 1-10 > $tmp/$or.merged_peaks.narrowPeak\0")
+			#cmd2+=("bedtools intersect -sorted -v -b $odir/$or.nomodel_peaks.narrowPeak -a $odir/$or.model_peaks.narrowPeak >> $tmp/$or.merged_peaks.narrowPeak\0")
+			cmd2+=("cat $odir/$or.nomodel_peaks.narrowPeak <(bedtools intersect -sorted -v -b $odir/$or.nomodel_peaks.narrowPeak -a $odir/$or.model_peaks.narrowPeak) | sort -k1,1V -k2,2n -k3,3n > $odir/$or.merged_peaks.narrowPeak\0")
+
+			cmd3+=("idr --samples $odir/$ot.model_peaks.narrowPeak $odir/$or.model_peaks.narrowPeak --peak-list $odir/$op.model_peaks.narrowPeak --input-file-type narrowPeak --output-file $tmp/$op.model_peaks.idr --rank p.value --soft-idr-threshold 0.05 --plot --use-best-multisummit-IDR\0")
+			cmd3+=("idr --samples $odir/$ot.nomodel_peaks.narrowPeak $odir/$or.nomodel_peaks.narrowPeak --peak-list $odir/$op.nomodel_peaks.narrowPeak --input-file-type narrowPeak --output-file $tmp/$op.nomodel_peaks.idr --rank p.value --soft-idr-threshold 0.05 --plot --use-best-multisummit-IDR\0")
+			cmd3+=("idr --samples $odir/$ot.merged_peaks.narrowPeak $odir/$or.merged_peaks.narrowPeak --peak-list $odir/$op.merged_peaks.narrowPeak --input-file-type narrowPeak --output-file $tmp/$op.merged_peaks.idr --rank p.value --soft-idr-threshold 0.05 --plot --use-best-multisummit-IDR\0")
+
+			cmd4+=("cut -f 1-10 $tmp/$op.model_peaks.idr | sort -k1,1V -k2,2n -k3,3n | uniq > $odir/$op.model_peaks.idr.narrowPeak\0")
+			cmd4+=("cut -f 1-10 $tmp/$op.nomodel_peaks.idr | sort -k1,1V -k2,2n -k3,3n | uniq > $odir/$op.nomodel_peaks.idr.narrowPeak\0")
+			cmd5+=("cut -f 1-10 $tmp/$op.merged_peaks.idr | sort -k1,1V -k2,2n -k3,3n | uniq > $odir/$op.merged_peaks.idr.narrowPeak\0")
+		done
+	done
+
+	echo -n ${cmd1[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+	echo -n ${cmd2[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+	echo -n ${cmd3[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+	echo -n ${cmd4[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+
+	if [[ ! $Smacs ]]; then
+		{	echo -ne ${cmd1[@]} | /usr/bin/time -v xargs -0 -P $threads -I {} bash -c {} && \
+			echo -ne ${cmd2[@]} | /usr/bin/time -v xargs -0 -P $threads -I {} bash -c {} && \
+			conda activate py3 && \
+			echo -ne ${cmd3[@]} | /usr/bin/time -v xargs -0 -P $threads -I {} bash -c {} && \
+			conda activate py2 && \
+			echo -ne ${cmd4[@]} | /usr/bin/time -v xargs -0 -P $threads -I {} bash -c {}
+		} || return 1
+	fi
+
+	return 0
+}
+
+pipeline::gem() {
+	[[ $nogem ]] && return 0
+	echo ":INFO: peak calling - gem"
+
+	if [[ ! $Sgem ]]; then
+		mkdir -p $tmpdir/genome
+		for r in ${mapper[@]}; do
+			declare -n m=$r
+			samtools view -H ${m[${pidx[0]}]} | sed -rn '/^@SQ/{s/.+\tSN:(\S+)\s+LN:(\S+).*/\1\t\2/p}' > $tmpdir/genome/chr.info
+			break
+		done
+		perl -lane 'if($_=~/^>(\S+)/){close F; open F,">'$tmpdir'/genome/$1.fa"; print F $_;}else{print F $_}; END{close F;}' $genome
+	fi
+
+	jmem=$memory
+	[[ $jmem -gt $mem ]] && jmem=$mem
+	jgct=$[(3+5*threads/8)/instances]
+    [[ $jgct -eq 0 ]] && jgct=1
+    jmgct=$[jgct/4]
+    [[ $jmgct -eq 0 ]] && jmgct=1
+
+	cmd1=()
+	cmd2=()
+	cmd3=()
+	for r in ${mapper[@]}; do
+		declare -n m=$r
+		odir=$outdir/peaks/$r/gem		
+		tmp=$tmpdir/$r/gem
+		for i in ${!nidx[@]}; do
+			op=$(basename ${m[${pidx[$i]}]})
+			op=${op%.*}
+			ot=$(basename ${m[${tidx[$i]}]})
+			ot=${ot%.*}
+			or=$(basename ${m[${ridx[$i]}]})
+			or=${or%.*}
+			
+			mkdir -p $tmp $odir/$op $odir/$ot $odir/$or
+			# --k_min 4 --k_max 13 and replace GPS_events to GEM_events
+			cmd1+=("gem -Xmx${jmem}m -XX:ParallelGCThreads=$jgct -XX:ConcGCThreads=$jmgct -Djava.io.tmpdir=$tmpdir --t $threads --genome $tmpdir/genome --g $tmpdir/genome/chr.info --out $odir/$op --expt ${m[${pidx[$i]}]} --ctrl ${m[${nidx[$i]}]} --f SAM --nrf --d $RIPPCHEN/gem/Read_Distribution_default.txt --s 2400000000 --q $(echo 0.05 | awk '{print -log($1)/log(10)}') --outNP --smooth $[fragmentsize/2] && cp $odir/$op/$op.GPS_events.narrowPeak $odir/$op.narrowPeak\0")
+			cmd1+=("gem -Xmx${jmem}m -XX:ParallelGCThreads=$jgct -XX:ConcGCThreads=$jmgct -Djava.io.tmpdir=$tmpdir --t $threads --genome $tmpdir/genome --g $tmpdir/genome/chr.info --out $odir/$ot --expt ${m[${tidx[$i]}]} --ctrl ${m[${nidx[$i]}]} --f SAM --nrf --d $RIPPCHEN/gem/Read_Distribution_default.txt --s 2400000000 --q $(echo 0.05 | awk '{print -log($1)/log(10)}') --outNP --smooth $[fragmentsize/2] && cp $odir/$ot/$ot.GPS_events.narrowPeak $odir/$ot.narrowPeak\0")
+			cmd1+=("gem -Xmx${jmem}m -XX:ParallelGCThreads=$jgct -XX:ConcGCThreads=$jmgct -Djava.io.tmpdir=$tmpdir --t $threads --genome $tmpdir/genome --g $tmpdir/genome/chr.info --out $odir/$or --expt ${m[${ridx[$i]}]} --ctrl ${m[${nidx[$i]}]} --f SAM --nrf --d $RIPPCHEN/gem/Read_Distribution_default.txt --s 2400000000 --q $(echo 0.05 | awk '{print -log($1)/log(10)}') --outNP --smooth $[fragmentsize/2] && cp $odir/$or/$or.GPS_events.narrowPeak $odir/$or.narrowPeak\0")
+
+			cmd2+=("idr --samples $odir/$ot.narrowPeak $odir/$or.narrowPeak --peak-list $odir/$op.narrowPeak --input-file-type narrowPeak --output-file $tmp/$op.idr --rank p.value --soft-idr-threshold 0.05 --plot --use-best-multisummit-IDR\0")
+
+			cmd3+=("cut -f 1-10 $tmp/$op.idr | sort -k1,1V -k2,2n -k3,3n | uniq > $odir/$op.idr.narrowPeak\0")
+		done
+	done
+
+	echo -n ${cmd1[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+	echo -n ${cmd2[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+	echo -n ${cmd3[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+
+	if [[ ! $Sgem ]]; then
+		{	#echo -ne ${cmd1[@]} | /usr/bin/time -v xargs -0 -P 1 -I {} bash -c {} && \
+			conda activate py3 && \
+			echo -ne ${cmd2[@]} | /usr/bin/time -v xargs -0 -P $threads -I {} bash -c {} && \
+			conda activate py2 && \
+			echo -ne ${cmd3[@]} | /usr/bin/time -v xargs -0 -P $threads -I {} bash -c {}
+		} || return 1
+	fi
+
+	return 0
+}
+
+pipeline::metpeak() {
+	[[ $nometpeak ]] && return 0
+
+	cmd1=()
+	cmd2=()
+	for r in ${mapper[@]}; do
+		declare -n m=$r
+		j=${#m[@]}
+		mkdir -p $tmpdir/$r
+		for i in ${!nidx[@]}; do
+			declare -n sn=$r${nidx[$i]}
+			declare -n sp=$r${pidx[$i]}
+			declare -n st=$r${tidx[$i]}
+			declare -n sr=$r${ridx[$i]}
+			
+			op=$outdir/peaks/macs/$(basename ${m[${pidx[$i]}]})
+			op=${op%.*}
+			ot=$outdir/peaks/macs/$(basename ${m[${tidx[$i]}]})
+			ot=${ot%.*}
+			or=$outdir/peaks/macs/$(basename ${m[${ridx[$i]}]})
+			or=${or%.*}.narrowPeak
+			tmp=$tmpdir/$r
+			for i in ${!sn[@]}; do
+
+				# Rscript -e "library(MeTPeak); metpeak(GENE_ANNO_GTF='$genome.gtf',IP_BAM=c('/misc/paras/data/kons/m6a_MeRIP/results/mapped/segemehl/K002000230_87702_ip_R1.unique.sorted.marked.bam'),INPUT_BAM=c('/misc/paras/data/kons/m6a_MeRIP/results/mapped/segemehl/K002000230_87701_ctr_R1.unique.sorted.marked.bam'), OUTPUT_DIR=c('$outdir/segemehl/metpeak'), EXPERIMENT_NAME='pool', MINIMAL_MAPQ=20, FRAGMENT_LENGTH=150)"
+
+				cmd1+=("Rscript -e \"library(MeTPeak); metpeak(GENE_ANNO_GTF='$genome.gtf',IP_BAM='${sp[$i]}',INPUT_BAM='${sn[$i]}', OUTPUT_DIR='$outdir/mapped/segemehl/metpeak', EXPERIMENT_NAME='$(basename ${sp[$i]} .bam)', MINIMAL_MAPQ=20, FRAGMENT_LENGTH=150)\"\0")
+				cmd1+=("Rscript -e \"library(MeTPeak); metpeak(GENE_ANNO_GTF='$genome.gtf',IP_BAM='${st[$i]}',INPUT_BAM='${sn[$i]}', OUTPUT_DIR='$outdir/mapped/segemehl/metpeak', EXPERIMENT_NAME='$(basename ${st[$i]} .bam)', MINIMAL_MAPQ=20, FRAGMENT_LENGTH=150)\"\0")
+				cmd1+=("Rscript -e \"library(MeTPeak); metpeak(GENE_ANNO_GTF='$genome.gtf',IP_BAM='${sr[$i]}',INPUT_BAM='${sn[$i]}', OUTPUT_DIR='$outdir/mapped/segemehl/metpeak', EXPERIMENT_NAME='$(basename ${sr[$i]} .bam)', MINIMAL_MAPQ=20, FRAGMENT_LENGTH=150)\"\0")
+			done
+			#cmd2
+			#cat $outdir/mapped/segemehl/metpeak/*/peak.bed
+		done
+	done
+	echo ":INFO: peak calling - metpeak"
+
+	echo -n ${cmd1[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+
+	if [[ ! $Smetpeak ]]; then
+		{	conda activate py2r && \
+			echo -ne ${cmd1[@]} | /usr/bin/time -v xargs -0 -P $threads -I {} bash -c {}; true && \
+			conda activate py2
+		} || return 1
+	fi
+
+	return 0
+
+	cat $outdir/*_rep1*/peak.bed | perl -F'\t' -lane 'next if /^\s*#/; @starts=split/,/,$F[-1]; @stops=split/,/,$F[-2]; for (0..$#starts){print join("\t",$F[0],"metpeak","peak",$F[1]+$starts[$_]+1,$F[1]+$starts[$_]+$stops[$_]+1,$F[4],$F[5],".","peak_id \"".$F[3].":".($F[1]+$starts[$_])."-".($F[1]+$starts[$_]+$stops[$_])."\";")}' | sort -k1,1V -k4,4n -k5,5n > rep1.gtf
+	#bed: 0-based, gtf: 1-based -> thus no +1 in id
+
+	featureCounts -f -O --minOverlap 10 -s 2 -T 64 -t peak -g peak_id -a rep1.gtf -o normal_rep1.count ../K002000230_87701_ctr_R1.unique.sorted.marked.bam
+	paste pool.count normal_pool.count | awk -v lt=$(samtools idxstats ../K002000230_87702_ip_R1.unique.sorted.marked.bam | awk '{a=a+$3}END{print a}') -v ln=$(samtools idxstats ../K002000230_87701_ctr_R1.unique.sorted.marked.bam | awk '{a=a+$3}END{print a}') 'NR>2{OFS="\t"; print $1,$7/lt*1000000-$14/ln*1000000}' > pool.enrichment
+
+	bedtools coverage -mean -split -a pool.gtf -b ../K002000230_87701_ctr_R1.unique.sorted.marked.bam | awk '{OFS="\t"; print $(NF-1),$NF}' > pool.count2
+	paste pool.count2 normal_pool.count2 | awk -v lt=$(samtools idxstats ../K002000230_87702_ip_R1.unique.sorted.marked.bam | awk '{a=a+$3}END{print a}') -v ln=$(samtools idxstats ../K002000230_87701_ctr_R1.unique.sorted.marked.bam | awk '{a=a+$3}END{print a}') '{OFS="\t"; print $1,$2/lt*1000000-$4/ln*1000000}' > pool.enrichment2
+	paste pool.count2 normal_pool.count2 | awk -v lt=$(samtools idxstats ../K002000230_87702_ip_R1.unique.sorted.marked.bam | awk '{a=a+$3}END{print a}') -v ln=$(samtools idxstats ../K002000230_87701_ctr_R1.unique.sorted.marked.bam | awk '{a=a+$3}END{print a}') '{OFS="\t"; print $1,$2/((lt+ln)/2)*1000000-$4/((lt+ln)/2)*1000000}' > pool.enrichment3
+	#sometimes metpeak calls non- or negatively enriched regions!!
+
+    paste pool.gtf pool.enrichment pool.enrichment2 pool.enrichment3 | awk '{OFS="\t"; if($12>0){print $1,$4,$5,$11,0,$7,$12,($6=0?999:(-log($6)/log(10))),-1,-1}else{ if($14>0){print $1,$4,$5,$11,0,$7,$14,($6=0?999:(-log($6)/log(10))),-1,-1}else{if($16>0){print $1,$4,$5,$11,0,$7,$16,($6=0?999:(-log($6)/log(10))),-1,-1}}}}' > pool.narrowPeak
+
+
+
+	conda activate py3
+	idr --samples rep1.narrowPeak rep2.narrowPeak --peak-list pool.narrowPeak --input-file-type narrowPeak --output-file $PWD/idr.txt --rank p.value --soft-idr-threshold 0.05 --plot --use-best-multisummit-IDR
+    awk '{OFS="\t"; print $1,$2,$3,$4,$5,$6,$7,$8,$9,$10}' idr.txt | sort -V | uniq > idr.narrowPeak
+    th=$(echo 0.05 | awk '{print -log($1)/log(10)}')
+    awk -v th=$th '$12>=th {OFS="\t"; print $1,$2,$3,$4,$5,$6,$7,$8,$9,$10}' idr.txt | sort -V | uniq > idr.005.narrowPeak
+
+	conda deactivate
+	conda activate py2
+
+}
+
+
+
+TODO_pipeline::m6aviewer() {
+	echo ":WARNING: cannot run m6aviewer - needs GUI"
+
+#possible motifs
+[GA][GA]ACT
+[GA]GAC
+#
+[AGT][AG]C[ACT]
+[AGT][AG]AC[ACT]
+[AGT][AG]AAC[ACT]
+[AGT][AG]AAAC[ACT]
+[GA]GC
+[GA]GAAC
+[GA]GAAAC
+[GA][GA]CT
+[GA][GA]AACT
+[GA][GA]AAACT
+
+
+	awk 'NF>6 && NR>2{OFS="\t"; if(NF==7){print $2,($3-75),($3+75),$2":"($3-75)"-"($3+75),0,($1>0?"+":"-"),$5,($4==0?"999":(-log($4)/log(10))),-1,-1}else{print $3,($4-75),($4+75),$3":"($4-75)"-"($4+75),0,($2>0?"+":"-"),$6,($5==0?"999":(-log($5)/log(10))),-1,-1}}' txt > rep1.narrowPeak
+
+
+	conda activate py3
+	idr --samples rep1.narrowPeak rep2.narrowPeak --peak-list pool.narrowPeak --input-file-type narrowPeak --output-file $PWD/idr.txt --rank signal.value --soft-idr-threshold 0.05 --plot --use-best-multisummit-IDR
+	#signal.value better than p.value
+	awk '{OFS="\t"; print $1,$2,$3,$4,$5,$6,$7,$8,$9,$10}' idr.txt | sort -V | uniq > idr.narrowPeak
+	th=$(echo 0.05 | awk '{print -log($1)/log(10)}')
+	awk -v th=$th '$12>=th {OFS="\t"; print $1,$2,$3,$4,$5,$6,$7,$8,$9,$10}' idr.txt | sort -V | uniq > idr.005.narrowPeak
+
+	conda deactivate
+	conda activate py2
+
+	return 0
+}
+
+TODO_pipeline::zerone() {
+	# test -w 100!
+	$RIPPCHEN/bin/zerone/zerone -w 200 --mock K002000230_87701_ctr_R1.unique.sorted.marked.bam --chip K002000230_87702_ip_R1.unique.sorted.marked.bam > out.txt
+	$RIPPCHEN/bin/zerone/zerone -w 200 --mock K002000230_87701_ctr_R1.unique.sorted.marked.bam --chip K002000230_87702_ip_R1.unique.rippchen_rep1.sorted.marked.bam --chip K002000230_87702_ip_R1.unique.rippchen_rep2.sorted.marked.bam
+
+	awk '!/^#/{OFS="\t"; if($4==1){print $1,$2-1,$3-1,$1":"$2"-"$3,0,".",$NF,-1,-1,-1}}' out.txt > narrowPeak
+
+	conda activate py3
+	idr --samples rep1.narrowPeak rep2.narrowPeak --peak-list pool.narrowPeak --input-file-type narrowPeak --output-file $PWD/idr.txt --rank signal.value --soft-idr-threshold 0.05 --plot --use-best-multisummit-IDR
+	awk '{OFS="\t"; print $1,$2,$3,$4,$5,$6,$7,$8,$9,$10}' idr.txt | sort -V | uniq > idr.narrowPeak
+	th=$(echo 0.05 | awk '{print -log($1)/log(10)}')
+	awk -v th=$th '$12>=th {OFS="\t"; print $1,$2,$3,$4,$5,$6,$7,$8,$9,$10}' idr.txt | sort -V | uniq > idr.005.narrowPeak
+
+	idr --samples rep1.narrowPeak rep2.narrowPeak --peak-list rep12.narrowPeak --input-file-type narrowPeak --output-file $PWD/idr2.txt --rank signal.value --soft-idr-threshold 0.05 --plot --use-best-multisummit-IDR
+	awk '{OFS="\t"; print $1,$2,$3,$4,$5,$6,$7,$8,$9,$10}' idr2.txt | sort -V | uniq > idr2.narrowPeak
+	th=$(echo 0.05 | awk '{print -log($1)/log(10)}')
+	awk -v th=$th '$12>=th {OFS="\t"; print $1,$2,$3,$4,$5,$6,$7,$8,$9,$10}' idr2.txt | sort -V | uniq > idr2.005.narrowPeak
+}
+
+
+###################
+
+pipeline::merge(){
+	bedtools merge -i <(cat rep1_peaks.narrowPeak rep2_peaks.narrowPeak | sort -k1,1 -k2,2n -k3,3n) -c 4 -o distinct -delim ":"
+}
+
+
+########### todo
+# https://bitbucket.org/thashim/fixseq
+
+####################### TODO after IDR regions
+
+
+
+pipeline::TODOquantify() {
+	bedtools slop -i rep1_peaks.narrowPeak -g ../info -s -l 50 -r 50 > rep1_peaks.extended.narrowPeak
+	bedtools slop -i rep2_peaks.narrowPeak -g ../info -s -l 50 -r 50 > rep2_peaks.extended.narrowPeak
+
+	peakgff=()
+
+
+	awk -v n=$(basename $(dirname data.narrowPeak)) '{OFS="\t"; print $1,n,"peak",$2+1,$3+1,".",$6,".","peak_id \""n":"$1":"$2"-"$3"\";"}' data.narrowPeak > data.gtf
+
+	awk '$1~/^chr([0-9]+|M|X|Y)$/{OFS="\t"; print $1,"macs","peak",$2+1,$3+1,".",".",".","peak_id \"macs:"$1":"$2"-"$3"\";"}' data.bed > data.gft
+
+	peakgff+=(data.gff)
+}
+
+pipeline::TODOfeaturecounts() {
+
+	cmd1=()
+	cmd2=()
+	for r in ${mapper[@]}; do
+		declare -n m=$r
+		for i in ${!m[@]}; do
+
+			#for peakgff
+
+			o=$outdir/counted/$r/$(basename ${m[$i]})
+			o=${o%.*}
+			
+			cmd1+=("featureCounts -f -O --minOverlap 10 -s ${strandness[$i]} -T $threads -t peak -g peak_id -a data.gtf -o $o.genes ${m[$i]}\0")
+			
+			cmd2+=("awk 'NR>2{print \$1\"\t\"\$NF}' $o.genes > $o.genes.reduced\0")
+		done
+	done
+
+	conda activate py3
+	echo ":INFO: quantifying gene expression"
+	echo -n ${cmd1[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+	echo -n ${cmd2[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+	if [[ ! $Scount ]]; then
+		{	mkdir -p $outdir/counted/$r && \
+			echo -ne ${cmd1[@]} | /usr/bin/time -v xargs -0 -P 1 -I {} bash -c {} && \
+			echo -ne ${cmd2[@]} | /usr/bin/time -v xargs -0 -P $threads -I {} bash -c {}
+		} || return 1
+	fi
+
+	return 0
+}

@@ -1,0 +1,88 @@
+### ABOUT
+RIPPCHEN are tasty!
+acquire a taste for peak calling from *IP-Seq experiments or for differential gene expression- and ontology analysis from RNA-Seq data
+
+RIPPCHEN comprises
+1) a free implementation of ENCODE best practices for ChIP-Seq analysis
+2) gene expression analysis comprising differential analysis, principal component analysis, time course clustering and go enrichment
+
+
+### REQUIREMENTS
+- Internet access
+- Linux
+- ~10GB disk space for all dependencies and tools going to be installed
+
+### INSTALLATION
+1) create a shell variable RIPPCHEN assigned to an installation directory
+export RIPPCHEN=/path/to/install/dir
+3) store the RIPPCHEN variable permanently to ensure that RIPPCHEN can always find the required tools
+echo "export RIPPCHEN=$RIPPCHEN" >> ~/.bashrc
+4) download the latest RIPPCHEN release from https://github.com/koriege/rippchen
+git clone --recursive https://github.com/koriege/rippchen.git
+5) enter the RIPPCHEN directory 
+cd rippchen
+6) checkout latest stable release
+git checkout $(git describe --tags)
+7) install RIPPCHEN and all necessary tools (will take a while)
+./setup -i all
+
+
+### UPGRADE
+1) follow the INSTALLATION steps 4 to 6
+./setup -i upgrade
+
+
+### DOWNLOAD HG19/GRCh37 or HG38/GRCh38 or MM10/GRCm38 and corresponding files (annotation .gtf, ontology .go, description .info)
+1) follow the INSTALLATION steps 4 to 6
+./dlgenome -g [hg19|hg38|mm10] -o /path/to/genome/dir
+
+
+### FIRST RUN INFO
+- genomes will be indexed for selected mappers
+=> do not run multiple RIPPCHEN instances in parallel unless indexes are created
+- in case indexes are already available 
+=> copy $RIPPCHEN/bin/rippchen/lib/md5s to <genome.fa>.md5s and insert values returned by the command: md5sum <file>
+
+
+### RUN
+1) following the genome DOWNLOAD instruction will solve the following requirements:
+- make sure to have your genome and all related file in the same directory
+- all files need to share a common prefix (e.g. hg19.fa and hg19.fa.gtf)
+- make sure your genome file ends with .fa and your annotation file ends with .fa.gtf
+- make sure your annotation file ends with .fa.gtf and your ontology file ends with .fa.gtf.go
+=> 3 tab-separated column file: gene_id GO_id GO_domain
+- make sure your annotation file ends with .fa.gtf and your description file ends with '.fa.gtf.info'
+=> 3 tab-separated column file: gene_id gene_name gene_description
+
+2) calling for help?
+$RIPPCHEN/bin/rippchen/rippchen -h
+
+3) synopsis
+$RIPPCHEN/bin/rippchen/rippchen -1 R1.fq -2 R2.fq -g genome.fa
+
+
+### LOGS and verbosity
+- a comprehensive log file 'run.log' file will be created in your output directory, unless defined otherwise
+- using the verbose option '-v' will additionally print full log to terminals stdout
+
+
+### RUN IN BACKGROUND
+1) start a screen with a unique name
+screen -S myMUVACrun
+2) run muvac
+3) detach the screen by pressing all 3 keys 'ctrl+a+d'
+4) list screens running in background
+screen -ls
+4) resume a screen 
+screen -r myMUVACrun
+
+
+### REFERENCES
+(c) Konstantin Riege, Jeanne Wilbrand, Arne Sahm
+
+### CONTACT
+konstantin{.}riege{a}uni{-}jena{.}de
+konstantin{a}bioinf{.}uni{-}leipzig{.}de
+konstantin{.}riege{a}leibniz{-}fli{.}de
+
+In case of troubles, don't hesitate to contact me
