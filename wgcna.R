@@ -89,8 +89,5 @@ graphics.off()
 
 save(wgcna_result, file=paste(out, "wgcna.Rdata", sep = "."))
 
-if (filter) {
-    write.table(as.data.frame(wgcna_result$colors, row.names=row.names(tpms)), file=paste(out, 'cluster.tsv', sep = "."), quote=FALSE, sep='\t', col.names = F)
-} else {
-    write.table(as.data.frame(wgcna_result$unmergedColors, row.names=row.names(tpms)), file=paste(out, 'cluster.tsv', sep = "."), quote=FALSE, sep='\t', col.names = F)
-}
+write.table(as.data.frame(wgcna_result$colors, row.names=row.names(tpms)), file=paste(out, 'cluster.tsv', sep = "."), quote=FALSE, sep='\t', col.names = F)
+write.table(as.data.frame(wgcna_result$unmergedColors, row.names=row.names(tpms)), file=paste(out, 'modules.tsv', sep = "."), quote=FALSE, sep='\t', col.names = F)
