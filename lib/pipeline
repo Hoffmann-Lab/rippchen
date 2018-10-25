@@ -1056,19 +1056,21 @@ pipeline::_vizcoexpression() {
 	for r in ${mapper[@]}; do
 		for f in experiments experiments.filtered; do
 			o=$outdir/coexpressed/$r/$f
-			[[ ! -s $o.cluster.tsv ]] && continue
-			rm -f $o.cluster.dge_enrichment
-			head -1 $o.mean.tpm | sed -r "s/(.+)/\1\tID/" > $o.cluster.mean.tpm
-			for i in $(sort -k2,2n $o.cluster.tsv | perl -lane 'BEGIN{$c=-1} unless ($F[1]==$c){close F; $i=("0"x(3-length($F[1]))).$F[1]; open F,">'$o'.cluster.$i.genes" or die $!; $c=$F[1]; print $i} print F $F[0]; END{close F}'); do
-				head -1 $o.cluster.mean.tpm > $o.cluster.$i.tpm
-				grep -f $o.cluster.$i.genes $o.mean.tpm | sed -r "s/(.+)/\1\tCluster$i/" > $tmpdir/tmp
-				cat $tmpdir/tmp >> $o.cluster.$i.tpm
-				cat $tmpdir/tmp >> $o.cluster.mean.tpm
-				[[ $f == "experiments" ]] && Rscript -e "ALL=scan('$o.genes', character(), quiet=T); A=scan('$o.filtered.genes', character(), quiet=T); B=scan('$o.cluster.$i.genes', character(), quiet=T); overlap=intersect(A,B); cat('cluster.$i',phyper(length(overlap), length(A), length(ALL)-length(A), length(B), lower.tail = F)); cat('\n')" >> $o.cluster.dge_enriched
-				# cmd+=("Rscript -e \"data = read.table('$o.cluster.$i.tpm', header=T, sep='\\\t', row.names=1); data = log((data+1)/rowMeans(data+1)); pdf('$o.cluster.$i.pdf'); plot(1, type='n', xlim=c(1,4), ylim=c(min(data),max(data)), ylab='Mean-relative log TPM', xlab='', xaxt='n'); axis(1, at=c(1:ncol(data)), labels=colnames(data)); apply(data, 1, function(x) lines(c(1:ncol(data)),x,col='grey')); lines(c(1:ncol(data)),colMeans(data),col='blue'); sd = apply(data,2,sd); lines(c(1:ncol(data)),colMeans(data)+sd,col='red'); lines(c(1:ncol(data)),colMeans(data)-sd,col='red'); graphics.off()\"\0")
-				cmd+=("vizco.R $o.cluster.$i.tpm $o.cluster.$i.pdf\0")
+			for cm in cluster module; do
+				[[ ! -s $o.$cm.tsv ]] && continue
+				rm -f $o.$cm.dge_enrichment
+				head -1 $o.mean.tpm | sed -r "s/(.+)/\1\tID/" > $o.$cm.mean.tpm
+				for i in $(sort -k2,2n $o.$cm.tsv | perl -lane 'BEGIN{$c=-1} unless ($F[1]==$c){close F; $i=("0"x(3-length($F[1]))).$F[1]; open F,">'$o'.'$cm'.$i.genes" or die $!; $c=$F[1]; print $i} print F $F[0]; END{close F}'); do
+					head -1 $o.$cm.mean.tpm > $o.$cm.$i.tpm
+					grep -f $o.$cm.$i.genes $o.mean.tpm | sed -r "s/(.+)/\1\t$cm$i/" > $tmpdir/tmp
+					cat $tmpdir/tmp >> $o.$cm.$i.tpm
+					cat $tmpdir/tmp >> $o.$cm.mean.tpm
+					[[ $f == "experiments" ]] && Rscript -e "ALL=scan('$o.genes', character(), quiet=T); A=scan('$o.filtered.genes', character(), quiet=T); B=scan('$o.$cm.$i.genes', character(), quiet=T); overlap=intersect(A,B); cat('cluster.$i',phyper(length(overlap), length(A), length(ALL)-length(A), length(B), lower.tail = F)); cat('\n')" >> $o.$cm.dge_enriched
+					# cmd+=("Rscript -e \"data = read.table('$o.cluster.$i.tpm', header=T, sep='\\\t', row.names=1); data = log((data+1)/rowMeans(data+1)); pdf('$o.cluster.$i.pdf'); plot(1, type='n', xlim=c(1,4), ylim=c(min(data),max(data)), ylab='Mean-relative log TPM', xlab='', xaxt='n'); axis(1, at=c(1:ncol(data)), labels=colnames(data)); apply(data, 1, function(x) lines(c(1:ncol(data)),x,col='grey')); lines(c(1:ncol(data)),colMeans(data),col='blue'); sd = apply(data,2,sd); lines(c(1:ncol(data)),colMeans(data)+sd,col='red'); lines(c(1:ncol(data)),colMeans(data)-sd,col='red'); graphics.off()\"\0")
+					cmd+=("vizco.R $o.$cm.$i.tpm $o.$cm.$i.pdf\0")
+				done
+				cmd+=("vizco.R $o.$cm.mean.tpm $o.$cm.mean.pdf\0")
 			done
-			cmd+=("vizco.R $o.cluster.mean.tpm $o.cluster.mean.pdf\0")
 		done
 	done
 
@@ -1113,23 +1115,25 @@ pipeline::goenrichment() {
 		# DP_GP_cluster
 		# [[ ! -s $outdir/coexpressed/$r/expression_optimal_clustering.txt ]] && continue
 		for f in experiments experiments.filtered; do
-			[[ ! -s $outdir/coexpressed/$r/$f.cluster.tsv ]] && continue
-			for i in $(ls $outdir/coexpressed/$r/$f.cluster.*.genes | sed -r 's/.+\.([0-9]+)\.genes$/\1/' | sort -n); do
-				odir=$outdir/enriched/$r/$f.cluster.$i
-				mkdir -p $odir
-				for domain in biological_process cellular_component molecular_function; do
-					o=$odir/$domain
-					grep -F $domain $genome.gtf.go > $tmpdir/go
-					perl -F'\t' -lane 'push @{$m{$F[1]}},$F[0]; END{print join"\t",($_,"dummy.com",@{$m{$_}}) for keys %m}' $tmpdir/go > $o.reference.gmt
-					awk '{print $1}' $tmpdir/go | sort | uniq > $o.reference.txt
-					perl -F',' -lane 'BEGIN{open F,"<'$o'.reference.txt"; while(<F>){chomp; $m{$_}=1;} close F} next unless exists $m{$F[0]}; print $F[0]' $outdir/coexpressed/$r/$f.cluster.$i.genes > $o.interest.txt
-					cmd1+=("Rscript -e \"library(WebGestaltR); res = WebGestaltR(enrichMethod='ORA', organism='others', enrichDatabase='others', enrichDatabaseFile='$o.reference.gmt', interestGeneFile='$o.interest.txt', referenceGeneFile='$o.reference.txt', minNum=5, maxNum=999999, fdrMethod='BH', sigMethod='top', topThr=999999, dNum=20, is.output=FALSE, methodType='R', dagColor='binary', hostName='http://www.webgestalt.org/'); write.table(res,quote=FALSE,row.names=FALSE,col.names=TRUE,sep='\\\t', file='$o.raw')\"\0")
-					cmd2+=("awk 'NR>1{print \$1\"\\t\"\$7}' $o.raw > $o.full.tsv\0")
-					cmd2+=("awk '\$8<=0.05{print \$1\"\\t\"\$7}' $o.raw > $o.fdr05.tsv\0")
-					cmd2+=("awk '\$7<=0.05{print \$1\"\\t\"\$7}' $o.raw > $o.p05.tsv\0")
-					cmd3+=("[[ ! -s $o.full.tsv ]] && true || revigo.R $o.full.tsv $o.full $domain\0")
-					cmd3+=("[[ ! -s $o.fdr05.tsv ]] && true || revigo.R $o.fdr05.tsv $o.fdr05 $domain\0")
-					cmd3+=("[[ ! -s $o.p05.tsv ]] && true || revigo.R $o.p05.tsv $o.p05 $domain\0")
+			for cm in cluster module; do
+				[[ ! -s $outdir/coexpressed/$r/$f.$cm.tsv ]] && continue
+				for i in $(ls $outdir/coexpressed/$r/$f.$cm.*.genes | sed -r 's/.+\.([0-9]+)\.genes$/\1/' | sort -n); do
+					odir=$outdir/enriched/$r/$f.$cm.$i
+					mkdir -p $odir
+					for domain in biological_process cellular_component molecular_function; do
+						o=$odir/$domain
+						grep -F $domain $genome.gtf.go > $tmpdir/go
+						perl -F'\t' -lane 'push @{$m{$F[1]}},$F[0]; END{print join"\t",($_,"dummy.com",@{$m{$_}}) for keys %m}' $tmpdir/go > $o.reference.gmt
+						awk '{print $1}' $tmpdir/go | sort | uniq > $o.reference.txt
+						perl -F',' -lane 'BEGIN{open F,"<'$o'.reference.txt"; while(<F>){chomp; $m{$_}=1;} close F} next unless exists $m{$F[0]}; print $F[0]' $outdir/coexpressed/$r/$f.$cm.$i.genes > $o.interest.txt
+						cmd1+=("Rscript -e \"library(WebGestaltR); res = WebGestaltR(enrichMethod='ORA', organism='others', enrichDatabase='others', enrichDatabaseFile='$o.reference.gmt', interestGeneFile='$o.interest.txt', referenceGeneFile='$o.reference.txt', minNum=5, maxNum=999999, fdrMethod='BH', sigMethod='top', topThr=999999, dNum=20, is.output=FALSE, methodType='R', dagColor='binary', hostName='http://www.webgestalt.org/'); write.table(res,quote=FALSE,row.names=FALSE,col.names=TRUE,sep='\\\t', file='$o.raw')\"\0")
+						cmd2+=("awk 'NR>1{print \$1\"\\t\"\$7}' $o.raw > $o.full.tsv\0")
+						cmd2+=("awk '\$8<=0.05{print \$1\"\\t\"\$7}' $o.raw > $o.fdr05.tsv\0")
+						cmd2+=("awk '\$7<=0.05{print \$1\"\\t\"\$7}' $o.raw > $o.p05.tsv\0")
+						cmd3+=("[[ ! -s $o.full.tsv ]] && true || revigo.R $o.full.tsv $o.full $domain\0")
+						cmd3+=("[[ ! -s $o.fdr05.tsv ]] && true || revigo.R $o.fdr05.tsv $o.fdr05 $domain\0")
+						cmd3+=("[[ ! -s $o.p05.tsv ]] && true || revigo.R $o.p05.tsv $o.p05 $domain\0")
+					done
 				done
 			done
 		done
