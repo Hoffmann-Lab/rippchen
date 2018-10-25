@@ -1042,7 +1042,7 @@ pipeline::coexpression() {
 	if [[ ! $Sclust ]]; then
 		{	echo -ne ${cmd1[@]} | /usr/bin/time -v xargs -0 -P $threads -I {} bash -c {} && \
 			conda activate py2r && \
-			#echo -ne ${cmd2[@]} | /usr/bin/time -v xargs -0 -P 1 -I {} bash -c {} && \
+			echo -ne ${cmd2[@]} | /usr/bin/time -v xargs -0 -P 1 -I {} bash -c {} && \
 			pipeline::_vizcoexpression && \
 			conda activate py2
 		} || return 1
@@ -1098,7 +1098,7 @@ pipeline::goenrichment() {
 						perl -F'\t' -lane 'push @{$m{$F[1]}},$F[0]; END{print join"\t",($_,"dummy.com",@{$m{$_}}) for keys %m}' $tmpdir/go > $o.reference.gmt
 						awk '{print $1}' $tmpdir/go | sort | uniq > $o.reference.txt
 						perl -F',' -lane 'BEGIN{open F,"<'$o'.reference.txt"; while(<F>){chomp; $m{$_}=1;} close F} $F[0]=~s/(^\s*"|"\s*$)//g; next if $F[0] eq "" || abs($F[2])<1 || ! exists $m{$F[0]}; print $F[0]' $outdir/deseq/$r/${comp[$i]}_${comp[$j]}/filtered_padj05.csv > $o.interest.txt
-						cmd1+=("/gsc/biosw/bin/Rscript -e \"library(WebGestaltR); res = WebGestaltR(enrichMethod='ORA', organism='others', enrichDatabase='others', enrichDatabaseFile='$o.reference.gmt', interestGeneFile='$o.interest.txt', referenceGeneFile='$o.reference.txt', minNum=5, maxNum=999999, fdrMethod='BH', sigMethod='top', topThr=999999, dNum=20, is.output=FALSE, methodType='R', dagColor='binary', hostName='http://www.webgestalt.org/'); write.table(res,quote=FALSE,row.names=FALSE,col.names=TRUE,sep='\\\t', file='$o.raw')\"\0")
+						cmd1+=("Rscript -e \"library(WebGestaltR); res = WebGestaltR(enrichMethod='ORA', organism='others', enrichDatabase='others', enrichDatabaseFile='$o.reference.gmt', interestGeneFile='$o.interest.txt', referenceGeneFile='$o.reference.txt', minNum=5, maxNum=999999, fdrMethod='BH', sigMethod='top', topThr=999999, dNum=20, is.output=FALSE, methodType='R', dagColor='binary', hostName='http://www.webgestalt.org/'); write.table(res,quote=FALSE,row.names=FALSE,col.names=TRUE,sep='\\\t', file='$o.raw')\"\0")
 						cmd2+=("awk 'NR>1{print \$1\"\\t\"\$7}' $o.raw > $o.full.tsv\0")
 						cmd2+=("awk '\$8<=0.05{print \$1\"\\t\"\$7}' $o.raw > $o.fdr05.tsv\0")
 						cmd2+=("awk '\$7<=0.05{print \$1\"\\t\"\$7}' $o.raw > $o.p05.tsv\0")
@@ -1123,7 +1123,7 @@ pipeline::goenrichment() {
 					perl -F'\t' -lane 'push @{$m{$F[1]}},$F[0]; END{print join"\t",($_,"dummy.com",@{$m{$_}}) for keys %m}' $tmpdir/go > $o.reference.gmt
 					awk '{print $1}' $tmpdir/go | sort | uniq > $o.reference.txt
 					perl -F',' -lane 'BEGIN{open F,"<'$o'.reference.txt"; while(<F>){chomp; $m{$_}=1;} close F} next unless exists $m{$F[0]}; print $F[0]' $outdir/coexpressed/$r/$f.cluster.$i.genes > $o.interest.txt
-					cmd1+=("/gsc/biosw/bin/Rscript -e \"library(WebGestaltR); res = WebGestaltR(enrichMethod='ORA', organism='others', enrichDatabase='others', enrichDatabaseFile='$o.reference.gmt', interestGeneFile='$o.interest.txt', referenceGeneFile='$o.reference.txt', minNum=5, maxNum=999999, fdrMethod='BH', sigMethod='top', topThr=999999, dNum=20, is.output=FALSE, methodType='R', dagColor='binary', hostName='http://www.webgestalt.org/'); write.table(res,quote=FALSE,row.names=FALSE,col.names=TRUE,sep='\\\t', file='$o.raw')\"\0")
+					cmd1+=("Rscript -e \"library(WebGestaltR); res = WebGestaltR(enrichMethod='ORA', organism='others', enrichDatabase='others', enrichDatabaseFile='$o.reference.gmt', interestGeneFile='$o.interest.txt', referenceGeneFile='$o.reference.txt', minNum=5, maxNum=999999, fdrMethod='BH', sigMethod='top', topThr=999999, dNum=20, is.output=FALSE, methodType='R', dagColor='binary', hostName='http://www.webgestalt.org/'); write.table(res,quote=FALSE,row.names=FALSE,col.names=TRUE,sep='\\\t', file='$o.raw')\"\0")
 					cmd2+=("awk 'NR>1{print \$1\"\\t\"\$7}' $o.raw > $o.full.tsv\0")
 					cmd2+=("awk '\$8<=0.05{print \$1\"\\t\"\$7}' $o.raw > $o.fdr05.tsv\0")
 					cmd2+=("awk '\$7<=0.05{print \$1\"\\t\"\$7}' $o.raw > $o.p05.tsv\0")
