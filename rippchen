@@ -95,7 +95,8 @@ DIFF GENE EXPR ANALYSIS OPTIONS
                                       1 - dUTP ++,-+ (FR stranded)
                                       2 - dUTP +-,++ (FR, reversely stranded)
 -no-pca  | --no-pca                 : disables pca plots
--no-dea  | --no-diffexanalysis      : disables pca plots, differential feature analysis (gene and/or peak) and course clustering
+-no-dea  | --no-diffexanalysis      : disables differential expression analysis (gene and/or peak) and course clustering
+-no-iso  | --no-isoformanalysis     : disables differential isoform analysis
 -no-clust| --no-clustering          : disables feature co-expression clustering for experiments defined via -c
 -allclust| --allclustering          : enable additional co-expression clustering using all features
                                       - default: foldchange difference > 1 filtered features of adjacent experiments (chronological order as defined via -c)
@@ -111,7 +112,7 @@ GENERAL PIPELINE OPTIONS
 -no-sege | --no-segemehl            : disables mapping by Segemehl
 -no-star | --no-star                : disables mapping by STAR
 -no-rmd  | --no-removeduplicates    : disables removing duplicates - highly recommended for DGE analysis
--no-quant| --no-quantification      : disables read quantification
+-no-quant| --no-quantification      : disables read quantification, differential expression and isoform analysis
 
 
 MISC OPTIONS
@@ -157,8 +158,10 @@ DEVELOPER OPTIONS
 -Smet   : skip peak calling by metpeak
 -Scount : skip read quantification
 -Stpm   : skip TPM calculation
+-Sjtpm  : skip TPM concatenation
 -Spca   : skip pca on all samples
 -Sdiff  : skip differential expression analysis
+-Siso   : skip differential isoform analysis
 -Sclust : skip co expression clustering
 -Sgo    : skip go enrichment
 EOF
@@ -194,9 +197,10 @@ checkopt (){
 	-no-gem  | --no-gem) nogem=1; return 0;;
 	-no-mpeak| --no-metpeak) nometpeak=1; return 0;;
 
-	-no-quant| --no-quantification) noquant=1; nodea=1; return 0;;
+	-no-quant| --no-quantification) noquant=1; nodea=1; noiso=1; noclust=1; nogo=1; return 0;;
 	-no-pca  | --no-pca) nopca=1; return 0;;
 	-no-dea  | --no-diffexanalysis) nodea=1; return 0;;
+	-no-iso  | --no-isoformanalysis) noiso=1; return 0;;
 	-no-clust| --no-clustering) noclust=1; return 0;;
 	-allclust| --allclustering) allclust=1; return 0;;
 	-no-go   | --no-geneontology) nogo=1; return 0;;
@@ -222,8 +226,10 @@ checkopt (){
 
 	-Scount) Scount=1; return 0;;
 	-Stpm) Stpm=1; return 0;;
+	-Sjtpm) Sjtpm=1; return 0;;
 	-Spca) Spca=1; return 0;;
 	-Sdiff) Sdiff=1; return 0;;
+	-Siso) Siso=1; return 0;;
 	-Sclust) Sclust=1; return 0;;
 	-Sgo) Sgo=1; return 0;;
 
@@ -269,9 +275,11 @@ run() {
 	export PATH=$(readlink -e $insdir/bin/* | xargs -echo | sed 's/ /:/g'):$PATH
 	export MALLOC_ARENA_MAX=4
 	
+	source $insdir/bin/rippchen/lib/pipeline
+
 	[[ ! -e $genome.md5s ]] && cp $insdir/bin/rippchen/lib/md5s $genome.md5s
 	source $genome.md5s
-	source $insdir/bin/rippchen/lib/pipeline
+	[[ $Smd5 ]] && thismd5genome=$md5genome || thismd5genome=$(md5sum $genome | cut -d ' ' -f 1)
 
 	{	pipeline::fastqc && \
 		pipeline::cutadapt && \
@@ -279,22 +287,20 @@ run() {
 		pipeline::rcorrector && \
 		pipeline::sortmerna
 	} || return 1 
-	
-	[[ ! $Smd5 ]] && thismd5genome=$(md5sum $genome | cut -d ' ' -f 1)
+
 	mapper=()
 	{	pipeline::segemehl && \
 		pipeline::star
 	} || return 1
-	[[ ! $Smd5 ]] && [[ $thismd5genome ]] &&  sed -i "s/md5genome=.*/md5genome=$thismd5genome/" $genome.md5s
-	[[ ! $Smd5 ]] && [[ $thismd5gtf ]] && sed -i "s/md5gtf=.*/md5gtf=$thismd5gtf/" $genome.md5s
+
+	[[ ! $Smd5 ]] && sed -i "s/md5genome=.*/md5genome=$thismd5genome/" $genome.md5s
 
 	reslice=1
 	{	pipeline::makereplicates && \
 		pipeline::sortsambam && \
-		pipeline::bamindex && \
 		pipeline::mappingstats && \
 		pipeline::removeduplicates && \
-		pipeline::bamindex
+		pipeline::indexbam
 	} || return 1
 		
 	if [[ $tfq1 ]]; then
@@ -307,9 +313,12 @@ run() {
 		pipeline::tpm
 	} || return 1
 
+	jointpm=1
 	if [[ $comparisons ]]; then
-		{	pipeline::pca && \
+		{	pipeline::jointpm && \
+			pipeline::pca && \
 			pipeline::deseq && \
+			pipeline::dexseq && \
 			pipeline::coexpression && \
 			pipeline::goenrichment
 		} || return 1

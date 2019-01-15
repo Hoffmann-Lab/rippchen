@@ -215,7 +215,7 @@ pipeline::sortmerna() {
 			cmd3+=("mergefq -t $threads -u 2 -i $o1.rRNA.${fqextension[$i]} -z -o $o2.rRNA.${fqextension[$i]}.gz\0")
 
 			fastq1[$i]=$o1.${fqextension[$i]}.gz
-			fastq2[$i]=$o1.${fqextension[$i]}.gz
+			fastq2[$i]=$o2.${fqextension[$i]}.gz
 			fqextractcmd[$i]="gzip -cd"
 		done
 		thr=1
@@ -257,13 +257,13 @@ pipeline::segemehl() {
 	[[ ! ${fastq1[0]} ]] || [[ $nosege ]] && return 0
 	echo ":INFO: mapping - segemehl"
 
-	if [[ ! $Smd5 ]] && [[ ! $Ssege ]]; then
+	if [[ ! $Ssege ]]; then
 		echo ":INFO: checking segemehl index md5sum"
-		thismd5segemehl=$(md5sum $genome.segemehl.idx 2> /dev/null | cut -d ' ' -f 1)
-		if [[ ! $thismd5segemehl ]] || [[ $thismd5genome != $md5genome ]] || [[ $thismd5segemehl != $md5segemehl ]]; then
+		[[ $Smd5 ]] && thismd5segemehl=$md5segemehl || thismd5segemehl=$(md5sum $genome.segemehl.idx 2> /dev/null | cut -d ' ' -f 1)
+		if [[ ! -s $genome.segemehl.idx ]] || [[ $thismd5genome != $md5genome ]] || [[ $thismd5segemehl != $md5segemehl ]]; then
 			echo ":INFO: indexing genome for segemehl"
 			echo ":CMD: segemehl.x -x $genome.segemehl.idx -d $genome"
-			/usr/bin/time -v segemehl.x -x $genome.segemehl.idx -d $genome || return 1		
+			/usr/bin/time -v segemehl -x $genome.segemehl.idx -d $genome || return 1		
 			thismd5segemehl=$(md5sum $genome.segemehl.idx | cut -d ' ' -f 1)
 			sed -i "s/md5segemehl=.*/md5segemehl=$thismd5segemehl/" $genome.md5s
 			echo ":INFO: indexing genome for segemehl finished"
@@ -315,15 +315,15 @@ pipeline::star() {
 	echo ":INFO: mapping - star"
 
 	idxdir=$genome-staridx
-	if [[ ! $Smd5 ]] && [[ ! $Sstar ]]; then
+	if [[ ! $Sstar ]]; then
 		mkdir -p $idxdir
 		echo ":INFO: checking star index md5sum"
-		thismd5star=$(md5sum $idxdir/SA 2> /dev/null | cut -d ' ' -f 1)
-		[[ $annotation ]] && thismd5gtf=$(md5sum $annotation 2> /dev/null | cut -d ' ' -f 1)
-		if [[ ! $thismd5star ]] || [[ $thismd5genome != $md5genome ]] || [[ $thismd5star != $md5star ]] || ([[ $thismd5gtf ]] && [[ $thismd5gtf != $md5gtf ]]); then
+		[[ $Smd5 ]] && thismd5star=$md5star || thismd5star=$(md5sum $idxdir/SA 2> /dev/null | cut -d ' ' -f 1)
+		[[ -s $genome.gtf ]] && thismd5gtf=$(md5sum $genome.gtf 2> /dev/null | cut -d ' ' -f 1)
+		if [[ ! -s $idxdir/SA ]] || [[ $thismd5genome != $md5genome ]] || [[ $thismd5star != $md5star ]] || ([[ -n $thismd5gtf ]] && [[ $thismd5gtf != $md5gtf ]]); then
 			echo ":INFO: indexing genome for star"
 			starcmd="STAR --runThreadN $threads --runMode genomeGenerate --genomeDir $idxdir --sjdbOverhang 100 --genomeFastaFiles $genome"
-			[[ $annotation ]] && starcmd="$starcmd --sjdbGTFfile $annotation"
+			[[ -n $thismd5gtf ]] && starcmd="$starcmd --sjdbGTFfile $genome.gtf"
 			genomesize=$(du -sb $genome | cut -f 1)
 			[[ $(echo $genomesize | awk '{printf("%d",$1/1024/1024)'}) -lt 10 ]] && starcmd="$starcmd --genomeSAindexNbases "$(echo $genomesize | perl -M'use List::Util qw(min)' -lane 'printf("%d",min(14, log($_)/2 - 1))')
 			genomeseqs=$(grep -c '^>' $genome)
@@ -332,6 +332,7 @@ pipeline::star() {
 			/usr/bin/time -v $starcmd || return 1
 			thismd5star=$(md5sum $idxdir/SA | cut -d ' ' -f 1)
 			sed -i "s/md5star=.*/md5star=$thismd5star/" $genome.md5s
+			[[ -n $thismd5gtf ]] && sed -i "s/md5gtf=.*/md5gtf=$thismd5gtf/" $genome.md5s
 			echo ":INFO: indexing genome for star finished"
 		fi
 	fi
@@ -379,12 +380,16 @@ pipeline::star() {
 
 pipeline::makereplicates() {
 	[[ $norepl ]] && return 0
+	[[ ${#ridx[@]} -gt 0 ]] && echo ":INFO: generating pools" || echo ":INFO: generating pseudo-replicates"
+
+	# if [[ ! $Srep ]]; then
+	# 	pipeline::_indexbam || return 1
+	# fi
 
 	cmd1=()
 	cmd2=()
 	cmd3=()
 	if [[ ${#ridx[@]} -gt 0 ]]; then # pool replicates: m[N1 N2 T1 T2 R1 R2] -> m[N1 N2 T1 T2 R1 R2 P1 P2]
-		echo ":INFO: generating pools"
 		for r in ${mapper[@]}; do
 			declare -n m=$r
 			j=$[${#m[@]}-1]
@@ -404,7 +409,6 @@ pipeline::makereplicates() {
 
 		thr=1
 	else # make pseudo-replicates from pseudo-pool: # m[N1 N2 P1 P2] -> m[N1 N2 P1 P2 T1 R1 T2 R2]
-		echo ":INFO: generating pseudo-replicates"
 		instances=0
 		for r in ${mapper[@]}; do
 			declare -n m=$r
@@ -529,10 +533,7 @@ pipeline::mappingstats() {
 			o=$outdir/statistics/$fname.bam.txt
 			[[ ! $Sstats ]] && rm -f $o
 			
-			for f in $(ls $fdir/$fname*.bai | grep -v readgrouped); do
-				echo $f;
-				f=${f%.*}.bam
-				[[ ! -e $f ]] && continue
+			for f in $(find $fdir -type f -name "$fname*.bam" | grep -v readgrouped); do
 				cmd1+=("tac <(tac <(LC_ALL=C samtools view $f | perl -M'List::Util qw(sum)' -F'\\\t' -lane '@x=\$F[5]=~/(\d+N)/g; \$s{\$#x+2}++; END{print \$_.\" \".\$s{\$_} for sort {\$a<=>\$b} keys %s}'); echo -e '$(basename $f)\t$r splits:\n') >> $o\0")
 				cmd2+=("tac <(tac <(samtools flagstat -@ $threads $f); echo -e '$(basename $f)\t$r mappings:\n') >> $o\0")
 			done
@@ -596,11 +597,6 @@ pipeline::_regionsperthread() {
 
 pipeline::_slicebam() {
 	echo ":INFO: slicing bams"
-	for r in ${mapper[@]}; do
-		declare -n m=$r
-		c=$(samtools idxstats ${m[0]} | grep -Evc '^\*\s+') || return 1
-		break
-	done
 
 	# mapper=[segemehl, star, ...]
 	# segemehl=[1.bam, 2.bam, ...]
@@ -612,28 +608,46 @@ pipeline::_slicebam() {
 	# -> segemehl2=[2.slice1.bam, 2.slice2.bam, ...]
 	# ...
 
-	declare -a cmd1=()
+	for r in ${mapper[@]}; do
+		declare -n m=$r
+		c=$(samtools idxstats ${m[0]} | grep -Evc '^\*\s+') || return 1
+		break
+	done
+
+	declare -a cmd=()
 	if [[ $c -gt $memthreads ]]; then
 		for r in ${mapper[@]}; do
 			mkdir -p $tmpdir/$r
 			declare -n m=$r
-			for i in ${!m[@]}; do
+			for i in $(seq 0 $[${#m[@]}-1]); do
 				o=$tmpdir/$r/$(basename ${m[$i]})
 				o=${o%.*}
 				reads=$(samtools idxstats ${m[$i]} | awk '{c=c+$3}END{print c}')
-				t=$memthreads
-				chunksize=$[reads/t]
-				c=$(samtools idxstats ${m[$i]} | perl -lane 'next if $F[0] eq "*"; if($c+$F[2]>'$chunksize'){$o=join" ",@chr; @chr=(); $c=0; if($o){print $o}else{print $F[0]; next}} push @chr,$F[0]; $c+=$F[2]; END{$o2=join" ",@chr; print $o2 unless $o eq $o2}' | wc -l)
-				while [[ $c -gt 0 && $c -gt $memthreads ]]; do
-					((t--))
-					chunksize=$[reads/t]
-					c=$(samtools idxstats $f | perl -lane 'next if $F[0] eq "*"; if($c+$F[2]>'$chunksize'){$o=join" ",@chr; @chr=(); $c=0; if($o){print $o}else{print $F[0]; next}} push @chr,$F[0]; $c+=$F[2]; END{$o2=join" ",@chr; print $o2 unless $o eq $o2}' | wc -l)
-				done
-				IFS=$'\n'
+				chunksize=$[reads/memthreads]
 				j=0
-				for chr in $(samtools idxstats ${m[$i]} | perl -lane 'next if $F[0] eq "*"; if($c+$F[2]>'$chunksize'){$o=join" ",@chr; @chr=(); $c=0; if($o){print $o}else{print $F[0]; next}} push @chr,$F[0]; $c+=$F[2]; END{$o2=join" ",@chr; print $o2 unless $o eq $o2}'); do
+				IFS=$'\n'
+				for chr in $(samtools idxstats $m | perl -lane '
+						next if $F[0] eq "*"; 
+						push @r,[$F[0],$F[2]];
+						END{
+							$c=0;
+							$x=0;
+							while($#r > -1){
+								if ($c > '$chunksize' && $x < '$memthreads'){
+									$o[$x++]=join " ",@chr;
+									$c=0;
+									@chr=();
+								}
+								$a = shift @r;
+								push @chr, $$a[0];
+								$c+=$$a[1];
+							}
+							$o[$x] .= join " ",@chr;
+							print $_ for @o;
+						}
+					'); do
 					((j++))
-					cmd1+=("samtools view -@ $threads -b ${m[$i]} $chr > $o.slice$j.bam\0")
+					cmd+=("samtools view -@ $threads -b ${m[$i]} $chr > $o.slice$j.bam\0")
 					eval "$r$i+=($o.slice$j.bam)"
 				done
 				unset IFS
@@ -644,13 +658,13 @@ pipeline::_slicebam() {
 		for r in ${mapper[@]}; do
 			mkdir -p $tmpdir/$r
 			declare -n m=$r
-			for i in ${!m[@]}; do
+			for i in $(seq 0 $[${#m[@]}-1]); do
 				o=$tmpdir/$r/$(basename ${m[$i]})
 				o=${o%.*}
 				j=0
 				for chr in $(samtools view -H ${m[$i]} | grep -Eo '^@SQ\s+SN:\S+' | cut -d ':' -f 2-); do 
 					((j++))
-					cmd1+=("samtools view -@ $threads -b ${m[$i]} $chr > $o.slice$j.bam\0")
+					cmd+=("samtools view -@ $threads -b ${m[$i]} $chr > $o.slice$j.bam\0")
 					eval "$r$i+=($o.slice$j.bam)"
 				done
 				t=$[t+j]
@@ -659,9 +673,10 @@ pipeline::_slicebam() {
 		[[ $t -lt $memthreads ]] && memthreads=$t
 	fi
 
-	echo -n ${cmd1[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+	echo -n ${cmd[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
 	if [[ ! $Sslice ]]; then
-		{	echo -ne ${cmd1[@]} | /usr/bin/time -v xargs -0 -P 1 -I {} bash -c {}
+		{	echo -ne ${cmd[@]} | /usr/bin/time -v xargs -0 -P 1 -I {} bash -c {} && \
+			reslice=''
 		} || return 1
 	fi
 
@@ -670,11 +685,14 @@ pipeline::_slicebam() {
 
 pipeline::removeduplicates() {
 	[[ $normd ]] && return 0
-	if [[ $reslice && ! $Srmd ]]; then 
-		pipeline::_slicebam || return 1
-		reslice=''
-	fi
 	echo ":INFO: removing duplicates"
+
+	if [[ ! $Srmd ]]; then
+		pipeline::_indexbam || return 1
+		if [[ $reslice ]]; then
+			pipeline::_slicebam || return 1
+		fi
+	fi
 
 	jmem=$[memory/memthreads]
 	[[ $jmem -gt $mem ]] && jmem=$mem
@@ -715,8 +733,7 @@ pipeline::removeduplicates() {
 	return 0
 }
 
-pipeline::bamindex() {
-	echo ":INFO: indexing bam"
+pipeline::_indexbam() {
 	instances=0
 	for r in ${mapper[@]}; do
 		declare -n m=$r
@@ -724,7 +741,7 @@ pipeline::bamindex() {
 	done
 	[[ thr=$[threads/instances] -eq 0 ]] && thr=1
 
-	cmd=()
+	declare -a cmd=()
 	for r in ${mapper[@]}; do
 		declare -n m=$r
 		for f in ${m[@]}; do
@@ -737,6 +754,14 @@ pipeline::bamindex() {
 		{	echo -ne ${cmd[@]} | /usr/bin/time -v xargs -0 -P $threads -I {} bash -c {}
 		} || return 1
 	fi
+
+	return 0
+}
+
+pipeline::indexbam() {
+	echo ":INFO: indexing bam"
+
+	pipeline::_indexbam || return 1
 
 	return 0
 }
@@ -777,6 +802,18 @@ pipeline::featurecounts() {
 		thr=$[threads/instances]
 	fi
 
+	if [[ ! $Scount ]]; then
+		[[ -s $genome.gtf ]] && thismd5gtf=$(md5sum $genome.gtf 2> /dev/null | cut -d ' ' -f 1)
+		if ([[ -n $thismd5gtf ]] && [[ $thismd5gtf != $md5gtf ]]) || [[ ! -s $genome.exons.gtf ]] || [[ ! -s $genome.exons.gff ]]; then
+			echo ":INFO: preparing exon annotation"
+			echo "dexseq_prepare_annotation.py -r no $genome.gtf $genome.exons.gff"
+			/usr/bin/time -v dexseq_prepare_annotation.py -r no $genome.gtf $genome.exons.gff || return 1
+			perl -F'\t' -lane 'next unless $F[2] eq "exonic_part"; $F[2]="exon"; $F[-1]=~s/transcripts/transcript_id/; $F[-1]=~/gene_id\s+\"(.+?)\"/; $id=$1; $F[-1]=~/exonic_part_number\s+\"(.+?)\"/; $F[-1]="exon_id \"$id:E$1\""; print join("\t",@F)' $genome.exons.gff > $genome.exons.gtf || return 1
+			[[ -n $thismd5gtf ]] && sed -i "s/md5gtf=.*/md5gtf=$thismd5gtf/" $genome.md5s
+			echo ":INFO: preparing exon annotation finished"
+		fi
+	fi
+
 	cmd1=()
 	cmd2=()
 	for r in ${mapper[@]}; do
@@ -786,10 +823,13 @@ pipeline::featurecounts() {
 			o=${o%.*}
 			if [[ ${fastq2[0]} ]] || [[ ${pairedness[$i]} -gt 0 ]]; then
 				cmd1+=("featureCounts -p --minOverlap 10 -s ${strandness[$i]} -T $thr -t exon -g gene_id -a $annotation -o $o.genes ${m[$i]}\0")
+				cmd1+=("featureCounts --minOverlap 10 -s ${strandness[$i]} -p -f -O -T $thr -t exon -g exon_id -a $genome.exons.gtf -o $o.exons $f\0")
 			else 
 				cmd1+=("featureCounts --minOverlap 10 -s ${strandness[$i]} -T $thr -t exon -g gene_id -a $annotation -o $o.genes ${m[$i]}\0")
+				cmd1+=("featureCounts --minOverlap 10 -s ${strandness[$i]} -f -O -T $thr -t exon -g exon_id -a $genome.exons.gtf -o $o.exons $f\0")
 			fi
 			cmd2+=("awk 'NR>2{print \$1\"\t\"\$NF}' $o.genes > $o.genes.reduced\0")
+			cmd2+=("awk 'NR>2{print \$1\"\t\"\$NF}' $o.exons > $o.exons.reduced\0")
 		done
 	done
 
@@ -824,8 +864,7 @@ pipeline::tpm() {
 	
 	echo -n ${cmd[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
 	if [[ ! $Stpm ]]; then
-		{	echo -ne ${cmd[@]} | /usr/bin/time -v xargs -0 -P $threads -I {} bash -c {} && \
-			pipeline::_jointpm
+		{	echo -ne ${cmd[@]} | /usr/bin/time -v xargs -0 -P $threads -I {} bash -c {}
 		} || return 1
 	fi
 
@@ -833,7 +872,7 @@ pipeline::tpm() {
 }
 
 pipeline::_jointpm() {
-	[[ $noquant ]] && return 0
+	[[ $Sjtpm ]] && return 0
 
 	for r in ${mapper[@]}; do
 		mkdir -p $outdir/counted/$r
@@ -848,7 +887,7 @@ pipeline::_jointpm() {
 			for i in ${!comp[@]}; do
 				[[ ${skip[${comp[$i]}]} ]] && continue || skip[${comp[$i]}]=1
 				n=0
-				for t in $(awk -v o=$outdir/counted/$r -v v=$([[ $rmdup ]] && echo '' || echo '-v') '{while(("ls "o"/"$1"*.reduced.tpm | grep "v" -F rmdup" | getline l)){print l}}' <(awk -v i=${comp[$i]} '$2==i' $f | sort -k4,4V)); do
+				for t in $(awk -v o=$outdir/counted/$r -v v=$([[ $rmdup ]] && echo '' || echo '-v') '{while(("ls "o"/"$1"*.genes.reduced.tpm | grep "v" -F rmdup" | getline l)){print l}}' <(awk -v i=${comp[$i]} '$2==i' $f | sort -k4,4V)); do
 					header="$header ${comp[$i]}_N$((++n))"
 					sort -k 1,1V $t > $tmpdir/tmp1 || return 1
 					if [[ -s $tmpdir/expression ]]; then
@@ -860,7 +899,7 @@ pipeline::_jointpm() {
 				done
 
 				header2="$header2 ${comp[$i]}"
-                cat $(awk -v o=$outdir/counted/$r -v v=$([[ $rmdup ]] && echo '' || echo '-v') '{while(("ls "o"/"$1"*.reduced.tpm | grep "v" -F rmdup" | getline l)){print l}}' <(awk -v i=${comp[$i]} '$2==i' $f | sort -k4,4V)) | perl -M'List::Util qw(sum)' -lane 'push @{$m{$F[0]}}, $F[1]; END{print $_." ".(sum(@{$m{$_}})/($#{$m{$_}}+1)) for keys %m}' | sort -k1,1V > $tmpdir/tmp12
+				cat $(awk -v o=$outdir/counted/$r -v v=$([[ $rmdup ]] && echo '' || echo '-v') '{while(("ls "o"/"$1"*.genes.reduced.tpm | grep "v" -F rmdup" | getline l)){print l}}' <(awk -v i=${comp[$i]} '$2==i' $f | sort -k4,4V)) | perl -M'List::Util qw(sum)' -lane 'push @{$m{$F[0]}}, $F[1]; END{print $_." ".(sum(@{$m{$_}})/($#{$m{$_}}+1)) for keys %m}' | sort -k1,1V > $tmpdir/tmp12
 				if [[ -s $tmpdir/expressionMean ]]; then
 					join $tmpdir/expressionMean $tmpdir/tmp12 > $tmpdir/tmp22 || return 1
 					mv $tmpdir/tmp22 $tmpdir/expressionMean
@@ -874,7 +913,18 @@ pipeline::_jointpm() {
 		sed -r 's/\s+/\t/g' $tmpdir/expression  >> $o.tpm || return 1
 		sed -r 's/\s+/\t/g' $tmpdir/expressionMean  >> $o.mean.tpm || return 1
 	done
-		
+
+	jointpm=''
+
+	return 0
+}
+
+pipeline::jointpm() {
+	[[ $noquant ]] && return 0
+	echo ":INFO: concatenating tpm values"
+
+	pipeline::_jointpm || return 1
+
 	return 0
 }
 
@@ -885,7 +935,7 @@ pipeline::pca() {
 	cmd=()
 	for r in ${mapper[@]}; do
 		cat ${comparisons[@]} | sort -k2,2V -k4,4V | uniq > $tmpdir/comparisons
-		samples=$(awk -v o=$outdir/counted/$r -v v=$([[ $rmdup ]] && echo '' || echo '-v') '{while(("ls "o"/"$1"*.reduced | grep "v" -F rmdup" | getline l)){print l}}' $tmpdir/comparisons | xargs -echo | sed 's/ /,/g')
+		samples=$(awk -v o=$outdir/counted/$r -v v=$([[ $rmdup ]] && echo '' || echo '-v') '{while(("ls "o"/"$1"*.genes.reduced | grep "v" -F rmdup" | getline l)){print l}}' $tmpdir/comparisons | xargs -echo | sed 's/ /,/g')
 		labels=$(awk '{print $2"_"$4}' $tmpdir/comparisons | xargs -echo | sed 's/ /,/g')
 		replicates=$(awk '{print $4}' $tmpdir/comparisons | xargs -echo | sed 's/ /,/g')
 		conditions=$(awk '{print $2}' $tmpdir/comparisons | xargs -echo | sed 's/ /,/g')
@@ -927,7 +977,7 @@ pipeline::deseq() {
 			comp=($(cut -d $'\t' -f 2 $f | uniq))
 			for i in $(seq 0 $[${#comp[@]}-2]); do
 				for j in $(seq $[i+1] $[${#comp[@]}-1]); do
-					samples=$(awk -v o=$outdir/counted/$r -v v=$([[ $rmdup ]] && echo '' || echo '-v') '{while(("ls "o"/"$1"*.reduced | grep "v" -F rmdup" | getline l)){print l}}' <(awk -v i=${comp[$i]} '$2==i' $f | sort -k4,4V; awk -v j=${comp[$j]} '$2==j' $f | sort -k4,4V) | xargs -echo | sed 's/ /,/g')
+					samples=$(awk -v o=$outdir/counted/$r -v v=$([[ $rmdup ]] && echo '' || echo '-v') '{while(("ls "o"/"$1"*.genes.reduced | grep "v" -F rmdup" | getline l)){print l}}' <(awk -v i=${comp[$i]} '$2==i' $f | sort -k4,4V; awk -v j=${comp[$j]} '$2==j' $f | sort -k4,4V) | xargs -echo | sed 's/ /,/g')
 					labels=$(awk '{print $2"_"$4}' <(awk -v i=${comp[$i]} '$2==i' $f | sort -k4,4V; awk -v j=${comp[$j]} '$2==j' $f | sort -k4,4V) | xargs -echo | sed 's/ /,/g')
 					conditions=$(awk '{print $2}' <(awk -v i=${comp[$i]} '$2==i' $f | sort -k4,4V; awk -v j=${comp[$j]} '$2==j' $f | sort -k4,4V) | xargs -echo | sed 's/ /,/g')
 					patients=$(awk '{print $5}' <(awk -v i=${comp[$i]} '$2==i' $f | sort -k4,4V; awk -v j=${comp[$j]} '$2==j' $f | sort -k4,4V) | xargs -echo | sed 's/ /,/g')
@@ -937,11 +987,11 @@ pipeline::deseq() {
 					#R: ?connections - limited to 128 - 3 from stdout
 					cmd1+=("deseq2.R $thr $o $samples $labels $conditions $levels $patients\0")
 					if [[ -e $genome.gtf.info ]]; then
-						cmd2+=("annotate.pl $genome.gtf.info $genome.gtf $o/full.csv \$(ls $o/filtered_*.csv | grep -v annotated.csv) \$(ls $o/heatmap_*.ps | grep -v annotated.ps)\0")
+						cmd2+=("annotate.pl $genome.gtf.info $genome.gtf \$(ls $o/*.csv | grep -v annotated) \$(ls $o/*.ps | grep -v annotated)\0")
 						cmd3+=("ps2pdf $o/heatmap_counts_vsd.annotated.ps $o/heatmap_counts_vsd.annotated.pdf\0")
 						cmd3+=("ps2pdf $o/heatmap_fc_vsd.annotated.ps $o/heatmap_fc_vsd.annotated.pdf\0")
 					else 
-						cmd2+=("annotate.pl 0 $genome.gtf $o/full.csv \$(ls $o/filtered_*.csv | grep -v annotated.csv) \$(ls $o/heatmap_*.ps | grep -v annotated.ps)\0")
+						cmd2+=("annotate.pl 0 $genome.gtf \$(ls $o/*.csv | grep -v annotated) \$(ls $o/*.ps | grep -v annotated)\0")
 						cmd3+=("ps2pdf $o/heatmap_counts_vsd.annotated.ps $o/heatmap_counts_vsd.annotated.pdf\0")
 						cmd3+=("ps2pdf $o/heatmap_fc_vsd.annotated.ps $o/heatmap_fc_vsd.annotated.pdf\0")
 					fi
@@ -974,9 +1024,71 @@ pipeline::deseq() {
 	return 0
 }
 
+pipeline::dexseq () {
+	[[ $noiso ]] && return 0
+	echo ":INFO: analyzing differential isoforms"
+	
+	instances=1
+	if [[ thr=$threads -gt 124 ]]; then
+		instances=$[threads/124]
+		thr=$[threads/instances]
+		[[ $thr -gt 124 ]] && thr=124
+	fi
+
+	cmd1=()
+	cmd2=()
+	cmd3=()
+	cmd4=()
+	for r in ${mapper[@]}; do
+		for f in ${comparisons[@]}; do
+			comp=($(cut -d $'\t' -f 2 $f | uniq))
+			for i in $(seq 0 $[${#comp[@]}-2]); do
+				for j in $(seq $[i+1] $[${#comp[@]}-1]); do
+					samples=$(awk -v o=$outdir/counted/$r -v v=$([[ $rmdup ]] && echo '' || echo '-v') '{while(("ls "o"/"$1"*.exons.reduced | grep "v" -F rmdup" | getline l)){print l}}' <(awk -v i=${comp[$i]} '$2==i' $f | sort -k4,4V; awk -v j=${comp[$j]} '$2==j' $f | sort -k4,4V) | xargs -echo | sed 's/ /,/g')
+					labels=$(awk '{print $2"_"$4}' <(awk -v i=${comp[$i]} '$2==i' $f | sort -k4,4V; awk -v j=${comp[$j]} '$2==j' $f | sort -k4,4V) | xargs -echo | sed 's/ /,/g')
+					conditions=$(awk '{print $2}' <(awk -v i=${comp[$i]} '$2==i' $f | sort -k4,4V; awk -v j=${comp[$j]} '$2==j' $f | sort -k4,4V) | xargs -echo | sed 's/ /,/g')
+					libtypes=$(awk '{print $3}' <(awk -v i=${comp[$i]} '$2==i' $f | sort -k4,4V; awk -v j=${comp[$j]} '$2==j' $f | sort -k4,4V) | xargs -echo | sed 's/ /,/g')
+					o=$outdir/dexseq/$r/${comp[$i]}_${comp[$j]}
+					mkdir -p $o
+					cmd1+=("dexseq.R $thr $o $samples $labels $conditions $libtypes $genome.exons.gff\0")
+					cmd2+=("awk -F ',' 'BEGIN{OFS=\",\"}{a=$1; $1=$2; $2=a; print}' $o/full.csv > $tmpdir/tmp && mv $tmpdir/tmp $o/full.csv")
+					cmd2+=("awk -F ',' 'BEGIN{OFS=\",\"}{a=$1; $1=$2; $2=a; print}' $o/filtered_padj01.csv > $tmpdir/tmp && mv $tmpdir/tmp $o/filtered_padj01.csv")
+					cmd2+=("awk -F ',' 'BEGIN{OFS=\",\"}{a=$1; $1=$2; $2=a; print}' $o/filtered_padj05.csv > $tmpdir/tmp && mv $tmpdir/tmp $o/filtered_padj05.csv")
+					cmd2+=("awk -F ',' 'BEGIN{OFS=\",\"}{a=$1; $1=$2; $2=a; print}' $o/filtered_padjNA.csv > $tmpdir/tmp && mv $tmpdir/tmp $o/filtered_padjNA.csv")
+					if [[ -e $genome.gtf.info ]]; then
+						cmd3+=("annotate.pl $genome.gtf.info $genome.gtf \$(ls $o/*.csv | grep -v annotated) \$(ls $o/genes/*.ps | grep -v annotated)\0")
+					else 
+						cmd3+=("annotate.pl 0 $genome.gtf \$(ls $o/*.csv | grep -v annotated) \$(ls $o/genes/*.ps | grep -v annotated)\0")
+					fi
+					cmd4+=("find $o/genes/ -type f -name '*.ps' -exec bash -c 'echo ps2pdf {} $(basename {} .csv).pdf' \; | xargs -P $threads -I cmd bash -c cmd \0")
+				done
+			done
+		done
+	done
+
+	echo -n ${cmd[@]} | sed 's/\\0\s*/\n/g'
+	if [[ $Siso -eq 0 ]]; then
+		{	conda activate py2r && \
+			echo -ne ${cmd1[@]} | /usr/bin/time -v xargs -0 -P 1 -I {} bash -c {} && \
+			conda activate py2 && \
+			echo -ne ${cmd2[@]} | /usr/bin/time -v xargs -0 -P $threads -I {} bash -c {} && \
+			echo -ne ${cmd3[@]} | /usr/bin/time -v xargs -0 -P $threads -I {} bash -c {} && \
+			echo -ne ${cmd4[@]} | /usr/bin/time -v xargs -0 -P 1 -I {} bash -c {} && \
+		} || return 1
+	fi
+
+	return 0
+}
+
 pipeline::coexpression() {
 	[[ $noclust ]] && return 0
 	echo ":INFO: clustering courses"
+
+	if [[ ! $Sclust ]]; then
+		if [[ $jointpm ]]; then
+			pipeline::_jointpm || return 1
+		fi
+	fi
 
 	cmd1=()
 	cmd2=()
@@ -1056,21 +1168,19 @@ pipeline::_vizcoexpression() {
 	for r in ${mapper[@]}; do
 		for f in experiments experiments.filtered; do
 			o=$outdir/coexpressed/$r/$f
-			for cm in cluster module; do
-				[[ ! -s $o.$cm.tsv ]] && continue
-				rm -f $o.$cm.dge_enrichment
-				head -1 $o.mean.tpm | sed -r "s/(.+)/\1\tID/" > $o.$cm.mean.tpm
-				for i in $(sort -k2,2n $o.$cm.tsv | perl -lane 'BEGIN{$c=-1} unless ($F[1]==$c){close F; $i=("0"x(3-length($F[1]))).$F[1]; open F,">'$o'.'$cm'.$i.genes" or die $!; $c=$F[1]; print $i} print F $F[0]; END{close F}'); do
-					head -1 $o.$cm.mean.tpm > $o.$cm.$i.tpm
-					grep -f $o.$cm.$i.genes $o.mean.tpm | sed -r "s/(.+)/\1\t$cm$i/" > $tmpdir/tmp
-					cat $tmpdir/tmp >> $o.$cm.$i.tpm
-					cat $tmpdir/tmp >> $o.$cm.mean.tpm
-					[[ $f == "experiments" ]] && Rscript -e "ALL=scan('$o.genes', character(), quiet=T); A=scan('$o.filtered.genes', character(), quiet=T); B=scan('$o.$cm.$i.genes', character(), quiet=T); overlap=intersect(A,B); cat('cluster.$i',phyper(length(overlap), length(A), length(ALL)-length(A), length(B), lower.tail = F)); cat('\n')" >> $o.$cm.dge_enriched
-					# cmd+=("Rscript -e \"data = read.table('$o.cluster.$i.tpm', header=T, sep='\\\t', row.names=1); data = log((data+1)/rowMeans(data+1)); pdf('$o.cluster.$i.pdf'); plot(1, type='n', xlim=c(1,4), ylim=c(min(data),max(data)), ylab='Mean-relative log TPM', xlab='', xaxt='n'); axis(1, at=c(1:ncol(data)), labels=colnames(data)); apply(data, 1, function(x) lines(c(1:ncol(data)),x,col='grey')); lines(c(1:ncol(data)),colMeans(data),col='blue'); sd = apply(data,2,sd); lines(c(1:ncol(data)),colMeans(data)+sd,col='red'); lines(c(1:ncol(data)),colMeans(data)-sd,col='red'); graphics.off()\"\0")
-					cmd+=("vizco.R $o.$cm.$i.tpm $o.$cm.$i.pdf\0")
-				done
-				cmd+=("vizco.R $o.$cm.mean.tpm $o.$cm.mean.pdf\0")
+			[[ ! -s $o.cluster.tsv ]] && continue
+			rm -f $o.cluster.dge_enrichment
+			head -1 $o.mean.tpm | sed -r "s/(.+)/\1\tID/" > $o.cluster.mean.tpm
+			for i in $(sort -k2,2n $o.cluster.tsv | perl -lane 'BEGIN{$c=-1} unless ($F[1]==$c){close F; $i=("0"x(3-length($F[1]))).$F[1]; open F,">'$o'.cluster.$i.genes" or die $!; $c=$F[1]; print $i} print F $F[0]; END{close F}'); do
+				head -1 $o.cluster.mean.tpm > $o.cluster.$i.tpm
+				grep -f $o.cluster.$i.genes $o.mean.tpm | sed -r "s/(.+)/\1\tCluster$i/" > $tmpdir/tmp
+				cat $tmpdir/tmp >> $o.cluster.$i.tpm
+				cat $tmpdir/tmp >> $o.cluster.mean.tpm
+				[[ $f == "experiments" ]] && Rscript -e "ALL=scan('$o.genes', character(), quiet=T); A=scan('$o.filtered.genes', character(), quiet=T); B=scan('$o.cluster.$i.genes', character(), quiet=T); overlap=intersect(A,B); cat('cluster.$i',phyper(length(overlap), length(A), length(ALL)-length(A), length(B), lower.tail = F)); cat('\n')" >> $o.cluster.dge_enriched
+				# cmd+=("Rscript -e \"data = read.table('$o.cluster.$i.tpm', header=T, sep='\\\t', row.names=1); data = log((data+1)/rowMeans(data+1)); pdf('$o.cluster.$i.pdf'); plot(1, type='n', xlim=c(1,4), ylim=c(min(data),max(data)), ylab='Mean-relative log TPM', xlab='', xaxt='n'); axis(1, at=c(1:ncol(data)), labels=colnames(data)); apply(data, 1, function(x) lines(c(1:ncol(data)),x,col='grey')); lines(c(1:ncol(data)),colMeans(data),col='blue'); sd = apply(data,2,sd); lines(c(1:ncol(data)),colMeans(data)+sd,col='red'); lines(c(1:ncol(data)),colMeans(data)-sd,col='red'); graphics.off()\"\0")
+				cmd+=("vizco.R $o.cluster.$i.tpm $o.cluster.$i.pdf\0")
 			done
+			cmd+=("vizco.R $o.cluster.mean.tpm $o.cluster.mean.pdf\0")
 		done
 	done
 
@@ -1115,25 +1225,23 @@ pipeline::goenrichment() {
 		# DP_GP_cluster
 		# [[ ! -s $outdir/coexpressed/$r/expression_optimal_clustering.txt ]] && continue
 		for f in experiments experiments.filtered; do
-			for cm in cluster module; do
-				[[ ! -s $outdir/coexpressed/$r/$f.$cm.tsv ]] && continue
-				for i in $(ls $outdir/coexpressed/$r/$f.$cm.*.genes | sed -r 's/.+\.([0-9]+)\.genes$/\1/' | sort -n); do
-					odir=$outdir/enriched/$r/$f.$cm.$i
-					mkdir -p $odir
-					for domain in biological_process cellular_component molecular_function; do
-						o=$odir/$domain
-						grep -F $domain $genome.gtf.go > $tmpdir/go
-						perl -F'\t' -lane 'push @{$m{$F[1]}},$F[0]; END{print join"\t",($_,"dummy.com",@{$m{$_}}) for keys %m}' $tmpdir/go > $o.reference.gmt
-						awk '{print $1}' $tmpdir/go | sort | uniq > $o.reference.txt
-						perl -F',' -lane 'BEGIN{open F,"<'$o'.reference.txt"; while(<F>){chomp; $m{$_}=1;} close F} next unless exists $m{$F[0]}; print $F[0]' $outdir/coexpressed/$r/$f.$cm.$i.genes > $o.interest.txt
-						cmd1+=("Rscript -e \"library(WebGestaltR); res = WebGestaltR(enrichMethod='ORA', organism='others', enrichDatabase='others', enrichDatabaseFile='$o.reference.gmt', interestGeneFile='$o.interest.txt', referenceGeneFile='$o.reference.txt', minNum=5, maxNum=999999, fdrMethod='BH', sigMethod='top', topThr=999999, dNum=20, is.output=FALSE, methodType='R', dagColor='binary', hostName='http://www.webgestalt.org/'); write.table(res,quote=FALSE,row.names=FALSE,col.names=TRUE,sep='\\\t', file='$o.raw')\"\0")
-						cmd2+=("awk 'NR>1{print \$1\"\\t\"\$7}' $o.raw > $o.full.tsv\0")
-						cmd2+=("awk '\$8<=0.05{print \$1\"\\t\"\$7}' $o.raw > $o.fdr05.tsv\0")
-						cmd2+=("awk '\$7<=0.05{print \$1\"\\t\"\$7}' $o.raw > $o.p05.tsv\0")
-						cmd3+=("[[ ! -s $o.full.tsv ]] && true || revigo.R $o.full.tsv $o.full $domain\0")
-						cmd3+=("[[ ! -s $o.fdr05.tsv ]] && true || revigo.R $o.fdr05.tsv $o.fdr05 $domain\0")
-						cmd3+=("[[ ! -s $o.p05.tsv ]] && true || revigo.R $o.p05.tsv $o.p05 $domain\0")
-					done
+			[[ ! -s $outdir/coexpressed/$r/$f.cluster.tsv ]] && continue
+			for i in $(find $outdir/coexpressed/$r -type f -name "$f.cluster.*.genes" | sed -r 's/.+\.([0-9]+)\.genes$/\1/' | sort -n); do
+				odir=$outdir/enriched/$r/$f.cluster.$i
+				mkdir -p $odir
+				for domain in biological_process cellular_component molecular_function; do
+					o=$odir/$domain
+					grep -F $domain $genome.gtf.go > $tmpdir/go
+					perl -F'\t' -lane 'push @{$m{$F[1]}},$F[0]; END{print join"\t",($_,"dummy.com",@{$m{$_}}) for keys %m}' $tmpdir/go > $o.reference.gmt
+					awk '{print $1}' $tmpdir/go | sort | uniq > $o.reference.txt
+					perl -F',' -lane 'BEGIN{open F,"<'$o'.reference.txt"; while(<F>){chomp; $m{$_}=1;} close F} next unless exists $m{$F[0]}; print $F[0]' $outdir/coexpressed/$r/$f.cluster.$i.genes > $o.interest.txt
+					cmd1+=("Rscript -e \"library(WebGestaltR); res = WebGestaltR(enrichMethod='ORA', organism='others', enrichDatabase='others', enrichDatabaseFile='$o.reference.gmt', interestGeneFile='$o.interest.txt', referenceGeneFile='$o.reference.txt', minNum=5, maxNum=999999, fdrMethod='BH', sigMethod='top', topThr=999999, dNum=20, is.output=FALSE, methodType='R', dagColor='binary', hostName='http://www.webgestalt.org/'); write.table(res,quote=FALSE,row.names=FALSE,col.names=TRUE,sep='\\\t', file='$o.raw')\"\0")
+					cmd2+=("awk 'NR>1{print \$1\"\\t\"\$7}' $o.raw > $o.full.tsv\0")
+					cmd2+=("awk '\$8<=0.05{print \$1\"\\t\"\$7}' $o.raw > $o.fdr05.tsv\0")
+					cmd2+=("awk '\$7<=0.05{print \$1\"\\t\"\$7}' $o.raw > $o.p05.tsv\0")
+					cmd3+=("[[ ! -s $o.full.tsv ]] && true || revigo.R $o.full.tsv $o.full $domain\0")
+					cmd3+=("[[ ! -s $o.fdr05.tsv ]] && true || revigo.R $o.fdr05.tsv $o.fdr05 $domain\0")
+					cmd3+=("[[ ! -s $o.p05.tsv ]] && true || revigo.R $o.p05.tsv $o.p05 $domain\0")
 				done
 			done
 		done
@@ -1553,4 +1661,25 @@ pipeline::TODOfeaturecounts() {
 	fi
 
 	return 0
+}
+
+pipeline::peakenrichment() {
+	o=outdir/enrichments
+	mkdir -p $o
+	for feature in splicesites, enhancers, promoters, 5primeregion, 3primeregion; do
+	    case $feature in
+	    splicesites)
+			peaks=$(wc -l peaks.bed)
+	        awk '{...}' $genome.gtf > $o/splicesiteregions.bed
+	        all=$(wc -l $o/splicesiteregions.bed)
+	        bedtools intersect -wa -a $o/splicesiteregions.bed -b peaks.bed > $o/splicesitepeaks.bed
+	        a=$(wc -l $o/splicesiteregions.bed)
+	        awk '{...}' $genome.gtf > $o/exons.bed
+	        bedtools intersect -wa -a $o/exons.bed -b peaks.bed > $o/exonpeaks.bed
+	        b=$(wc -l $o/splicesiteregions.bed)
+	        echo "gene enrichment" >> RESULTS
+	        ;;
+	    esac
+	    Rscript -e "fisher($all,$a,$peaks,$b)" >> RESULTS
+	done 
 }

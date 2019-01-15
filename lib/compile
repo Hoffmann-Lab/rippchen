@@ -58,7 +58,7 @@ compile::conda() {
 		# use quantstack gcc for r and perl module installation - defaults gcc has a weird usage
 		# under perl 5.26 List::MoreUtils installation fails
 		source activate py2 && \
-		conda install -y -c iuc -c bioconda -c conda-forge -c defaults -c quantstack \
+		conda install -y --override-channels -c iuc -c bioconda -c main -c conda-forge -c defaults -c quantstack \
 			gcc-7 libgcc-7 automake zlib ncurses xz bzip2 pigz pbzip2 ghostscript readline=6 \
 			perl=5.22 perl-threaded \
 			star bwa tophat \
@@ -69,20 +69,20 @@ compile::conda() {
 		# python3 necessary for multithreaded cutadapt and idr
 		source activate py3 && \
 		# r-essentials readline - readline is now shipped with miniconda, r-essentials causes troubles with webgestalt and is not necessary anymore to be installed prior to other packages
-		conda install -y -c iuc -c bioconda -c conda-forge -c defaults -c quantstack \
+		conda install -y --override-channels -c iuc -c bioconda -c main -c conda-forge -c defaults -c quantstack \
 			gcc-7 libgcc-7 automake zlib ncurses xz bzip2 pigz pbzip2 readline=6 \
 			cutadapt && \
 
 		# split installation, otherwise solving environment takes hours!!?
 		source activate py2r && \
-		conda install -y -c iuc -c bioconda -c conda-forge -c defaults -c quantstack \
+		conda install -y --override-channels -c iuc -c bioconda -c main -c conda-forge -c defaults -c quantstack \
 			gcc-7 libgcc-7 automake zlib ncurses xz bzip2 pigz pbzip2 readline=6 \
 			r r-devtools && \
 		# install bioconductor parallel and deseq packages and biocinstaller for metpeak
-		conda install -y -c iuc -c bioconda -c conda-forge -c defaults -c quantstack \
-			bioconductor-biocinstaller bioconductor-biocparallel bioconductor-genomicfeatures bioconductor-genefilter bioconductor-deseq2 && \
+		conda install -y --override-channels -c iuc -c bioconda -c main -c conda-forge -c defaults -c quantstack \
+			bioconductor-biocinstaller bioconductor-biocparallel bioconductor-genomicfeatures bioconductor-genefilter bioconductor-deseq2 bioconductor-dexseq && \
 		# install r packages for custom scripts and dependencies for webgestalt (treemap) and those not automatically resolved by devtools wgcna installation
-		conda install -y -c iuc -c bioconda -c conda-forge -c defaults -c quantstack \
+		conda install -y --override-channels -c iuc -c bioconda -c main -c conda-forge -c defaults -c quantstack \
 			r-ggplot2 r-gplots r-rcolorbrewer r-svglite subread r-treemap r-wgcna && \
 
 		conda deactivate
@@ -147,15 +147,13 @@ compile::sortmerna() {
 compile::segemehl () {
 	{	echo ":INFO: installing segemehl" && \
 		source $insdir/conda/bin/activate py2 && \
-		url='http://www.bioinf.uni-leipzig.de/Software/segemehl/downloads/segemehl.20181005-161011.tar.gz' && \
 		export C_INCLUDE_PATH=$CONDA_PREFIX/include && \
 		export LD_LIBRARY_PATH=$CONDA_PREFIX/lib && \
-		wget -q $url -O $insdir/segemehl.tar.gz && \
-		tar -xzf $insdir/segemehl.tar.gz -C $insdir && \
-		rm $insdir/segemehl.tar.gz && \
-        rm -rf $insdir/segemehl_0_3_1 && \
-		mv $insdir/20181005-161011 $insdir/segemehl_0_3_1 && \
-		cd $insdir/segemehl_0_3_1 && \
+		url='http://www.bioinf.uni-leipzig.de/Software/segemehl/downloads/segemehl-0.3.4.tar.gz' && \
+		wget -q $url -O $MUVAC/segemehl.tar.gz && \
+		tar -xzf $MUVAC/segemehl.tar.gz -C $MUVAC && \
+		rm $MUVAC/segemehl.tar.gz && \
+        cd $MUVAC/segemehl-0.3.4 && \
 		make clean; true && \
 		make -j $threads all && \
 		mkdir -p bin && \
@@ -220,6 +218,16 @@ exit
 EOF
 	chmod 755 $1 || return 1
 	
+	return 0
+}
+
+compile::dexseq() {
+	{	echo ":INFO: installing dexseq" && \
+		pip install htseq && \
+		cat <(echo '#!/usr/bin/env python') $insdir/conda/envs/py2r/lib/R/library/DEXSeq/python_scripts/dexseq_prepare_annotation.py > $insdir/conda/envs/py2/bin/dexseq_prepare_annotation.py && \
+		chmod 755 $insdir/conda/envs/py2/bin/dexseq_prepare_annotation.py
+	} || return 1
+
 	return 0
 }
 
