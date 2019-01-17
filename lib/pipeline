@@ -819,9 +819,9 @@ pipeline::featurecounts() {
 
 	cmd1=()
 	cmd2=()
-    #tofix=() #featurecounts truncates geneIDs to 256 chars - bad for dexseq exon_ids "ENSG1+ENSG2+ENSG3+..."
-	#use commented alternative (tofix array solution on exon_ids) if order of dexseqids differ from featurecounts output (paste solution)
-    perl -lane '$F[-1]=~/gene_id\s+"([^\s"]+)/; $o=$1; $F[-1]=~/exon_number\s+"([^\s"]+)/; print "$o:$1"' ${annotation%.*}.exons.gtf > $tmpdir/dexseqids
+	#dexseq prepare script create gene_ids longer than 256 chars which is the limitation of featurecounts
+    #perl -lane '$F[-1]=~/gene_id\s+"([^\s"]+)/; $o=$1; $F[-1]=~/exon_number\s+"([^\s"]+)/; print "$o:$1"' ${annotation%.*}.exons.gtf > $tmpdir/dexseqids
+    #not necessary anymore because of own preparation script
 
 	for r in ${mapper[@]}; do
 		declare -n m=$r
@@ -831,17 +831,20 @@ pipeline::featurecounts() {
 			o=${o%.*}
 			if [[ ${fastq2[0]} ]] || [[ ${pairedness[$i]} -gt 0 ]]; then
 				cmd1+=("featureCounts -p --minOverlap 10 -s ${strandness[$i]} -T $thr -t exon -g gene_id --tmpDir $tmpdir/$r -a $annotation -o $o.genes ${m[$i]}\0")
-				#cmd1+=("featureCounts -p --minOverlap 10 -s ${strandness[$i]} -f -O -T $thr -t exon -g exon_id --tmpDir $tmpdir/$r -a ${annotation%.*}.exons.gtf -o $o.exons ${m[$i]}\0")
-                cmd1+=("featureCounts -p --minOverlap 10 -s ${strandness[$i]} -f -O -T $thr -t exon -g gene_id --tmpDir $tmpdir/$r -a ${annotation%.*}.exons.gtf -o $o.exons ${m[$i]}\0")
+				cmd1+=("featureCounts -p --minOverlap 10 -s ${strandness[$i]} -f -O -T $thr -t exon -g exon_id --tmpDir $tmpdir/$r -a ${annotation%.*}.exons.gtf -o $o.exons ${m[$i]}\0")
+                #cmd1+=("featureCounts -p --minOverlap 10 -s ${strandness[$i]} -f -O -T $thr -t exon -g gene_id --tmpDir $tmpdir/$r -a ${annotation%.*}.exons.gtf -o $o.exons ${m[$i]}\0")
+                #belongs to deprecated fix
 			else 
 				cmd1+=("featureCounts --minOverlap 10 -s ${strandness[$i]} -T $thr -t exon -g gene_id --tmpDir $tmpdir/$r -a $annotation -o $o.genes ${m[$i]}\0")
-				#cmd1+=("featureCounts --minOverlap 10 -s ${strandness[$i]} -f -O -T $thr -t exon -g exon_id --tmpDir $tmpdir/$r -a ${annotation%.*}.exons.gtf -o $o.exons ${m[$i]}\0")
-                cmd1+=("featureCounts --minOverlap 10 -s ${strandness[$i]} -f -O -T $thr -t exon -g gene_id --tmpDir $tmpdir/$r -a ${annotation%.*}.exons.gtf -o $o.exons ${m[$i]}\0")
+				cmd1+=("featureCounts --minOverlap 10 -s ${strandness[$i]} -f -O -T $thr -t exon -g exon_id --tmpDir $tmpdir/$r -a ${annotation%.*}.exons.gtf -o $o.exons ${m[$i]}\0")
+                #cmd1+=("featureCounts --minOverlap 10 -s ${strandness[$i]} -f -O -T $thr -t exon -g gene_id --tmpDir $tmpdir/$r -a ${annotation%.*}.exons.gtf -o $o.exons ${m[$i]}\0")
+                #belongs to deprecated fix
 			fi
-            tofix+=($o.exons)
+            #tofix+=($o.exons)
 			cmd2+=("awk 'NR>2{print \$1\"\t\"\$NF}' $o.genes > $o.genes.reduced\0")
-            #cmd2+=("awk 'NR>2{print \$1\"\t\"\$NF}' $o.exons > $o.exons.reduced\0")
-			cmd2+=("paste $tmpdir/dexseqids $o.exons | awk 'NR>2{print \$1\"\t\"\$NF}' $o.exons > $o.exons.reduced\0")
+            cmd2+=("awk 'NR>2{print \$1\"\t\"\$NF}' $o.exons > $o.exons.reduced\0")
+			#cmd2+=("paste $tmpdir/dexseqids $o.exons | awk 'NR>2{print \$1\"\t\"\$NF}' $o.exons > $o.exons.reduced\0")
+			#belongs to deprecated fix
 		done
 	done
 
@@ -854,11 +857,6 @@ pipeline::featurecounts() {
 			conda activate py2 && \
             echo -ne ${cmd2[@]} | /usr/bin/time -v xargs -0 -P $threads -I {} bash -c {}
         } || return 1
-#        for f in ${tofix[@]}; do
-#            perl -F'\t' -lane 'next if /^(#|Geneid)/; if($F[0]!~/:[0-9]+$/){$o=`grep -F \$"\t"$F[2]\$"\t"$F[3]\$"\t" '${annotation%.*}.exons.gtf'`; $o=~/gene_id\s+"([^\s"]+)/; $F[0]=$1; $o=~/exon_number\s+"(\d+)/; $F[0].=":$1"} print join "\t",@F' $f > $tmpdir/tmp && mv $tmpdir/tmp $f || return 1
-#		done
-#        {	echo -ne ${cmd2[@]} | /usr/bin/time -v xargs -0 -P $threads -I {} bash -c {}
-#		} || return 1
 	fi
 
 	return 0
@@ -1125,7 +1123,7 @@ pipeline::dexseq () {
 					labels=$(awk '{print $2"_"$4}' <(awk -v i=${comp[$i]} '$2==i' $f | sort -k4,4V; awk -v j=${comp[$j]} '$2==j' $f | sort -k4,4V) | xargs -echo | sed 's/ /,/g')
 					conditions=$(awk '{print $2}' <(awk -v i=${comp[$i]} '$2==i' $f | sort -k4,4V; awk -v j=${comp[$j]} '$2==j' $f | sort -k4,4V) | xargs -echo | sed 's/ /,/g')
 					libtypes=$(awk '{print $3}' <(awk -v i=${comp[$i]} '$2==i' $f | sort -k4,4V; awk -v j=${comp[$j]} '$2==j' $f | sort -k4,4V) | xargs -echo | sed 's/ /,/g')
-					o=$outdir/dexseq/$r/${comp[$i]}_${comp[$j]}                    
+					o=$outdir/dexseq/$r/${comp[$i]}_${comp[$j]}
 					cmd1+=("dexseq.R $thr $o $samples $labels $conditions $libtypes ${annotation%.*}.exons.dexseq $o/genes.isoformscores\0")
 					# cmd2+=("awk -F ',' 'BEGIN{OFS=\",\"}{a=\$1; \$1=\$2; \$2=a; print}' $o/full.csv > $tmpdir/$r/full.csv && mv $tmpdir/$r/full.csv $o/full.csv")
 					# cmd2+=("awk -F ',' 'BEGIN{OFS=\",\"}{a=\$1; \$1=\$2; \$2=a; print}' $o/filtered_padj01.csv > $tmpdir/$r/filtered_padj01.csv && mv $tmpdir/$r/filtered_padj01.csv $o/filtered_padj01.csv")
