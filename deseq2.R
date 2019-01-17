@@ -64,8 +64,8 @@ ddsr <- ddsr[rev(order(abs(ddsr$log2FoldChange))) , ]
 ddsrNoNA <- ddsr[ !is.na(ddsr$log2FoldChange) , ]
 ddsrNoNA <- ddsrNoNA[ !is.na(ddsrNoNA$padj) , ]
 ddsrNoNA <- ddsrNoNA[ ddsrNoNA$baseMean > 0.0 , ]
-ddsrNoNAp05 <- ddsrNoNA[ ddsrNoNA$padj < 0.05 , ]
-ddsrNoNAp01 <- ddsrNoNA[ ddsrNoNA$padj < 0.01 , ]
+ddsrNoNAp05 <- ddsrNoNA[ ddsrNoNA$padj <= 0.05 , ]
+ddsrNoNAp01 <- ddsrNoNA[ ddsrNoNA$padj <= 0.01 , ]
 
 #######################
 # write statistics

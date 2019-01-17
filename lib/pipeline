@@ -319,11 +319,11 @@ pipeline::star() {
 		mkdir -p $idxdir
 		echo ":INFO: checking star index md5sum"
 		[[ $Smd5 ]] && thismd5star=$md5star || thismd5star=$(md5sum $idxdir/SA 2> /dev/null | cut -d ' ' -f 1)
-		[[ -s $genome.gtf ]] && thismd5gtf=$(md5sum $genome.gtf 2> /dev/null | cut -d ' ' -f 1)
+		[[ -s $annotation ]] && thismd5gtf=$(md5sum $annotation 2> /dev/null | cut -d ' ' -f 1)
 		if [[ ! -s $idxdir/SA ]] || [[ $thismd5genome != $md5genome ]] || [[ $thismd5star != $md5star ]] || ([[ -n $thismd5gtf ]] && [[ $thismd5gtf != $md5gtf ]]); then
 			echo ":INFO: indexing genome for star"
 			starcmd="STAR --runThreadN $threads --runMode genomeGenerate --genomeDir $idxdir --sjdbOverhang 100 --genomeFastaFiles $genome"
-			[[ -n $thismd5gtf ]] && starcmd="$starcmd --sjdbGTFfile $genome.gtf"
+			[[ -n $thismd5gtf ]] && starcmd="$starcmd --sjdbGTFfile $annotation"
 			genomesize=$(du -sb $genome | cut -f 1)
 			[[ $(echo $genomesize | awk '{printf("%d",$1/1024/1024)'}) -lt 10 ]] && starcmd="$starcmd --genomeSAindexNbases "$(echo $genomesize | perl -M'use List::Util qw(min)' -lane 'printf("%d",min(14, log($_)/2 - 1))')
 			genomeseqs=$(grep -c '^>' $genome)
@@ -529,8 +529,8 @@ pipeline::mappingstats() {
 		for f in ${m[@]}; do
 			fdir=$(dirname $f)
 			fname=$(basename $f | sed 's/\.unique\..*//')
-
-			o=$outdir/statistics/$fname.bam.txt
+			mkdir -p $outdir/statistics/$r/
+			o=$outdir/statistics/$r/$fname.bam.txt
 			[[ ! $Sstats ]] && rm -f $o
 			
 			for f in $(find $fdir -type f -name "$fname*.bam" | grep -v readgrouped); do
@@ -803,12 +803,12 @@ pipeline::featurecounts() {
 	fi
 
 	if [[ ! $Scount ]]; then
-		[[ -s $genome.gtf ]] && thismd5gtf=$(md5sum $genome.gtf 2> /dev/null | cut -d ' ' -f 1)
-		if ([[ -n $thismd5gtf ]] && [[ $thismd5gtf != $md5gtf ]]) || [[ ! -s $genome.exons.gtf ]] || [[ ! -s $genome.exons.gff ]]; then
+		[[ -s $annotation ]] && thismd5gtf=$(md5sum $annotation 2> /dev/null | cut -d ' ' -f 1)
+		if ([[ -n $thismd5gtf ]] && [[ $thismd5gtf != $md5gtf ]]) || [[ ! -s ${annotation%.*}.exons.gtf ]] || [[ ! -s ${annotation%.*}.exons.dexseq ]]; then
 			echo ":INFO: preparing exon annotation"
-			echo "dexseq_prepare_annotation.py -r no $genome.gtf $genome.exons.gff"
-			/usr/bin/time -v dexseq_prepare_annotation.py -r no $genome.gtf $genome.exons.gff || return 1
-			perl -F'\t' -lane 'next unless $F[2] eq "exonic_part"; $F[2]="exon"; $F[-1]=~s/transcripts/transcript_id/; $F[-1]=~/gene_id\s+\"(.+?)\"/; $id=$1; $F[-1]=~/exonic_part_number\s+\"(.+?)\"/; $F[-1]="exon_id \"$id:E$1\""; print join("\t",@F)' $genome.exons.gff > $genome.exons.gtf || return 1
+			echo "dexseq_prepare_annotation2.py -f $tmpdir/tmp $annotation ${annotation%.*}.exons.dexseq"
+			/usr/bin/time -v dexseq_prepare_annotation2.py -f $tmpdir/tmp.exons.gtf $annotation ${annotation%.*}.exons.dexseq || return 1
+			perl -F'\t' -lane 'if($F[2] eq "exon"){$F[-1]=~/gene_id\s+\"([^\s"]+)/; $F[-1].="; exon_id \"$1"; $F[-1]=~/exon_number\s+"(\d+)/; $F[-1].=":$1\""}; print join "\t",@F' $tmpdir/tmp.exons.gtf > ${annotation%.*}.exons.gtf
 			[[ -n $thismd5gtf ]] && sed -i "s/md5gtf=.*/md5gtf=$thismd5gtf/" $genome.md5s
 			echo ":INFO: preparing exon annotation finished"
 		fi
@@ -816,20 +816,29 @@ pipeline::featurecounts() {
 
 	cmd1=()
 	cmd2=()
+    #tofix=() #featurecounts truncates geneIDs to 256 chars - bad for dexseq exon_ids "ENSG1+ENSG2+ENSG3+..."
+	#use commented alternative (tofix array solution on exon_ids) if order of dexseqids differ from featurecounts output (paste solution)
+    perl -lane '$F[-1]=~/gene_id\s+"([^\s"]+)/; $o=$1; $F[-1]=~/exon_number\s+"([^\s"]+)/; print "$o:$1"' ${annotation%.*}.exons.gtf > $tmpdir/dexseqids
+
 	for r in ${mapper[@]}; do
 		declare -n m=$r
+        mkdir -p $tmpdir/$r
 		for i in ${!m[@]}; do
 			o=$outdir/counted/$r/$(basename ${m[$i]})
 			o=${o%.*}
 			if [[ ${fastq2[0]} ]] || [[ ${pairedness[$i]} -gt 0 ]]; then
-				cmd1+=("featureCounts -p --minOverlap 10 -s ${strandness[$i]} -T $thr -t exon -g gene_id -a $annotation -o $o.genes ${m[$i]}\0")
-				cmd1+=("featureCounts --minOverlap 10 -s ${strandness[$i]} -p -f -O -T $thr -t exon -g exon_id -a $genome.exons.gtf -o $o.exons $f\0")
+				cmd1+=("featureCounts -p --minOverlap 10 -s ${strandness[$i]} -T $thr -t exon -g gene_id --tmpDir $tmpdir/$r -a $annotation -o $o.genes ${m[$i]}\0")
+				#cmd1+=("featureCounts -p --minOverlap 10 -s ${strandness[$i]} -f -O -T $thr -t exon -g exon_id --tmpDir $tmpdir/$r -a ${annotation%.*}.exons.gtf -o $o.exons ${m[$i]}\0")
+                cmd1+=("featureCounts -p --minOverlap 10 -s ${strandness[$i]} -f -O -T $thr -t exon -g gene_id --tmpDir $tmpdir/$r -a ${annotation%.*}.exons.gtf -o $o.exons ${m[$i]}\0")
 			else 
-				cmd1+=("featureCounts --minOverlap 10 -s ${strandness[$i]} -T $thr -t exon -g gene_id -a $annotation -o $o.genes ${m[$i]}\0")
-				cmd1+=("featureCounts --minOverlap 10 -s ${strandness[$i]} -f -O -T $thr -t exon -g exon_id -a $genome.exons.gtf -o $o.exons $f\0")
+				cmd1+=("featureCounts --minOverlap 10 -s ${strandness[$i]} -T $thr -t exon -g gene_id --tmpDir $tmpdir/$r -a $annotation -o $o.genes ${m[$i]}\0")
+				#cmd1+=("featureCounts --minOverlap 10 -s ${strandness[$i]} -f -O -T $thr -t exon -g exon_id --tmpDir $tmpdir/$r -a ${annotation%.*}.exons.gtf -o $o.exons ${m[$i]}\0")
+                cmd1+=("featureCounts --minOverlap 10 -s ${strandness[$i]} -f -O -T $thr -t exon -g gene_id --tmpDir $tmpdir/$r -a ${annotation%.*}.exons.gtf -o $o.exons ${m[$i]}\0")
 			fi
+            tofix+=($o.exons)
 			cmd2+=("awk 'NR>2{print \$1\"\t\"\$NF}' $o.genes > $o.genes.reduced\0")
-			cmd2+=("awk 'NR>2{print \$1\"\t\"\$NF}' $o.exons > $o.exons.reduced\0")
+            #cmd2+=("awk 'NR>2{print \$1\"\t\"\$NF}' $o.exons > $o.exons.reduced\0")
+			cmd2+=("paste $tmpdir/dexseqids $o.exons | awk 'NR>2{print \$1\"\t\"\$NF}' $o.exons > $o.exons.reduced\0")
 		done
 	done
 
@@ -840,8 +849,13 @@ pipeline::featurecounts() {
 			conda activate py2r && \
 			echo -ne ${cmd1[@]} | /usr/bin/time -v xargs -0 -P $instances -I {} bash -c {} && \
 			conda activate py2 && \
-			echo -ne ${cmd2[@]} | /usr/bin/time -v xargs -0 -P $threads -I {} bash -c {}
-		} || return 1
+            echo -ne ${cmd2[@]} | /usr/bin/time -v xargs -0 -P $threads -I {} bash -c {}
+        } || return 1
+#        for f in ${tofix[@]}; do
+#            perl -F'\t' -lane 'next if /^(#|Geneid)/; if($F[0]!~/:[0-9]+$/){$o=`grep -F \$"\t"$F[2]\$"\t"$F[3]\$"\t" '${annotation%.*}.exons.gtf'`; $o=~/gene_id\s+"([^\s"]+)/; $F[0]=$1; $o=~/exon_number\s+"(\d+)/; $F[0].=":$1"} print join "\t",@F' $f > $tmpdir/tmp && mv $tmpdir/tmp $f || return 1
+#		done
+#        {	echo -ne ${cmd2[@]} | /usr/bin/time -v xargs -0 -P $threads -I {} bash -c {}
+#		} || return 1
 	fi
 
 	return 0
@@ -986,12 +1000,12 @@ pipeline::deseq() {
 					mkdir -p $o
 					#R: ?connections - limited to 128 - 3 from stdout
 					cmd1+=("deseq2.R $thr $o $samples $labels $conditions $levels $patients\0")
-					if [[ -e $genome.gtf.info ]]; then
-						cmd2+=("annotate.pl $genome.gtf.info $genome.gtf \$(ls $o/*.csv | grep -v annotated) \$(ls $o/*.ps | grep -v annotated)\0")
+					if [[ -e $annotation.info ]]; then
+						cmd2+=("annotate.pl $annotation.info $annotation \$(ls $o/*.csv | grep -v annotated) \$(ls $o/*.ps | grep -v annotated)\0")
 						cmd3+=("ps2pdf $o/heatmap_counts_vsd.annotated.ps $o/heatmap_counts_vsd.annotated.pdf\0")
 						cmd3+=("ps2pdf $o/heatmap_fc_vsd.annotated.ps $o/heatmap_fc_vsd.annotated.pdf\0")
 					else 
-						cmd2+=("annotate.pl 0 $genome.gtf \$(ls $o/*.csv | grep -v annotated) \$(ls $o/*.ps | grep -v annotated)\0")
+						cmd2+=("annotate.pl 0 $annotation \$(ls $o/*.csv | grep -v annotated) \$(ls $o/*.ps | grep -v annotated)\0")
 						cmd3+=("ps2pdf $o/heatmap_counts_vsd.annotated.ps $o/heatmap_counts_vsd.annotated.pdf\0")
 						cmd3+=("ps2pdf $o/heatmap_fc_vsd.annotated.ps $o/heatmap_fc_vsd.annotated.pdf\0")
 					fi
@@ -1024,6 +1038,62 @@ pipeline::deseq() {
 	return 0
 }
 
+pipeline::_scoreisoforms () {
+# gene1 (normalized mean read counts)
+#      .100.
+# .10./     \.10. -> 90,-90
+#       vs                  => 90--70 + 70--90 => log(320)**2 (pow if negatively correlated)
+# .80.      .80.  -> -70,70
+#     \.10./
+#
+#  e1   e2   e3
+#
+# gene2 (normalized mean read counts)
+# 	        .400.
+# 	  .100./
+# .10/            -> 90,300
+#       vs                 => 90-90 + 300-0 => log(300)
+#     .100._.100. -> 90,0
+# .10/
+    
+	for r in ${mapper[@]}; do
+		for f in ${comparisons[@]}; do
+			comp=($(cut -d $'\t' -f 2 $f | uniq))
+			for i in $(seq 0 $[${#comp[@]}-2]); do
+				for j in $(seq $[i+1] $[${#comp[@]}-1]); do
+                    o=$outdir/dexseq/$r/${comp[$i]}_${comp[$j]}
+                    mkdir -p $o
+					paste $(awk -v o=$outdir/counted/$r -v v=$([[ $rmdup ]] && echo '' || echo '-v') '{while(("ls "o"/"$1"*.exons.reduced | grep "v" -F rmdup" | getline l)){print l}}' <(awk -v i=${comp[$i]} '$2==i' $f | sort -k4,4V)) | perl -lane 'push @i,$F[0]; $c=0; for (0..$#F){$c+=$F[$_] if $_%2==1} push @c,$c; $t+=$c; END{print $i[$_]."\t".($c[$_]*1000000/$t) for 0..$#c}' > $tmpdir/tmp1
+                    paste $(awk -v o=$outdir/counted/$r -v v=$([[ $rmdup ]] && echo '' || echo '-v') '{while(("ls "o"/"$1"*.exons.reduced | grep "v" -F rmdup" | getline l)){print l}}' <(awk -v j=${comp[$j]} '$2==j' $f | sort -k4,4V)) | perl -lane 'push @i,$F[0]; $c=0; for (0..$#F){$c+=$F[$_] if $_%2==1} push @c,$c; $t+=$c; END{print $i[$_]."\t".($c[$_]*1000000/$t) for 0..$#c}' > $tmpdir/tmp2
+                    paste $tmpdir/tmp1 $tmpdir/tmp2 | perl -lane '
+						$F[0]=~/(.+):\d+$/;
+						$gene=$1;
+						if($gene ne $lastgene){
+							print "$lastgene\t$change" if $lastgene;
+							$change=0;
+							$lastexon1=$F[1];
+							$lastexon2=$F[3];
+							$lastgene=$gene;
+							next;
+						}
+                        $fc1=$F[1]-$lastexon1;                                   
+                        $fc2=$F[3]-$lastexon2;    
+                        $c = $fc1 > $fc2 ? $fc1-$fc2 : $fc2-$fc1;
+                        $c = log($c) if $c != 0;
+                        $c=$c**2 if ($fc1 < 0 && $fc2 > 0) || ($fc2 < 0 && $fc1 > 0);
+                        $change += $c; 
+						END{
+							print $lastgene $change;
+						}
+					' | sort -k2,2gr > $o/genes.isoformscores || return 1
+				done
+			done
+		done
+	done
+
+    return 0
+}
+
 pipeline::dexseq () {
 	[[ $noiso ]] && return 0
 	echo ":INFO: analyzing differential isoforms"
@@ -1035,6 +1105,10 @@ pipeline::dexseq () {
 		[[ $thr -gt 124 ]] && thr=124
 	fi
 
+    if [[ ! $Siso ]]; then 
+    	pipeline::_scoreisoforms || return 1
+    fi
+    
 	cmd1=()
 	cmd2=()
 	cmd3=()
@@ -1048,32 +1122,36 @@ pipeline::dexseq () {
 					labels=$(awk '{print $2"_"$4}' <(awk -v i=${comp[$i]} '$2==i' $f | sort -k4,4V; awk -v j=${comp[$j]} '$2==j' $f | sort -k4,4V) | xargs -echo | sed 's/ /,/g')
 					conditions=$(awk '{print $2}' <(awk -v i=${comp[$i]} '$2==i' $f | sort -k4,4V; awk -v j=${comp[$j]} '$2==j' $f | sort -k4,4V) | xargs -echo | sed 's/ /,/g')
 					libtypes=$(awk '{print $3}' <(awk -v i=${comp[$i]} '$2==i' $f | sort -k4,4V; awk -v j=${comp[$j]} '$2==j' $f | sort -k4,4V) | xargs -echo | sed 's/ /,/g')
-					o=$outdir/dexseq/$r/${comp[$i]}_${comp[$j]}
-					mkdir -p $o
-					cmd1+=("dexseq.R $thr $o $samples $labels $conditions $libtypes $genome.exons.gff\0")
-					cmd2+=("awk -F ',' 'BEGIN{OFS=\",\"}{a=$1; $1=$2; $2=a; print}' $o/full.csv > $tmpdir/tmp && mv $tmpdir/tmp $o/full.csv")
-					cmd2+=("awk -F ',' 'BEGIN{OFS=\",\"}{a=$1; $1=$2; $2=a; print}' $o/filtered_padj01.csv > $tmpdir/tmp && mv $tmpdir/tmp $o/filtered_padj01.csv")
-					cmd2+=("awk -F ',' 'BEGIN{OFS=\",\"}{a=$1; $1=$2; $2=a; print}' $o/filtered_padj05.csv > $tmpdir/tmp && mv $tmpdir/tmp $o/filtered_padj05.csv")
-					cmd2+=("awk -F ',' 'BEGIN{OFS=\",\"}{a=$1; $1=$2; $2=a; print}' $o/filtered_padjNA.csv > $tmpdir/tmp && mv $tmpdir/tmp $o/filtered_padjNA.csv")
-					if [[ -e $genome.gtf.info ]]; then
-						cmd3+=("annotate.pl $genome.gtf.info $genome.gtf \$(ls $o/*.csv | grep -v annotated) \$(ls $o/genes/*.ps | grep -v annotated)\0")
+					o=$outdir/dexseq/$r/${comp[$i]}_${comp[$j]}                    
+					cmd1+=("dexseq.R $thr $o $samples $labels $conditions $libtypes ${annotation%.*}.exons.dexseq $o/genes.isoformscores\0")
+					# cmd2+=("awk -F ',' 'BEGIN{OFS=\",\"}{a=\$1; \$1=\$2; \$2=a; print}' $o/full.csv > $tmpdir/$r/full.csv && mv $tmpdir/$r/full.csv $o/full.csv")
+					# cmd2+=("awk -F ',' 'BEGIN{OFS=\",\"}{a=\$1; \$1=\$2; \$2=a; print}' $o/filtered_padj01.csv > $tmpdir/$r/filtered_padj01.csv && mv $tmpdir/$r/filtered_padj01.csv $o/filtered_padj01.csv")
+					# cmd2+=("awk -F ',' 'BEGIN{OFS=\",\"}{a=\$1; \$1=\$2; \$2=a; print}' $o/filtered_padj05.csv > $tmpdir/$r/filtered_padj05.csv && mv $tmpdir/$r/filtered_padj05.csv $o/filtered_padj05.csv")
+					# cmd2+=("awk -F ',' 'BEGIN{OFS=\",\"}{a=\$1; \$1=\$2; \$2=a; print}' $o/filtered_padjNA.csv > $tmpdir/$r/filtered_padjNA.csv && mv $tmpdir/$r/filtered_padjNA.csv $o/filtered_padjNA.csv")
+					if [[ -e $annotation.info ]]; then
+						# cmd3+=("annotate.pl $annotation.info $annotation \$(find $o -type f -name '*.csv' | grep -v annotated) \$(find $o -type f -name '*.ps' | grep -v annotated)\0")
+						cmd2+=("annotate.pl $annotation.info $annotation \$(find $o -type f -name '*.ps' | grep -v annotated)\0")
 					else 
-						cmd3+=("annotate.pl 0 $genome.gtf \$(ls $o/*.csv | grep -v annotated) \$(ls $o/genes/*.ps | grep -v annotated)\0")
+						# cmd3+=("annotate.pl 0 $annotation \$(find $o -type f -name '*.csv' | grep -v annotated) \$(find $o -type f -name '*.ps' | grep -v annotated)\0")
+						cmd2+=("annotate.pl 0 $annotation \$(find $o -type f -name '*.ps' | grep -v annotated)\0")
 					fi
-					cmd4+=("find $o/genes/ -type f -name '*.ps' -exec bash -c 'echo ps2pdf {} $(basename {} .csv).pdf' \; | xargs -P $threads -I cmd bash -c cmd \0")
+					cmd3+=("find $o -type f -name '*.ps' -exec bash -c 'echo ps2pdf {} \$(dirname {})/\$(basename {} .ps).pdf' \; | xargs -P $threads -I cmd bash -c cmd \0")
 				done
 			done
 		done
 	done
 
-	echo -n ${cmd[@]} | sed 's/\\0\s*/\n/g'
-	if [[ $Siso -eq 0 ]]; then
+	echo -n ${cmd1[@]} | sed 's/\\0\s*/\n/g'
+    echo -n ${cmd2[@]} | sed 's/\\0\s*/\n/g'
+    echo -n ${cmd3[@]} | sed 's/\\0\s*/\n/g'
+    # echo -n ${cmd4[@]} | sed 's/\\0\s*/\n/g'
+	if [[ ! $Siso ]]; then
 		{	conda activate py2r && \
 			echo -ne ${cmd1[@]} | /usr/bin/time -v xargs -0 -P 1 -I {} bash -c {} && \
 			conda activate py2 && \
 			echo -ne ${cmd2[@]} | /usr/bin/time -v xargs -0 -P $threads -I {} bash -c {} && \
-			echo -ne ${cmd3[@]} | /usr/bin/time -v xargs -0 -P $threads -I {} bash -c {} && \
-			echo -ne ${cmd4[@]} | /usr/bin/time -v xargs -0 -P 1 -I {} bash -c {} && \
+			echo -ne ${cmd3[@]} | /usr/bin/time -v xargs -0 -P 1 -I {} bash -c {}
+			# echo -ne ${cmd4[@]} | /usr/bin/time -v xargs -0 -P 1 -I {} bash -c {}
 		} || return 1
 	fi
 
@@ -1206,7 +1284,7 @@ pipeline::goenrichment() {
 					mkdir -p $odir
 					for domain in biological_process cellular_component molecular_function; do
 						o=$odir/$domain
-						grep -F $domain $genome.gtf.go > $tmpdir/go
+						grep -F $domain $annotation.go > $tmpdir/go
 						perl -F'\t' -lane 'push @{$m{$F[1]}},$F[0]; END{print join"\t",($_,"dummy.com",@{$m{$_}}) for keys %m}' $tmpdir/go > $o.reference.gmt
 						awk '{print $1}' $tmpdir/go | sort | uniq > $o.reference.txt
 						perl -F',' -lane 'BEGIN{open F,"<'$o'.reference.txt"; while(<F>){chomp; $m{$_}=1;} close F} $F[0]=~s/(^\s*"|"\s*$)//g; next if $F[0] eq "" || abs($F[2])<1 || ! exists $m{$F[0]}; print $F[0]' $outdir/deseq/$r/${comp[$i]}_${comp[$j]}/filtered_padj05.csv > $o.interest.txt
@@ -1231,7 +1309,7 @@ pipeline::goenrichment() {
 				mkdir -p $odir
 				for domain in biological_process cellular_component molecular_function; do
 					o=$odir/$domain
-					grep -F $domain $genome.gtf.go > $tmpdir/go
+					grep -F $domain $annotation.go > $tmpdir/go
 					perl -F'\t' -lane 'push @{$m{$F[1]}},$F[0]; END{print join"\t",($_,"dummy.com",@{$m{$_}}) for keys %m}' $tmpdir/go > $o.reference.gmt
 					awk '{print $1}' $tmpdir/go | sort | uniq > $o.reference.txt
 					perl -F',' -lane 'BEGIN{open F,"<'$o'.reference.txt"; while(<F>){chomp; $m{$_}=1;} close F} next unless exists $m{$F[0]}; print $F[0]' $outdir/coexpressed/$r/$f.cluster.$i.genes > $o.interest.txt
@@ -1496,11 +1574,11 @@ pipeline::metpeak() {
 			tmp=$tmpdir/$r
 			for i in ${!sn[@]}; do
 
-				# Rscript -e "library(MeTPeak); metpeak(GENE_ANNO_GTF='$genome.gtf',IP_BAM=c('/misc/paras/data/kons/m6a_MeRIP/results/mapped/segemehl/K002000230_87702_ip_R1.unique.sorted.marked.bam'),INPUT_BAM=c('/misc/paras/data/kons/m6a_MeRIP/results/mapped/segemehl/K002000230_87701_ctr_R1.unique.sorted.marked.bam'), OUTPUT_DIR=c('$outdir/segemehl/metpeak'), EXPERIMENT_NAME='pool', MINIMAL_MAPQ=20, FRAGMENT_LENGTH=150)"
+				# Rscript -e "library(MeTPeak); metpeak(GENE_ANNO_GTF='$annotation',IP_BAM=c('/misc/paras/data/kons/m6a_MeRIP/results/mapped/segemehl/K002000230_87702_ip_R1.unique.sorted.marked.bam'),INPUT_BAM=c('/misc/paras/data/kons/m6a_MeRIP/results/mapped/segemehl/K002000230_87701_ctr_R1.unique.sorted.marked.bam'), OUTPUT_DIR=c('$outdir/segemehl/metpeak'), EXPERIMENT_NAME='pool', MINIMAL_MAPQ=20, FRAGMENT_LENGTH=150)"
 
-				cmd1+=("Rscript -e \"library(MeTPeak); metpeak(GENE_ANNO_GTF='$genome.gtf',IP_BAM='${sp[$i]}',INPUT_BAM='${sn[$i]}', OUTPUT_DIR='$outdir/mapped/segemehl/metpeak', EXPERIMENT_NAME='$(basename ${sp[$i]} .bam)', MINIMAL_MAPQ=20, FRAGMENT_LENGTH=150)\"\0")
-				cmd1+=("Rscript -e \"library(MeTPeak); metpeak(GENE_ANNO_GTF='$genome.gtf',IP_BAM='${st[$i]}',INPUT_BAM='${sn[$i]}', OUTPUT_DIR='$outdir/mapped/segemehl/metpeak', EXPERIMENT_NAME='$(basename ${st[$i]} .bam)', MINIMAL_MAPQ=20, FRAGMENT_LENGTH=150)\"\0")
-				cmd1+=("Rscript -e \"library(MeTPeak); metpeak(GENE_ANNO_GTF='$genome.gtf',IP_BAM='${sr[$i]}',INPUT_BAM='${sn[$i]}', OUTPUT_DIR='$outdir/mapped/segemehl/metpeak', EXPERIMENT_NAME='$(basename ${sr[$i]} .bam)', MINIMAL_MAPQ=20, FRAGMENT_LENGTH=150)\"\0")
+				cmd1+=("Rscript -e \"library(MeTPeak); metpeak(GENE_ANNO_GTF='$annotation',IP_BAM='${sp[$i]}',INPUT_BAM='${sn[$i]}', OUTPUT_DIR='$outdir/mapped/segemehl/metpeak', EXPERIMENT_NAME='$(basename ${sp[$i]} .bam)', MINIMAL_MAPQ=20, FRAGMENT_LENGTH=150)\"\0")
+				cmd1+=("Rscript -e \"library(MeTPeak); metpeak(GENE_ANNO_GTF='$annotation',IP_BAM='${st[$i]}',INPUT_BAM='${sn[$i]}', OUTPUT_DIR='$outdir/mapped/segemehl/metpeak', EXPERIMENT_NAME='$(basename ${st[$i]} .bam)', MINIMAL_MAPQ=20, FRAGMENT_LENGTH=150)\"\0")
+				cmd1+=("Rscript -e \"library(MeTPeak); metpeak(GENE_ANNO_GTF='$annotation',IP_BAM='${sr[$i]}',INPUT_BAM='${sn[$i]}', OUTPUT_DIR='$outdir/mapped/segemehl/metpeak', EXPERIMENT_NAME='$(basename ${sr[$i]} .bam)', MINIMAL_MAPQ=20, FRAGMENT_LENGTH=150)\"\0")
 			done
 			#cmd2
 			#cat $outdir/mapped/segemehl/metpeak/*/peak.bed
@@ -1670,11 +1748,11 @@ pipeline::peakenrichment() {
 	    case $feature in
 	    splicesites)
 			peaks=$(wc -l peaks.bed)
-	        awk '{...}' $genome.gtf > $o/splicesiteregions.bed
+	        awk '{...}' $annotation > $o/splicesiteregions.bed
 	        all=$(wc -l $o/splicesiteregions.bed)
 	        bedtools intersect -wa -a $o/splicesiteregions.bed -b peaks.bed > $o/splicesitepeaks.bed
 	        a=$(wc -l $o/splicesiteregions.bed)
-	        awk '{...}' $genome.gtf > $o/exons.bed
+	        awk '{...}' $annotation > $o/exons.bed
 	        bedtools intersect -wa -a $o/exons.bed -b peaks.bed > $o/exonpeaks.bed
 	        b=$(wc -l $o/splicesiteregions.bed)
 	        echo "gene enrichment" >> RESULTS

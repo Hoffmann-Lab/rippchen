@@ -319,6 +319,7 @@ run() {
 			pipeline::pca && \
 			pipeline::deseq && \
 			pipeline::dexseq && \
+			pipeline::dexviz && \
 			pipeline::coexpression && \
 			pipeline::goenrichment
 		} || return 1

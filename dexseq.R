@@ -21,13 +21,13 @@ labels <- unlist(strsplit(args[4],","))
 conditions <- unlist(strsplit(args[5],","))
 libTypes <- unlist(strsplit(args[6],","))
 gff <- args[7]
-
+isoformscores <- args[8]
 
 BPPARAM <- MulticoreParam(workers = threads)
 
 sampleTable <- data.frame(row.names = labels, condition = conditions, libType = libTypes)
 ddxDEXSeq <- DEXSeqDataSetFromHTSeq(countfiles = samples, sampleData = sampleTable, design = ~ sample + exon + condition:exon, flattenedfile = gff)
-
+file <- paste(out, "ddxDEXSeq.Rdata", sep = "/")
 # DEXSeq does:
 # ddx <- estimateSizeFactors(ddxDEXSeq)
 # ddx <- estimateDispersions(ddx, BPPARAM = BPPARAM)
@@ -39,11 +39,10 @@ ddxr <- DEXSeq(ddxDEXSeq, BPPARAM = BPPARAM)
 file <- paste(out, "ddxr.Rdata", sep = "/")
 save(ddxr, file = file)
 
-ddxr <- ddxr[order(ddxr$padj) , ]
 ddxrNoNA <- ddxr[ !is.na(ddxr$padj) , ]
-ddxrNoNA <- ddxrNoNA[ ddxrNoNA$exonBaseMean > 0.0 , ]
-ddxrNoNA05 <- ddxrNoNA[ ddxrNoNA$padj < 0.05 , ]
-ddxrNoNA01 <- ddxrNoNA[ ddxrNoNA$padj < 0.01 , ]
+ddxrNoNA <- ddxrNoNA[order(ddxrNoNA$padj , -abs(ddxrNoNA[[10]])) , ] #padj and descending abs log2fc
+ddxrNoNA05 <- ddxrNoNA[ ddxrNoNA$padj <= 0.05 , ]
+ddxrNoNA01 <- ddxrNoNA[ ddxrNoNA$padj <= 0.01 , ]
 
 csv <- paste(out, "full.csv", sep = "/")
 o <- as.data.frame(ddxr)
@@ -74,23 +73,56 @@ pdf(paste(out, "ma_plot.pdf", sep = "/"))
 plotMA(ddxr)
 graphics.off()
 
-IDs <- row.names(ddxrNoNA05)
+IDsNoNA <- row.names(ddxrNoNA05)
+tmp <- unlist(strsplit(IDsNoNA,":"))
+IDsNoNA <- tmp[seq(1,length(tmp),2)]
 uniques <- numeric()
-for (i in IDs) {
-	uniques <- unique(c(uniques, (strsplit(i, ":")[[1]])[1]))
-	if(length(uniques)==50){
-		break
+for (i in IDsNoNA) {
+	if(length(strsplit(i, "\\+")[[1]])  == 1){
+		uniques <- unique(c(uniques, i))
+		if(length(uniques)==50){
+			break
+		}
 	}
 }
-#uniques <- unique(uniques)[1:min(length(uniques),50)]
 
-out <- file.path(out, "genes")
-dir.create(out, showWarnings = FALSE)
+o <- file.path(out, "top50logFC")
+dir.create(o, showWarnings = FALSE)
 for (i in uniques) {
-	postscript(file.path(out, paste(i, ".ps", sep = "")))
+	postscript(file.path(o, paste(i, ".ps", sep = "")))
 	plotDEXSeq(ddxr, i, legend = TRUE, lwd = 1)
 	graphics.off()
-	#postscript(file.path(out, paste(i, "_transcripts.ps", sep = "")))
-	#plotDEXSeq(ddxr, i, displayTranscripts = TRUE, legend = TRUE, lwd = 1)
-	#graphics.off()
+    err <- tryCatch({
+        postscript(file.path(o, paste(i, "_transcripts.ps", sep = "")))
+        plotDEXSeq(ddxr, i, legend = TRUE, displayTranscripts=TRUE, lwd = 1)
+    }, error=function(e){
+        print(paste(e, "warning: cannot create tranctipt plot for ", i, sep="" ))
+    })
+	graphics.off()
+}
+
+o <- file.path(out, "top50isoformscores")
+dir.create(o, showWarnings = FALSE)
+IDs <- read.csv(isoformscores, header = FALSE, sep = "\t", dec = ".", stringsAsFactors = FALSE, strip.white = T)[[1]]
+uniques <- numeric()
+for (i in IDs) {
+	if(length(strsplit(i, "\\+")[[1]])  == 1 && i %in% IDsNoNA) {
+		uniques <- unique(c(uniques, i))
+		if(length(uniques)==50){
+			break
+		}
+	}
+}
+
+for (i in uniques) {
+	postscript(file.path(o, paste(i, ".ps", sep = "")))
+	plotDEXSeq(ddxr, i, legend = TRUE, lwd = 1)
+	graphics.off()
+    err <- tryCatch({
+        postscript(file.path(o, paste(i, "_transcripts.ps", sep = "")))
+        plotDEXSeq(ddxr, i, legend = TRUE, displayTranscripts=TRUE, lwd = 1)
+    }, error=function(e){
+        print(paste(e, "warning: cannot create tranctipt plot for ", i, sep="" ))
+    })
+	graphics.off()
 }

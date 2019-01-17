@@ -57,7 +57,7 @@ compile::conda() {
 		# readline 7 causes library version number to be lower on the shared object warnings
 		# use quantstack gcc for r and perl module installation - defaults gcc has a weird usage
 		# under perl 5.26 List::MoreUtils installation fails
-		source activate py2 && \
+		conda activate py2 && \
 		conda install -y --override-channels -c iuc -c bioconda -c main -c conda-forge -c defaults -c quantstack \
 			gcc-7 libgcc-7 automake zlib ncurses xz bzip2 pigz pbzip2 ghostscript readline=6 \
 			perl=5.22 perl-threaded \
@@ -67,14 +67,14 @@ compile::conda() {
 		chmod 755 $insdir/conda/envs/py2/bin/run_rcorrector.pl && \
 
 		# python3 necessary for multithreaded cutadapt and idr
-		source activate py3 && \
+		conda activate py3 && \
 		# r-essentials readline - readline is now shipped with miniconda, r-essentials causes troubles with webgestalt and is not necessary anymore to be installed prior to other packages
 		conda install -y --override-channels -c iuc -c bioconda -c main -c conda-forge -c defaults -c quantstack \
 			gcc-7 libgcc-7 automake zlib ncurses xz bzip2 pigz pbzip2 readline=6 \
 			cutadapt && \
 
 		# split installation, otherwise solving environment takes hours!!?
-		source activate py2r && \
+		conda activate py2r && \
 		conda install -y --override-channels -c iuc -c bioconda -c main -c conda-forge -c defaults -c quantstack \
 			gcc-7 libgcc-7 automake zlib ncurses xz bzip2 pigz pbzip2 readline=6 \
 			r r-devtools && \
@@ -222,10 +222,18 @@ EOF
 }
 
 compile::dexseq() {
+	# cat <(echo '#!/usr/bin/env python') $insdir/conda/envs/py2r/lib/R/library/DEXSeq/python_scripts/dexseq_prepare_annotation.py > $insdir/conda/envs/py2/bin/dexseq_prepare_annotation.py && \
+	# chmod 755 $insdir/conda/envs/py2/bin/dexseq_prepare_annotation.py
 	{	echo ":INFO: installing dexseq" && \
-		pip install htseq && \
-		cat <(echo '#!/usr/bin/env python') $insdir/conda/envs/py2r/lib/R/library/DEXSeq/python_scripts/dexseq_prepare_annotation.py > $insdir/conda/envs/py2/bin/dexseq_prepare_annotation.py && \
-		chmod 755 $insdir/conda/envs/py2/bin/dexseq_prepare_annotation.py
+		cd $insdir && \
+        rm -rf Subread_to_DEXSeq && \
+		git clone https://github.com/vivekbhr/Subread_to_DEXSeq && \
+		cd Subread_to_DEXSeq && \
+		mkdir -p bin && \
+		mv *.py bin && \
+		mkdir -p $insdir/bin && \
+		ln -sfn $PWD/bin $insdir/bin/preparedexseq && \
+		pip install htseq
 	} || return 1
 
 	return 0
