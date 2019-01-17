@@ -222,9 +222,9 @@ EOF
 }
 
 compile::dexseq() {
-	# cat <(echo '#!/usr/bin/env python') $insdir/conda/envs/py2r/lib/R/library/DEXSeq/python_scripts/dexseq_prepare_annotation.py > $insdir/conda/envs/py2/bin/dexseq_prepare_annotation.py && \
-	# chmod 755 $insdir/conda/envs/py2/bin/dexseq_prepare_annotation.py
 	{	echo ":INFO: installing dexseq" && \
+		cat <(echo '#!/usr/bin/env python') $insdir/conda/envs/py2r/lib/R/library/DEXSeq/python_scripts/dexseq_prepare_annotation.py > $insdir/conda/envs/py2/bin/dexseq_prepare_annotation.py && \
+		chmod 755 $insdir/conda/envs/py2/bin/dexseq_prepare_annotation.py && \
 		cd $insdir && \
         rm -rf Subread_to_DEXSeq && \
 		git clone https://github.com/vivekbhr/Subread_to_DEXSeq && \

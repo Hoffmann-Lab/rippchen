@@ -806,8 +806,11 @@ pipeline::featurecounts() {
 		[[ -s $annotation ]] && thismd5gtf=$(md5sum $annotation 2> /dev/null | cut -d ' ' -f 1)
 		if ([[ -n $thismd5gtf ]] && [[ $thismd5gtf != $md5gtf ]]) || [[ ! -s ${annotation%.*}.exons.gtf ]] || [[ ! -s ${annotation%.*}.exons.dexseq ]]; then
 			echo ":INFO: preparing exon annotation"
-			echo "dexseq_prepare_annotation2.py -f $tmpdir/tmp $annotation ${annotation%.*}.exons.dexseq"
-			/usr/bin/time -v dexseq_prepare_annotation2.py -f $tmpdir/tmp.exons.gtf $annotation ${annotation%.*}.exons.dexseq || return 1
+			echo "gtf4dexseq.pl -b protein_coding -g ${annotation%.*}.exons.gtf -d ${annotation%.*}.exons.dexseq $annotation"
+			/usr/bin/time -v gtf4dexseq.pl -b protein_coding -g ${annotation%.*}.exons.gtf -d ${annotation%.*}.exons.dexseq $annotation || return 1
+			# replaced by own script
+			# echo "dexseq_prepare_annotation2.py -f $tmpdir/tmp $annotation ${annotation%.*}.exons.dexseq"
+			# /usr/bin/time -v dexseq_prepare_annotation2.py -f $tmpdir/tmp.exons.gtf $annotation ${annotation%.*}.exons.dexseq || return 1
 			perl -F'\t' -lane 'if($F[2] eq "exon"){$F[-1]=~/gene_id\s+\"([^\s"]+)/; $F[-1].="; exon_id \"$1"; $F[-1]=~/exon_number\s+"(\d+)/; $F[-1].=":$1\""}; print join "\t",@F' $tmpdir/tmp.exons.gtf > ${annotation%.*}.exons.gtf
 			[[ -n $thismd5gtf ]] && sed -i "s/md5gtf=.*/md5gtf=$thismd5gtf/" $genome.md5s
 			echo ":INFO: preparing exon annotation finished"

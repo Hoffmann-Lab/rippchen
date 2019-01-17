@@ -1,10 +1,10 @@
 ### ABOUT
 RIPPCHEN are tasty!
-acquire a taste for peak calling from *IP-Seq experiments or for differential gene expression- and ontology analysis from RNA-Seq data
+acquire a taste for RNA-Seq baseg gene expression analysis and peak calling from *IP-Seq experiments
 
 RIPPCHEN comprises
 1) a free implementation of ENCODE best practices for ChIP-Seq analysis
-2) gene expression analysis comprising differential analysis, principal component analysis, time course clustering and go enrichment
+2) gene expression analysis comprising differential analysis, principal component analysis, coexpression clustering and go enrichment
 
 
 ### REQUIREMENTS
