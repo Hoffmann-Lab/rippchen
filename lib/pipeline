@@ -806,7 +806,7 @@ pipeline::featurecounts() {
 		[[ -s $annotation ]] && thismd5gtf=$(md5sum $annotation 2> /dev/null | cut -d ' ' -f 1)
 		if ([[ -n $thismd5gtf ]] && [[ $thismd5gtf != $md5gtf ]]) || [[ ! -s ${annotation%.*}.exons.gtf ]] || [[ ! -s ${annotation%.*}.exons.dexseq ]]; then
 			echo ":INFO: preparing exon annotation"
-			echo "gtf4dexseq.pl -b protein_coding -g ${annotation%.*}.exons.gtf -d ${annotation%.*}.exons.dexseq $annotation"
+			echo "gtf4dexseq.pl -x -b protein_coding -g ${annotation%.*}.exons.gtf -d ${annotation%.*}.exons.dexseq $annotation"
 			/usr/bin/time -v gtf4dexseq.pl -b protein_coding -g ${annotation%.*}.exons.gtf -d ${annotation%.*}.exons.dexseq $annotation || return 1
 			# replaced by own script
 			# echo "dexseq_prepare_annotation2.py -f $tmpdir/tmp $annotation ${annotation%.*}.exons.dexseq"
@@ -1039,7 +1039,7 @@ pipeline::deseq() {
 	return 0
 }
 
-pipeline::_scoreisoforms () {
+pipeline::_scoreprofiles () {
 # gene1 (normalized mean read counts)
 #      .100.
 # .10./     \.10. -> 90,-90
@@ -1086,7 +1086,7 @@ pipeline::_scoreisoforms () {
 						END{
 							print $lastgene $change;
 						}
-					' | sort -k2,2gr > $o/genes.isoformscores || return 1
+					' | sort -k2,2gr > $o/genes.profilescores || return 1
 				done
 			done
 		done
@@ -1107,7 +1107,7 @@ pipeline::dexseq () {
 	fi
 
     if [[ ! $Siso ]]; then 
-    	pipeline::_scoreisoforms || return 1
+    	pipeline::_scoreprofiles || return 1
     fi
     
 	cmd1=()
@@ -1124,19 +1124,24 @@ pipeline::dexseq () {
 					conditions=$(awk '{print $2}' <(awk -v i=${comp[$i]} '$2==i' $f | sort -k4,4V; awk -v j=${comp[$j]} '$2==j' $f | sort -k4,4V) | xargs -echo | sed 's/ /,/g')
 					libtypes=$(awk '{print $3}' <(awk -v i=${comp[$i]} '$2==i' $f | sort -k4,4V; awk -v j=${comp[$j]} '$2==j' $f | sort -k4,4V) | xargs -echo | sed 's/ /,/g')
 					o=$outdir/dexseq/$r/${comp[$i]}_${comp[$j]}
-					cmd1+=("dexseq.R $thr $o $samples $labels $conditions $libtypes ${annotation%.*}.exons.dexseq $o/genes.isoformscores\0")
-					# cmd2+=("awk -F ',' 'BEGIN{OFS=\",\"}{a=\$1; \$1=\$2; \$2=a; print}' $o/full.csv > $tmpdir/$r/full.csv && mv $tmpdir/$r/full.csv $o/full.csv")
-					# cmd2+=("awk -F ',' 'BEGIN{OFS=\",\"}{a=\$1; \$1=\$2; \$2=a; print}' $o/filtered_padj01.csv > $tmpdir/$r/filtered_padj01.csv && mv $tmpdir/$r/filtered_padj01.csv $o/filtered_padj01.csv")
-					# cmd2+=("awk -F ',' 'BEGIN{OFS=\",\"}{a=\$1; \$1=\$2; \$2=a; print}' $o/filtered_padj05.csv > $tmpdir/$r/filtered_padj05.csv && mv $tmpdir/$r/filtered_padj05.csv $o/filtered_padj05.csv")
-					# cmd2+=("awk -F ',' 'BEGIN{OFS=\",\"}{a=\$1; \$1=\$2; \$2=a; print}' $o/filtered_padjNA.csv > $tmpdir/$r/filtered_padjNA.csv && mv $tmpdir/$r/filtered_padjNA.csv $o/filtered_padjNA.csv")
+					cmd1+=("dexseq.R $thr $o $samples $labels $conditions $libtypes ${annotation%.*}.exons.dexseq $o/genes.profilescores\0")
+					#this modification + annotation only works for own dexseq preparation script gtf4dexseq.pl - see featurecounts
+					cmd2+=("perl -F',' -lane 'if\$.==1{\$F[0]=\"\\\"geneID\\\",\\\"exonID\\\"\"}else{\$F[0]=\"\\\"\".(split/\@/,\$F[1])[-1].\",\".\$F[0]} 
+						print join\",\",@F' $o/full.csv > $tmpdir/$r/full.csv && mv $tmpdir/$r/full.csv $o/full.csv\0")
+					cmd2+=("perl -F',' -lane 'if\$.==1{\$F[0]=\"\\\"geneID\\\",\\\"exonID\\\"\"}else{\$F[0]=\"\\\"\".(split/\@/,\$F[1])[-1].\",\".\$F[0]} 
+						print join\",\",@F' $o/filtered_padjNA.csv > $tmpdir/$r/filtered_padjNA.csv && mv $tmpdir/$r/filtered_padjNA.csv $o/filtered_padjNA.csv\0")
+					cmd2+=("perl -F',' -lane 'if\$.==1{\$F[0]=\"\\\"geneID\\\",\\\"exonID\\\"\"}else{\$F[0]=\"\\\"\".(split/\@/,\$F[1])[-1].\",\".\$F[0]} 
+						print join\",\",@F' $o/filtered_padj01.csv > $tmpdir/$r/filtered_padj01.csv && mv $tmpdir/$r/filtered_padj01.csv $o/filtered_padj01.csv\0")
+					cmd2+=("perl -F',' -lane 'if\$.==1{\$F[0]=\"\\\"geneID\\\",\\\"exonID\\\"\"}else{\$F[0]=\"\\\"\".(split/\@/,\$F[1])[-1].\",\".\$F[0]} 
+						print join\",\",@F' $o/filtered_padj05.csv > $tmpdir/$r/filtered_padj05.csv && mv $tmpdir/$r/filtered_padj05.csv $o/filtered_padj05.csv\0")
 					if [[ -e $annotation.info ]]; then
-						# cmd3+=("annotate.pl $annotation.info $annotation \$(find $o -type f -name '*.csv' | grep -v annotated) \$(find $o -type f -name '*.ps' | grep -v annotated)\0")
-						cmd2+=("annotate.pl $annotation.info $annotation \$(find $o -type f -name '*.ps' | grep -v annotated)\0")
+						cmd3+=("annotate.pl $annotation.info $annotation \$(find $o -type f -name '*.csv' | grep -v annotated) \$(find $o -type f -name '*.ps' | grep -v annotated)\0")
+						cmd3+=("annotate.pl $annotation.info $annotation \$(find $o -type f -name '*.ps' | grep -v annotated)\0")
 					else 
-						# cmd3+=("annotate.pl 0 $annotation \$(find $o -type f -name '*.csv' | grep -v annotated) \$(find $o -type f -name '*.ps' | grep -v annotated)\0")
-						cmd2+=("annotate.pl 0 $annotation \$(find $o -type f -name '*.ps' | grep -v annotated)\0")
+						cmd3+=("annotate.pl 0 $annotation \$(find $o -type f -name '*.csv' | grep -v annotated) \$(find $o -type f -name '*.ps' | grep -v annotated)\0")
+						cmd3+=("annotate.pl 0 $annotation \$(find $o -type f -name '*.ps' | grep -v annotated)\0")
 					fi
-					cmd3+=("find $o -type f -name '*.ps' -exec bash -c 'echo ps2pdf {} \$(dirname {})/\$(basename {} .ps).pdf' \; | xargs -P $threads -I cmd bash -c cmd \0")
+					cmd4+=("find $o -type f -name '*.ps' -exec bash -c 'echo ps2pdf {} \$(dirname {})/\$(basename {} .ps).pdf' \; | xargs -P $threads -I cmd bash -c cmd \0")
 				done
 			done
 		done
@@ -1145,14 +1150,14 @@ pipeline::dexseq () {
 	echo -n ${cmd1[@]} | sed 's/\\0\s*/\n/g'
     echo -n ${cmd2[@]} | sed 's/\\0\s*/\n/g'
     echo -n ${cmd3[@]} | sed 's/\\0\s*/\n/g'
-    # echo -n ${cmd4[@]} | sed 's/\\0\s*/\n/g'
+    echo -n ${cmd4[@]} | sed 's/\\0\s*/\n/g'
 	if [[ ! $Siso ]]; then
 		{	conda activate py2r && \
 			echo -ne ${cmd1[@]} | /usr/bin/time -v xargs -0 -P 1 -I {} bash -c {} && \
 			conda activate py2 && \
 			echo -ne ${cmd2[@]} | /usr/bin/time -v xargs -0 -P $threads -I {} bash -c {} && \
-			echo -ne ${cmd3[@]} | /usr/bin/time -v xargs -0 -P 1 -I {} bash -c {}
-			# echo -ne ${cmd4[@]} | /usr/bin/time -v xargs -0 -P 1 -I {} bash -c {}
+			echo -ne ${cmd3[@]} | /usr/bin/time -v xargs -0 -P $threads -I {} bash -c {}
+			echo -ne ${cmd4[@]} | /usr/bin/time -v xargs -0 -P 1 -I {} bash -c {}
 		} || return 1
 	fi
 

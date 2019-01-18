@@ -5,7 +5,7 @@ use warnings;
 use feature ":5.10";
 
 if ($#ARGV < 2){
-	say "usage: annotate.pl [gtf.descr|0] [gtf|0] [deseq.csv|heatmap.ps ..]";
+	say "usage: annotate.pl [gtf.descr|0] [gtf|0] [deseq.csv|dexseq.csv|deseqheatmap.ps|dexseqplot.ps ..]";
 	say "0 or gtf.descr => 4 tab seperated columns: geneID geneName biotype description";
 	say "0 or gtf => parsed for gene_id gene_name gene_biotype";
 	exit 1;	
@@ -75,12 +75,15 @@ for (2..$#ARGV){
 		if ($ps) {
 			if (/\((\S+)(\s\+|\s-)*\)\s+(0|0\.25)\s+0\s+t$/) {
 				my $n = $mps{$1};
+				$n = $mps{(split/\@/,$1)[-1]} unless $n;
 				s/$1/$n/ if $n;
 			}
 			say O;
 		} else {
 			$l[0]=~/([^\"]+)/;
-			$l[0] = $m{$1};
+			my $n = $mps{$1};
+			$n = $mps{(split/\@/,$1)[-1]} unless $n;
+			$l[0] = $n;
 			$l[0] = '"'.$1.'","","",""' unless $l[0];
 			say O join",",@l;
 		}

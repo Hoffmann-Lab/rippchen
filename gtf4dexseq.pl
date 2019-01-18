@@ -110,7 +110,7 @@ for my $id (@ids){
 		say DEX join("\t",@$_) for @{$exonsdex{$id}};
 		if ($filegtf){
 			say GTF join("\t",@{$genesgtf{$id}});
-            say GTF join("\t",@$_) @{$exonsgtf{$id}};
+            say GTF join("\t",@$_) for @{$exonsgtf{$id}};
 		}
 	}
 }
