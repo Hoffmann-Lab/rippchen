@@ -81,8 +81,8 @@ for (2..$#ARGV){
 			say O;
 		} else {
 			$l[0]=~/([^\"]+)/;
-			my $n = $mps{$1};
-			$n = $mps{(split/\@/,$1)[-1]} unless $n;
+			my $n = $m{$1};
+			$n = $m{(split/\@/,$1)[-1]} unless $n;
 			$l[0] = $n;
 			$l[0] = '"'.$1.'","","",""' unless $l[0];
 			say O join",",@l;

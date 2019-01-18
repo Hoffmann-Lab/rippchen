@@ -802,27 +802,26 @@ pipeline::featurecounts() {
 		thr=$[threads/instances]
 	fi
 
-	if [[ ! $Scount ]]; then
-		[[ -s $annotation ]] && thismd5gtf=$(md5sum $annotation 2> /dev/null | cut -d ' ' -f 1)
-		if ([[ -n $thismd5gtf ]] && [[ $thismd5gtf != $md5gtf ]]) || [[ ! -s ${annotation%.*}.exons.gtf ]] || [[ ! -s ${annotation%.*}.exons.dexseq ]]; then
-			echo ":INFO: preparing exon annotation"
-			echo "gtf4dexseq.pl -x -b protein_coding -g ${annotation%.*}.exons.gtf -d ${annotation%.*}.exons.dexseq $annotation"
-			/usr/bin/time -v gtf4dexseq.pl -b protein_coding -g ${annotation%.*}.exons.gtf -d ${annotation%.*}.exons.dexseq $annotation || return 1
-			# replaced by own script
-			# echo "dexseq_prepare_annotation2.py -f $tmpdir/tmp $annotation ${annotation%.*}.exons.dexseq"
-			# /usr/bin/time -v dexseq_prepare_annotation2.py -f $tmpdir/tmp.exons.gtf $annotation ${annotation%.*}.exons.dexseq || return 1
-			perl -F'\t' -lane 'if($F[2] eq "exon"){$F[-1]=~/gene_id\s+\"([^\s"]+)/; $F[-1].="; exon_id \"$1"; $F[-1]=~/exon_number\s+"(\d+)/; $F[-1].=":$1\""}; print join "\t",@F' $tmpdir/tmp.exons.gtf > ${annotation%.*}.exons.gtf
-			[[ -n $thismd5gtf ]] && sed -i "s/md5gtf=.*/md5gtf=$thismd5gtf/" $genome.md5s
-			echo ":INFO: preparing exon annotation finished"
+	if [[ ! $Scount ]] && [[ ! $noiso ]]; then
+		echo ":INFO: preparing exon annotation"
+		if [[ $dexseqnew -gt 0 ]]; then
+			if [[ $dexseqnew -eq 1 ]]; then
+				echo "gtf4dexseq.pl -b protein_coding -g $tmpdir/dexseq.gtf -d $tmpdir/dexseq.flat $annotation"
+				/usr/bin/time -v gtf4dexseq.pl -b protein_coding $tmpdir/dexseq.gtf -d $tmpdir/dexseq.flat $annotation || return 1
+			else
+				echo "gtf4dexseq.pl -x -b protein_coding -g $tmpdir/dexseq.gtf -d $tmpdir/dexseq.flat $annotation"
+				/usr/bin/time -v gtf4dexseq.pl -b protein_coding $tmpdir/dexseq.gtf -d $tmpdir/dexseq.flat $annotation || return 1
+			fi
+		else
+			echo "dexseq_prepare_annotation2.py -f $tmpdir/dexseq.gtf $annotation $tmpdir/dexseq.flat"
+			/usr/bin/time -v dexseq_prepare_annotation2.py -f $tmpdir/dexseq.gtf $annotation $tmpdir/dexseq.flat || return 1
 		fi
+		perl -lane '$F[-1]=~/gene_id\s+"([^\s"]+)/; $o=$1; $F[-1]=~/exon_number\s+"([^\s"]+)/; print "$o:$1"' $tmpdir/dexseq.gtf > $tmpdir/dexseq.ids
+		echo ":INFO: preparing exon annotation finished"
 	fi
-
-	cmd1=()
+    
+    cmd1=()
 	cmd2=()
-	#dexseq prepare script create gene_ids longer than 256 chars which is the limitation of featurecounts
-    #perl -lane '$F[-1]=~/gene_id\s+"([^\s"]+)/; $o=$1; $F[-1]=~/exon_number\s+"([^\s"]+)/; print "$o:$1"' ${annotation%.*}.exons.gtf > $tmpdir/dexseqids
-    #not necessary anymore because of own preparation script
-
 	for r in ${mapper[@]}; do
 		declare -n m=$r
         mkdir -p $tmpdir/$r
@@ -831,20 +830,31 @@ pipeline::featurecounts() {
 			o=${o%.*}
 			if [[ ${fastq2[0]} ]] || [[ ${pairedness[$i]} -gt 0 ]]; then
 				cmd1+=("featureCounts -p --minOverlap 10 -s ${strandness[$i]} -T $thr -t exon -g gene_id --tmpDir $tmpdir/$r -a $annotation -o $o.genes ${m[$i]}\0")
-				cmd1+=("featureCounts -p --minOverlap 10 -s ${strandness[$i]} -f -O -T $thr -t exon -g exon_id --tmpDir $tmpdir/$r -a ${annotation%.*}.exons.gtf -o $o.exons ${m[$i]}\0")
-                #cmd1+=("featureCounts -p --minOverlap 10 -s ${strandness[$i]} -f -O -T $thr -t exon -g gene_id --tmpDir $tmpdir/$r -a ${annotation%.*}.exons.gtf -o $o.exons ${m[$i]}\0")
-                #belongs to deprecated fix
+				if [[ ! $noiso ]]; then
+					if [[ $dexseqnew -gt 0 ]]; then
+						cmd1+=("featureCounts -p --minOverlap 10 -s ${strandness[$i]} -f -O -T $thr -t exon -g exon_id --tmpDir $tmpdir/$r -a $tmpdir/dexseq.gtf -o $o.exons ${m[$i]}\0")
+					else
+	                	cmd1+=("featureCounts -p --minOverlap 10 -s ${strandness[$i]} -f -O -T $thr -t exon -g gene_id --tmpDir $tmpdir/$r -a $tmpdir/dexseq.gtf -o $o.exons ${m[$i]}\0")
+	                fi
+	            fi
 			else 
 				cmd1+=("featureCounts --minOverlap 10 -s ${strandness[$i]} -T $thr -t exon -g gene_id --tmpDir $tmpdir/$r -a $annotation -o $o.genes ${m[$i]}\0")
-				cmd1+=("featureCounts --minOverlap 10 -s ${strandness[$i]} -f -O -T $thr -t exon -g exon_id --tmpDir $tmpdir/$r -a ${annotation%.*}.exons.gtf -o $o.exons ${m[$i]}\0")
-                #cmd1+=("featureCounts --minOverlap 10 -s ${strandness[$i]} -f -O -T $thr -t exon -g gene_id --tmpDir $tmpdir/$r -a ${annotation%.*}.exons.gtf -o $o.exons ${m[$i]}\0")
-                #belongs to deprecated fix
+				if [[ ! $noiso ]]; then
+					if [[ $dexseqnew -gt 0 ]]; then
+						cmd1+=("featureCounts --minOverlap 10 -s ${strandness[$i]} -f -O -T $thr -t exon -g exon_id --tmpDir $tmpdir/$r -a $tmpdir/dexseq.gtf -o $o.exons ${m[$i]}\0")
+					else
+	                	cmd1+=("featureCounts --minOverlap 10 -s ${strandness[$i]} -f -O -T $thr -t exon -g gene_id --tmpDir $tmpdir/$r -a $tmpdir/dexseq.gtf -o $o.exons ${m[$i]}\0")
+	   				fi
+	   			fi
 			fi
-            #tofix+=($o.exons)
 			cmd2+=("awk 'NR>2{print \$1\"\t\"\$NF}' $o.genes > $o.genes.reduced\0")
-            cmd2+=("awk 'NR>2{print \$1\"\t\"\$NF}' $o.exons > $o.exons.reduced\0")
-			#cmd2+=("paste $tmpdir/dexseqids $o.exons | awk 'NR>2{print \$1\"\t\"\$NF}' $o.exons > $o.exons.reduced\0")
-			#belongs to deprecated fix
+			if [[ ! $noiso ]]; then
+				if [[ $dexseqnew -gt 0 ]]; then
+	            	cmd2+=("awk 'NR>2{print \$1\"\t\"\$NF}' $o.exons > $o.exons.reduced\0")
+	            else
+					cmd2+=("paste $tmpdir/dexseq.ids $o.exons | awk 'NR>2{print \$1\"\t\"\$NF}' $o.exons > $o.exons.reduced\0")
+				fi
+			fi
 		done
 	done
 
@@ -1124,21 +1134,33 @@ pipeline::dexseq () {
 					conditions=$(awk '{print $2}' <(awk -v i=${comp[$i]} '$2==i' $f | sort -k4,4V; awk -v j=${comp[$j]} '$2==j' $f | sort -k4,4V) | xargs -echo | sed 's/ /,/g')
 					libtypes=$(awk '{print $3}' <(awk -v i=${comp[$i]} '$2==i' $f | sort -k4,4V; awk -v j=${comp[$j]} '$2==j' $f | sort -k4,4V) | xargs -echo | sed 's/ /,/g')
 					o=$outdir/dexseq/$r/${comp[$i]}_${comp[$j]}
-					cmd1+=("dexseq.R $thr $o $samples $labels $conditions $libtypes ${annotation%.*}.exons.dexseq $o/genes.profilescores\0")
+					mv $tmpdir/dexseq.* $o &> /dev/null
+					cmd1+=("dexseq.R $thr $o $samples $labels $conditions $libtypes $o/dexseq.flat $o/genes.profilescores\0")
 					#this modification + annotation only works for own dexseq preparation script gtf4dexseq.pl - see featurecounts
-					cmd2+=("perl -F',' -lane 'if\$.==1{\$F[0]=\"\\\"geneID\\\",\\\"exonID\\\"\"}else{\$F[0]=\"\\\"\".(split/\@/,\$F[1])[-1].\",\".\$F[0]} 
-						print join\",\",@F' $o/full.csv > $tmpdir/$r/full.csv && mv $tmpdir/$r/full.csv $o/full.csv\0")
-					cmd2+=("perl -F',' -lane 'if\$.==1{\$F[0]=\"\\\"geneID\\\",\\\"exonID\\\"\"}else{\$F[0]=\"\\\"\".(split/\@/,\$F[1])[-1].\",\".\$F[0]} 
-						print join\",\",@F' $o/filtered_padjNA.csv > $tmpdir/$r/filtered_padjNA.csv && mv $tmpdir/$r/filtered_padjNA.csv $o/filtered_padjNA.csv\0")
-					cmd2+=("perl -F',' -lane 'if\$.==1{\$F[0]=\"\\\"geneID\\\",\\\"exonID\\\"\"}else{\$F[0]=\"\\\"\".(split/\@/,\$F[1])[-1].\",\".\$F[0]} 
-						print join\",\",@F' $o/filtered_padj01.csv > $tmpdir/$r/filtered_padj01.csv && mv $tmpdir/$r/filtered_padj01.csv $o/filtered_padj01.csv\0")
-					cmd2+=("perl -F',' -lane 'if\$.==1{\$F[0]=\"\\\"geneID\\\",\\\"exonID\\\"\"}else{\$F[0]=\"\\\"\".(split/\@/,\$F[1])[-1].\",\".\$F[0]} 
-						print join\",\",@F' $o/filtered_padj05.csv > $tmpdir/$r/filtered_padj05.csv && mv $tmpdir/$r/filtered_padj05.csv $o/filtered_padj05.csv\0")
+					if [[ $dexseqnew -gt 0 ]]; then
+						cmd2+=("perl -F',' -lane 'if(\$.==1){\$F[0]=\"\\\"geneID\\\",\\\"exonID\\\"\"}else{\$F[0]=\"\\\"\".(split/\@/,\$F[1])[-1].\",\".\$F[0]} 
+							print join\",\",@F' $o/full.csv > $tmpdir/$r/full.csv && mv $tmpdir/$r/full.csv $o/full.csv\0")
+						cmd2+=("perl -F',' -lane 'if(\$.==1){\$F[0]=\"\\\"geneID\\\",\\\"exonID\\\"\"}else{\$F[0]=\"\\\"\".(split/\@/,\$F[1])[-1].\",\".\$F[0]} 
+							print join\",\",@F' $o/filtered_padjNA.csv > $tmpdir/$r/filtered_padjNA.csv && mv $tmpdir/$r/filtered_padjNA.csv $o/filtered_padjNA.csv\0")
+						cmd2+=("perl -F',' -lane 'if(\$.==1){\$F[0]=\"\\\"geneID\\\",\\\"exonID\\\"\"}else{\$F[0]=\"\\\"\".(split/\@/,\$F[1])[-1].\",\".\$F[0]} 
+							print join\",\",@F' $o/filtered_padj01.csv > $tmpdir/$r/filtered_padj01.csv && mv $tmpdir/$r/filtered_padj01.csv $o/filtered_padj01.csv\0")
+						cmd2+=("perl -F',' -lane 'if(\$.==1){\$F[0]=\"\\\"geneID\\\",\\\"exonID\\\"\"}else{\$F[0]=\"\\\"\".(split/\@/,\$F[1])[-1].\",\".\$F[0]} 
+							print join\",\",@F' $o/filtered_padj05.csv > $tmpdir/$r/filtered_padj05.csv && mv $tmpdir/$r/filtered_padj05.csv $o/filtered_padj05.csv\0")
+					else
+						cmd2+=("perl -F',' -lane 'if(\$.==1){\$F[0]=\"\\\"geneID\\\",\\\"exonID\\\"\"}else{\$F[0]=\"\\\"\".(split/\+/,\$F[1])[0].\",\".\$F[0]} 
+							print join\",\",@F' $o/full.csv > $tmpdir/$r/full.csv && mv $tmpdir/$r/full.csv $o/full.csv\0")
+						cmd2+=("perl -F',' -lane 'if(\$.==1){\$F[0]=\"\\\"geneID\\\",\\\"exonID\\\"\"}else{\$F[0]=\"\\\"\".(split/\+/,\$F[1])[0].\",\".\$F[0]} 
+							print join\",\",@F' $o/filtered_padjNA.csv > $tmpdir/$r/filtered_padjNA.csv && mv $tmpdir/$r/filtered_padjNA.csv $o/filtered_padjNA.csv\0")
+						cmd2+=("perl -F',' -lane 'if(\$.==1){\$F[0]=\"\\\"geneID\\\",\\\"exonID\\\"\"}else{\$F[0]=\"\\\"\".(split/\+/,\$F[1])[0].\",\".\$F[0]} 
+							print join\",\",@F' $o/filtered_padj01.csv > $tmpdir/$r/filtered_padj01.csv && mv $tmpdir/$r/filtered_padj01.csv $o/filtered_padj01.csv\0")
+						cmd2+=("perl -F',' -lane 'if(\$.==1){\$F[0]=\"\\\"geneID\\\",\\\"exonID\\\"\"}else{\$F[0]=\"\\\"\".(split/\+/,\$F[1])[0].\",\".\$F[0]} 
+							print join\",\",@F' $o/filtered_padj05.csv > $tmpdir/$r/filtered_padj05.csv && mv $tmpdir/$r/filtered_padj05.csv $o/filtered_padj05.csv\0")
+					fi
 					if [[ -e $annotation.info ]]; then
-						cmd3+=("annotate.pl $annotation.info $annotation \$(find $o -type f -name '*.csv' | grep -v annotated) \$(find $o -type f -name '*.ps' | grep -v annotated)\0")
+						cmd3+=("annotate.pl $annotation.info $annotation \$(find $o -type f -name '*.csv' | grep -v annotated)\0")
 						cmd3+=("annotate.pl $annotation.info $annotation \$(find $o -type f -name '*.ps' | grep -v annotated)\0")
 					else 
-						cmd3+=("annotate.pl 0 $annotation \$(find $o -type f -name '*.csv' | grep -v annotated) \$(find $o -type f -name '*.ps' | grep -v annotated)\0")
+						cmd3+=("annotate.pl 0 $annotation \$(find $o -type f -name '*.csv' | grep -v annotated)\0")
 						cmd3+=("annotate.pl 0 $annotation \$(find $o -type f -name '*.ps' | grep -v annotated)\0")
 					fi
 					cmd4+=("find $o -type f -name '*.ps' -exec bash -c 'echo ps2pdf {} \$(dirname {})/\$(basename {} .ps).pdf' \; | xargs -P $threads -I cmd bash -c cmd \0")

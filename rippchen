@@ -67,6 +67,10 @@ TOOL SPECIFIC OPTIONS
 -d       | --distance               : read alignment hamming distance in % - default: 5
 -f       | --fragmentsize           : fragment size of sequenced mate pairs - default: 150
 -i       | --insertsize             : maximum allowed insert for aligning mate pairs - default: 200000
+-dexnew  | --dexnewprepare [value]  : switch DEXSeq annotation file preparation method - default: 0
+                                      0 - use preparation script shipped with DEXSeq
+                                      1 - do not merge transcripts and if present in GTF info, use protein_coding biotype only
+                                      2 - see [1] and additionally if feature name matches UTR/utr, exclude them
 
 PEAK CALLING OPTIONS
 -t1      | --treatmentfq1 [path,..] : *IP-Seq fastq input - single or first pair, comma seperated
@@ -246,6 +250,7 @@ checkopt (){
 	-d | --distance) accuracy=$[100-$2];;
 	-f | --fragmentsize) fragmentsize=$2;;
 	-i | --insertsize) insertsize=$2;;
+	-dexnew | --dexnewprepare) dexseqnew=$2;;
 
 	-t | --threads) threads=$2;;
 	-m | --mem) mem=$2;;
@@ -302,7 +307,7 @@ run() {
 		pipeline::removeduplicates && \
 		pipeline::indexbam
 	} || return 1
-		
+
 	if [[ $tfq1 ]]; then
 		{	pipeline::macs && \
 			pipeline::gem
@@ -340,6 +345,7 @@ regex='\S+:(\d+):(\d+):(\d+)\s*.*'
 accuracy=95
 fragmentsize=150
 insertsize=200000
+dexseqnew=0
 
 source $insdir/bin/rippchen/lib/version
 [[ $# -eq 0 ]] && usage
