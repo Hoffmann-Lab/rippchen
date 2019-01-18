@@ -62,7 +62,7 @@ while(<>){
 		$utr{$l[6]}{$l[3]}{$l[4]}=1;
 	} elsif ($l[2] eq "exon") {
 		if($biotype){
-			push @in,$_ if $l[-1]=~/$biotype/;	
+			push @in,$_ if $l[-1]=~/gene_biotype/ && $l[-1]=~/$biotype/;
 		} else {
 			push @in,$_;
 		}
@@ -107,24 +107,10 @@ open DEX, ">$filedex" or die $!;
 for my $id (@ids){
 	if ($#{$exonsdex{$id}} > 1){
 		say DEX join("\t",@{$genesdex{$id}});
-		for (@{$exonsdex{$id}}){
-			if($excludeutr){
-				say DEX join("\t",@$_) unless exists $utr{$$_[6]}{"$$_[3]:$$_[4]"};
-			} else {
-				say DEX join("\t",@$_);
-			}
-			
-		}
+		say DEX join("\t",@$_) for @{$exonsdex{$id}};
 		if ($filegtf){
 			say GTF join("\t",@{$genesgtf{$id}});
-			for (@{$exonsgtf{$id}}){
-				if($excludeutr){
-					say GTF join("\t",@$_) unless exists $utr{$$_[6]}{"$$_[3]:$$_[4]"};
-				} else {
-					say GTF join("\t",@$_);
-				}
-				
-			}
+            say GTF join("\t",@$_) @{$exonsgtf{$id}};
 		}
 	}
 }
