@@ -886,7 +886,7 @@ pipeline::tpm() {
 			cmd+=("tpm.pl $annotation $o > $o.tpm\0")
 		done
 	done
-	
+
 	echo -n ${cmd[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
 	if [[ ! $Stpm ]]; then
 		{	echo -ne ${cmd[@]} | /usr/bin/time -v xargs -0 -P $threads -I {} bash -c {}
@@ -939,6 +939,21 @@ pipeline::_jointpm() {
 		sed -r 's/\s+/\t/g' $tmpdir/expressionMean  >> $o.mean.tpm || return 1
 	done
 
+	cmd=()
+	for r in ${mapper[@]}; do
+		mkdir -p $outdir/counted/$r
+		for o in experiments experiments.mean; do
+			o=$outdir/counted/$r/$f
+			cmd+=("Rscript -e \"x = read.table('$o.tpm',header=T,sep='\\\t'); x = data.frame(gene=x\\\$gene,log(x[,-1]+1)); z = x[,-1]-rowMeans(x[,-1]); z = z/apply(z,1,sd); z[is.na(z)] = 0; z = data.frame(gene=x\\\$gene,z); colnames(z) = colnames(x)[1:length(x)]; write.table(z, file = '$o.zscores', row.names=F, sep='\\\t', quote=F)\"\0")
+		done
+	done
+
+	echo -n ${cmd[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+	{	conda activate py2r && \
+		echo -ne ${cmd[@]} | /usr/bin/time -v xargs -0 -P $threads -I {} bash -c {} && \
+		conda activate py2
+	} || return 1
+	
 	jointpm=''
 
 	return 0
@@ -1272,26 +1287,30 @@ pipeline::coexpression() {
 pipeline::_vizcoexpression() {
 	cmd=()
 	for r in ${mapper[@]}; do
-		for f in experiments experiments.filtered; do
+		for f in experiments.filtered experiments; do
 			o=$outdir/coexpressed/$r/$f
-			[[ ! -s $o.cluster.tsv ]] && continue
-			rm -f $o.cluster.dge_enrichment
-			head -1 $o.mean.tpm | sed -r "s/(.+)/\1\tID/" > $o.cluster.mean.tpm
-			for i in $(sort -k2,2n $o.cluster.tsv | perl -lane 'BEGIN{$c=-1} unless ($F[1]==$c){close F; $i=("0"x(3-length($F[1]))).$F[1]; open F,">'$o'.cluster.$i.genes" or die $!; $c=$F[1]; print $i} print F $F[0]; END{close F}'); do
-				head -1 $o.cluster.mean.tpm > $o.cluster.$i.tpm
-				grep -f $o.cluster.$i.genes $o.mean.tpm | sed -r "s/(.+)/\1\tCluster$i/" > $tmpdir/tmp
-				cat $tmpdir/tmp >> $o.cluster.$i.tpm
-				cat $tmpdir/tmp >> $o.cluster.mean.tpm
-				[[ $f == "experiments" ]] && Rscript -e "ALL=scan('$o.genes', character(), quiet=T); A=scan('$o.filtered.genes', character(), quiet=T); B=scan('$o.cluster.$i.genes', character(), quiet=T); overlap=intersect(A,B); cat('cluster.$i',phyper(length(overlap), length(A), length(ALL)-length(A), length(B), lower.tail = F)); cat('\n')" >> $o.cluster.dge_enriched
-				# cmd+=("Rscript -e \"data = read.table('$o.cluster.$i.tpm', header=T, sep='\\\t', row.names=1); data = log((data+1)/rowMeans(data+1)); pdf('$o.cluster.$i.pdf'); plot(1, type='n', xlim=c(1,4), ylim=c(min(data),max(data)), ylab='Mean-relative log TPM', xlab='', xaxt='n'); axis(1, at=c(1:ncol(data)), labels=colnames(data)); apply(data, 1, function(x) lines(c(1:ncol(data)),x,col='grey')); lines(c(1:ncol(data)),colMeans(data),col='blue'); sd = apply(data,2,sd); lines(c(1:ncol(data)),colMeans(data)+sd,col='red'); lines(c(1:ncol(data)),colMeans(data)-sd,col='red'); graphics.off()\"\0")
-				cmd+=("vizco.R $o.cluster.$i.tpm $o.cluster.$i.pdf\0")
+            for c in cluster module; do 
+				[[ ! -s $o.$c.tsv ]] && continue
+				rm -f $o.$c.dge_enrichment
+				head -1 $o.mean.tpm | sed -r "s/(.+)/\1\tID/" > $o.$c.mean.tpm
+				for i in $(sort -k2,2n $o.$c.tsv | perl -lane 'BEGIN{$c=-1} unless ($F[1]==$c){close F; $i=("0"x(3-length($F[1]))).$F[1]; open F,">'$o'.'$c'.$i.genes" or die $!; $c=$F[1]; print $i} print F $F[0]; END{close F}'); do
+                    head -1 $o.$c.mean.tpm > $o.$c.$i.tpm
+                    grep -f $o.$c.$i.genes $o.mean.tpm | sed -r "s/(.+)/\1\t$c$i/" > $tmpdir/tmp
+                    cat $tmpdir/tmp >> $o.$c.$i.tpm
+                    cat $tmpdir/tmp >> $o.$c.mean.tpm
+                    # check if cluster/moduke is enriched by differentially expressed (aka filtered) genes
+                    [[ $f == "experiments" ]] && Rscript -e "ALL=scan('$o.genes', character(), quiet=T); A=scan('$o.filtered.genes', character(), quiet=T); B=scan('$o.cluster.$i.genes', character(), quiet=T); overlap=intersect(A,B); cat('cluster.$i',phyper(length(overlap), length(A), length(ALL)-length(A), length(B), lower.tail = F)); cat('\n')" >> $o.$c.dge_enriched
+                    # old visualization
+                    # cmd+=("Rscript -e \"data = read.table('$o.cluster.$i.tpm', header=T, sep='\\\t', row.names=1); data = log((data+1)/rowMeans(data+1)); pdf('$o.cluster.$i.pdf'); plot(1, type='n', xlim=c(1,4), ylim=c(min(data),max(data)), ylab='Mean-relative log TPM', xlab='', xaxt='n'); axis(1, at=c(1:ncol(data)), labels=colnames(data)); apply(data, 1, function(x) lines(c(1:ncol(data)),x,col='grey')); lines(c(1:ncol(data)),colMeans(data),col='blue'); sd = apply(data,2,sd); lines(c(1:ncol(data)),colMeans(data)+sd,col='red'); lines(c(1:ncol(data)),colMeans(data)-sd,col='red'); graphics.off()\"\0")
+                    cmd+=("vizco.R $o.$c.$i.tpm $o.$c.$i.pdf\0")
+                done
+				cmd+=("vizco.R $o.$c.mean.tpm $o.$c.mean.pdf\0")
 			done
-			cmd+=("vizco.R $o.cluster.mean.tpm $o.cluster.mean.pdf\0")
 		done
 	done
 
 	echo -n ${cmd[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
-	echo -ne ${cmd[@]} | /usr/bin/time -v xargs -0 -P $threads -I {} bash -c {} || return 1
+    echo -ne ${cmd[@]} | /usr/bin/time -v xargs -0 -P $threads -I {} bash -c {} || return 1
 
 	return 0
 }
@@ -1300,16 +1319,25 @@ pipeline::goenrichment() {
 	[[ $nogo ]] && return 0
 	echo ":INFO: calculating go enrichment"
 
+	numbars=10
 	cmd1=()
 	cmd2=()
 	cmd3=()
+	cmd4=()
 	for r in ${mapper[@]}; do
+		rainbow=0
+		for f in ${comparisons[@]}; do
+			comp=($(cut -d $'\t' -f 2 $f | uniq))
+			rainbow=$[rainbow+(comp*(comp-1))/2]
+		done
+		color=0
 		for f in ${comparisons[@]}; do
 			comp=($(cut -d $'\t' -f 2 $f | uniq))
 			for i in $(seq 0 $[${#comp[@]}-2]); do
 				for j in $(seq $[i+1] $[${#comp[@]}-1]); do
 					odir=$outdir/enriched/$r/${comp[$i]}_${comp[$j]}
 					mkdir -p $odir
+					((color++))
 					for domain in biological_process cellular_component molecular_function; do
 						o=$odir/$domain
 						grep -F $domain $annotation.go > $tmpdir/go
@@ -1317,38 +1345,63 @@ pipeline::goenrichment() {
 						awk '{print $1}' $tmpdir/go | sort | uniq > $o.reference.txt
 						perl -F',' -lane 'BEGIN{open F,"<'$o'.reference.txt"; while(<F>){chomp; $m{$_}=1;} close F} $F[0]=~s/(^\s*"|"\s*$)//g; next if $F[0] eq "" || abs($F[2])<1 || ! exists $m{$F[0]}; print $F[0]' $outdir/deseq/$r/${comp[$i]}_${comp[$j]}/filtered_padj05.csv > $o.interest.txt
 						cmd1+=("Rscript -e \"library(WebGestaltR); res = WebGestaltR(enrichMethod='ORA', organism='others', enrichDatabase='others', enrichDatabaseFile='$o.reference.gmt', interestGeneFile='$o.interest.txt', referenceGeneFile='$o.reference.txt', minNum=5, maxNum=999999, fdrMethod='BH', sigMethod='top', topThr=999999, dNum=20, is.output=FALSE, methodType='R', dagColor='binary', hostName='http://www.webgestalt.org/'); write.table(res,quote=FALSE,row.names=FALSE,col.names=TRUE,sep='\\\t', file='$o.raw')\"\0")
+						awk 'NR>1{print $1";"$NF}' $o.raw | awk -F ';' 'BEGIN{print "go\tcount"}{print $1"\t"(NF-1)}' > $o.raw.counts
+
 						cmd2+=("awk 'NR>1{print \$1\"\\t\"\$7}' $o.raw > $o.full.tsv\0")
 						cmd2+=("awk '\$8<=0.05{print \$1\"\\t\"\$7}' $o.raw > $o.fdr05.tsv\0")
 						cmd2+=("awk '\$7<=0.05{print \$1\"\\t\"\$7}' $o.raw > $o.p05.tsv\0")
-						cmd3+=("[[ ! -s $o.full.tsv ]] && true || revigo.R $o.full.tsv $o.full $domain\0")
-						cmd3+=("[[ ! -s $o.fdr05.tsv ]] && true || revigo.R $o.fdr05.tsv $o.fdr05 $domain\0")
-						cmd3+=("[[ ! -s $o.p05.tsv ]] && true || revigo.R $o.p05.tsv $o.p05 $domain\0")
+						for p in full fdr05 p05; do
+							[[ ! -s $o.$p.tsv ]] && continue
+							cmd3+=("revigo.R $o.$p.tsv $o.$p $domain\0")
+							d=${domain/_/ }
+							cmd4+=("Rscript -e \"x=read.table('$o.$p.scatterplot.csv',header=TRUE,sep=','); c=read.table('$o.raw.counts',header=T,sep='\\\t'); names(x)[1]='go'; x=merge(x,c,by='go'); x\\\$description=paste(x\\\$description,' ','(',x\\\$count,')', sep=''); x\\\$log10.p.value = abs(x\\\$log10.p.value); x=x[order(-x\\\$log10.p.value),]; x=head(x,min($numbars,nrow(x))); pdf('$o.$p.barplot.pdf',width=max(nchar(x\\\$description))/5,height=min($numbars,nrow(x))/2+1.8); par(mar=c(5,max(nchar(x\\\$description))/3+3,5,1)); barplot(rev(x\\\$log10.p.value),main='GO category $d',horiz=T,names.arg=rev(x\\\$description), xlim=c(0, max(x\\\$log10.p.value)+2), xlab='-log10 p-value', col=rainbow($rainbow)[$color], cex.names=0.8, las=1); graphics.off();\"\0")
+
+							grep -f <(cut -f 1 $o.$p.tsv) $o.raw | awk '{print $NF}' | perl -F';' -lane 'print $_ for @F' | sort -Vu > $o.$p.genes
+							head -1 $outdir/counted/$r/experiments.mean.zscores > $o.$p.zscores
+							grep -f $o.$p.genes $outdir/counted/$r/experiments.mean.zscores >> $o.$p.zscores
+							[[ $(wc -l < $o.$p.zscores) -lt 3 ]] && continue
+							cmd4+=("Rscript -e \"suppressMessages(library('gplots')); library('RColorBrewer'); x = read.table('$o.$p.zscores' ,header=T, sep='\\\t'); pdf('$o.$p.heatmap.pdf'); hmcol = colorRampPalette(brewer.pal(9, 'RdBu'))(100); heatmap.2(as.matrix(x[,-1]), col = hmcol, Rowv = TRUE, Colv = FALSE, scale = 'none', dendrogram = 'row', trace = 'none', srtCol=0, labRow=FALSE, labCol = colnames(x)[2:length(x)], margin=c(2,2), cexRow = 0.6, cexCol = 1, key.title = NA, key.ylab = NA, key.xlab = 'TPM based z-Scores', main='${d^*} enriched genes ($p)', ylab='${comp[$i]} vs ${comp[$j]}')\"\0")
+						done
 					done
 				done
 			done
 		done
 
-		# DP_GP_cluster
-		# [[ ! -s $outdir/coexpressed/$r/expression_optimal_clustering.txt ]] && continue
-		for f in experiments experiments.filtered; do
-			[[ ! -s $outdir/coexpressed/$r/$f.cluster.tsv ]] && continue
-			for i in $(find $outdir/coexpressed/$r -type f -name "$f.cluster.*.genes" | sed -r 's/.+\.([0-9]+)\.genes$/\1/' | sort -n); do
-				odir=$outdir/enriched/$r/$f.cluster.$i
-				mkdir -p $odir
-				for domain in biological_process cellular_component molecular_function; do
-					o=$odir/$domain
-					grep -F $domain $annotation.go > $tmpdir/go
-					perl -F'\t' -lane 'push @{$m{$F[1]}},$F[0]; END{print join"\t",($_,"dummy.com",@{$m{$_}}) for keys %m}' $tmpdir/go > $o.reference.gmt
-					awk '{print $1}' $tmpdir/go | sort | uniq > $o.reference.txt
-					perl -F',' -lane 'BEGIN{open F,"<'$o'.reference.txt"; while(<F>){chomp; $m{$_}=1;} close F} next unless exists $m{$F[0]}; print $F[0]' $outdir/coexpressed/$r/$f.cluster.$i.genes > $o.interest.txt
-					cmd1+=("Rscript -e \"library(WebGestaltR); res = WebGestaltR(enrichMethod='ORA', organism='others', enrichDatabase='others', enrichDatabaseFile='$o.reference.gmt', interestGeneFile='$o.interest.txt', referenceGeneFile='$o.reference.txt', minNum=5, maxNum=999999, fdrMethod='BH', sigMethod='top', topThr=999999, dNum=20, is.output=FALSE, methodType='R', dagColor='binary', hostName='http://www.webgestalt.org/'); write.table(res,quote=FALSE,row.names=FALSE,col.names=TRUE,sep='\\\t', file='$o.raw')\"\0")
-					cmd2+=("awk 'NR>1{print \$1\"\\t\"\$7}' $o.raw > $o.full.tsv\0")
-					cmd2+=("awk '\$8<=0.05{print \$1\"\\t\"\$7}' $o.raw > $o.fdr05.tsv\0")
-					cmd2+=("awk '\$7<=0.05{print \$1\"\\t\"\$7}' $o.raw > $o.p05.tsv\0")
-					cmd3+=("[[ ! -s $o.full.tsv ]] && true || revigo.R $o.full.tsv $o.full $domain\0")
-					cmd3+=("[[ ! -s $o.fdr05.tsv ]] && true || revigo.R $o.fdr05.tsv $o.fdr05 $domain\0")
-					cmd3+=("[[ ! -s $o.p05.tsv ]] && true || revigo.R $o.p05.tsv $o.p05 $domain\0")
-				done
+		for f in experiments.filtered experiments; do
+            for c in cluster module; do
+				[[ ! -s $outdir/coexpressed/$r/$f.$c.tsv ]] && continue
+				rainbow=$(find $outdir/coexpressed/$r -type f -name "$f.$c.*.genes" | wc -l)
+				color=0
+                for i in $(find $outdir/coexpressed/$r -type f -name "$f.$c.*.genes" | sed -r 's/.+\.([0-9]+)\.genes$/\1/' | sort -n); do
+                    odir=$outdir/enriched/$r/$f.$c.$i
+                    mkdir -p $odir
+                    ((color++))
+                    for domain in biological_process cellular_component molecular_function; do
+                        o=$odir/$domain
+                        grep -F $domain $annotation.go > $tmpdir/go
+                        perl -F'\t' -lane 'push @{$m{$F[1]}},$F[0]; END{print join"\t",($_,"dummy.com",@{$m{$_}}) for keys %m}' $tmpdir/go > $o.reference.gmt
+                        awk '{print $1}' $tmpdir/go | sort | uniq > $o.reference.txt
+                        perl -F',' -lane 'BEGIN{open F,"<'$o'.reference.txt"; while(<F>){chomp; $m{$_}=1;} close F} next unless exists $m{$F[0]}; print $F[0]' $outdir/coexpressed/$r/$f.$c.$i.genes > $o.interest.txt
+                        cmd1+=("Rscript -e \"library(WebGestaltR); res = WebGestaltR(enrichMethod='ORA', organism='others', enrichDatabase='others', enrichDatabaseFile='$o.reference.gmt', interestGeneFile='$o.interest.txt', referenceGeneFile='$o.reference.txt', minNum=5, maxNum=999999, fdrMethod='BH', sigMethod='top', topThr=999999, dNum=20, is.output=FALSE, methodType='R', dagColor='binary', hostName='http://www.webgestalt.org/'); write.table(res,quote=FALSE,row.names=FALSE,col.names=TRUE,sep='\\\t', file='$o.raw')\"\0")
+                        awk 'NR>1{print $1";"$NF}' $o.raw | awk -F ';' 'BEGIN{print "go\tcount"}{print $1"\t"(NF-1)}' > $o.raw.counts
+
+                        cmd2+=("awk 'NR>1{print \$1\"\\t\"\$7}' $o.raw > $o.full.tsv\0")
+                        cmd2+=("awk '\$8<=0.05{print \$1\"\\t\"\$7}' $o.raw > $o.fdr05.tsv\0")
+                        cmd2+=("awk '\$7<=0.05{print \$1\"\\t\"\$7}' $o.raw > $o.p05.tsv\0")
+                        for p in full fdr05 p05; do
+                        	[[ ! -s $o.$p.tsv ]] && continue
+							cmd3+=("revigo.R $o.$p.tsv $o.$p $domain\0")
+							d=${domain/_/ }
+							cmd4+=("Rscript -e \"x=read.table('$o.$p.scatterplot.csv',header=TRUE,sep=','); c=read.table('$o.raw.counts',header=T,sep='\\\t'); names(x)[1]='go'; x=merge(x,c,by='go'); x\\\$description=paste(x\\\$description,' ','(',x\\\$count,')', sep=''); x\\\$log10.p.value = abs(x\\\$log10.p.value); x=x[order(-x\\\$log10.p.value),]; x=head(x,min($numbars,nrow(x))); pdf('$o.$p.barplot.pdf',width=max(nchar(x\\\$description))/5,height=min($numbars,nrow(x))/2+1.8); par(mar=c(5,max(nchar(x\\\$description))/3+3,5,1)); barplot(rev(x\\\$log10.p.value),main='GO category $d',horiz=T,names.arg=rev(x\\\$description), xlim=c(0, max(x\\\$log10.p.value)+2), xlab='-log10 p-value', col=rainbow($rainbow)[$color], cex.names=0.8, las=1); graphics.off();\"\0")
+
+							grep -f <(cut -f 1 $o.$p.tsv) $o.raw | awk '{print $NF}' | perl -F';' -lane 'print $_ for @F' | sort -Vu > $o.$p.genes
+							head -1 $outdir/counted/$r/experiments.mean.zscores > $o.$p.zscores
+							grep -f $o.$p.genes $outdir/counted/$r/experiments.mean.zscores >> $o.$p.zscores
+							[[ $(wc -l < $o.$p.zscores) -lt 3 ]] && continue
+							cmd4+=("Rscript -e \"suppressMessages(library('gplots')); library('RColorBrewer'); x = read.table('$o.$p.zscores', header=T, sep='\\\t'); pdf('$o.$p.heatmap.pdf'); hmcol = colorRampPalette(brewer.pal(9, 'RdBu'))(100); heatmap.2(as.matrix(x[,-1]), col = hmcol, Rowv = TRUE, Colv = FALSE, scale = 'none', dendrogram = 'row', trace = 'none', srtCol=0, labRow=FALSE, labCol = colnames(x)[2:length(x)], margin=c(2,2), cexRow = 0.6, cexCol = 1, key.title = NA, key.ylab = NA, key.xlab = 'TPM based z-Scores', main='${d^*} enriched genes ($p)', ylab='${c^*} $i')\"\0")
+						done
+                    done
+                done
 			done
 		done
 	done
@@ -1356,6 +1409,7 @@ pipeline::goenrichment() {
 	echo -n ${cmd1[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
 	echo -n ${cmd2[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
 	echo -n ${cmd3[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+	echo -n ${cmd4[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
 	#do not run revigo cmds in parallel to avoid random download!
 	if [[ ! $Sgo ]]; then
 		{	conda activate py2r && \
@@ -1364,6 +1418,7 @@ pipeline::goenrichment() {
 			echo -ne ${cmd2[@]} | /usr/bin/time -v xargs -0 -P $threads -I {} bash -c {} && \
 			curl -s revigo.irb.hr &> /dev/null || false && \
 			echo -ne ${cmd3[@]} | /usr/bin/time -v xargs -0 -P 1 -I {} bash -c {} && \
+			echo -ne ${cmd4[@]} | /usr/bin/time -v xargs -0 -P $threads -I {} bash -c {} && \
 			conda activate py2
 		} || return 1
 	fi
@@ -1770,22 +1825,34 @@ pipeline::TODOfeaturecounts() {
 }
 
 pipeline::peakenrichment() {
-	o=outdir/enrichments
-	mkdir -p $o
-	for feature in splicesites, enhancers, promoters, 5primeregion, 3primeregion; do
+	# convert peaks to bed 
+	awk '{print $1"\t"$2"\t"$3}' K002000230_87702_ip_R1.unique.sorted.rmdup.narrowPeak.chr12 | sort -V | uniq > $o/K002000230_87702_chr12.bed
+
+	# get upper row values
+	all=$(wc -l GRCh38.p12.chr12.fa.gtf | awk '{print $1}')
+	peaks=$(wc -l $o/K002000230_87702_chr12.bed | awk '{print $1}')
+
+	# get lower row values and test
+	for feature in exons; do #splicesites, enhancers, promoters, 5primeregion, 3primeregion; do
 	    case $feature in
-	    splicesites)
-			peaks=$(wc -l peaks.bed)
-	        awk '{...}' $annotation > $o/splicesiteregions.bed
-	        all=$(wc -l $o/splicesiteregions.bed)
-	        bedtools intersect -wa -a $o/splicesiteregions.bed -b peaks.bed > $o/splicesitepeaks.bed
-	        a=$(wc -l $o/splicesiteregions.bed)
-	        awk '{...}' $annotation > $o/exons.bed
-	        bedtools intersect -wa -a $o/exons.bed -b peaks.bed > $o/exonpeaks.bed
-	        b=$(wc -l $o/splicesiteregions.bed)
-	        echo "gene enrichment" >> RESULTS
+	    exons)
+			# all regions of interest
+	        ## aber eigentlich wolen wir ja die multiplen peaks pro exon, um das genspeizifisch auswertenz u können?
+	        awk '$3 == "exon"' GRCh38.p12.chr12.fa.gtf | bedtools merge -s -i - -c 4 -delim "+" -o distinct > $o/exons.gtf
+	        awk '{print $1"\t"$2"\t"$3}' $o/exons.gtf | sort -V | uniq > $o/exons.bed
+
+	        a=$(wc -l $o/exons.bed | awk '{print $1}')
+
+	        # all exons with peak
+	        bedtools intersect -wa -a $o/exons.bed -b $o/K002000230_87702_chr12.bed | sort -V | uniq > $o/exonpeaks.bed
+	        b=$(wc -l $o/exonpeaks.bed | awk '{print $1}')
+
+	        echo "Peak enrichment: Exons" >> RESULTS
+	        echo -e "\nregions:\t$all\tpeaked regions:\tpeaks\nall exons:\t$a\tpeaked exons:\t$b" >> RESULTS
+
 	        ;;
 	    esac
-	    Rscript -e "fisher($all,$a,$peaks,$b)" >> RESULTS
-	done 
+	    Rscript -e "df<-matrix(c($all, $peaks, $a, $b), nrow=2);fisher.test(df, alternative='greater')" >> RESULTS
+	    cat RESULTS
+	done
 }

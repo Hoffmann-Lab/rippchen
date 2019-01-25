@@ -83,11 +83,11 @@ wgcna_result = blockwiseModules(
   maxBlockSize = blockSize(50000, rectangularBlocks = TRUE, maxMemoryAllocation = 2^31*memory)
 )
 
-pdf(paste(out, "modules.pdf", sep = "."))
+pdf(paste(out, "module.pdf", sep = "."))
 plotDendroAndColors(main="Gene dendrogram and modules",wgcna_result$dendrograms[[1]], labels2colors(wgcna_result$unmergedColors)[wgcna_result$blockGenes[[1]]],"Module colors",dendroLabels = FALSE, hang = 0.03,addGuide = TRUE, guideHang = 0.05)
 graphics.off()
 
 save(wgcna_result, file=paste(out, "wgcna.Rdata", sep = "."))
 
 write.table(as.data.frame(wgcna_result$colors, row.names=row.names(tpms)), file=paste(out, 'cluster.tsv', sep = "."), quote=FALSE, sep='\t', col.names = F)
-write.table(as.data.frame(wgcna_result$unmergedColors, row.names=row.names(tpms)), file=paste(out, 'modules.tsv', sep = "."), quote=FALSE, sep='\t', col.names = F)
+write.table(as.data.frame(wgcna_result$unmergedColors, row.names=row.names(tpms)), file=paste(out, 'module.tsv', sep = "."), quote=FALSE, sep='\t', col.names = F)

@@ -20,7 +20,12 @@ foo = table[,2:(ncol(table)-1)]
 flog = log2(foo+1)
 
 # get mean_pw_ch_log
-res <- as.data.frame(rowMeans(mapply(function(x,y) abs(x-y), flog[, 2:ncol(flog)], flog[, 1:(ncol(flog)-1)])))
+if (nrow(flog)>1){
+    res <- as.data.frame(rowMeans(mapply(function(x,y) abs(x-y), flog[, 2:ncol(flog)], flog[, 1:(ncol(flog)-1)])))
+} else {
+    res <- as.data.frame(mean(mapply(function(x,y) abs(x-y), flog[, 2:ncol(flog)], flog[, 1:(ncol(flog)-1)])))
+}
+
 
 colnames(res)[1] <- "mean_pw_ch_log"
 
