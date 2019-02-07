@@ -1,9 +1,9 @@
 #! /usr/bin/env Rscript
 # (c) Jeanne Wilbrand
-library(ggplot2)
-library(scales)
-library(reshape2)
-library(data.table)
+suppressMessages(library(ggplot2))
+suppressMessages(library(scales))
+suppressMessages(library(reshape2))
+suppressMessages(library(data.table))
 args = commandArgs(TRUE)
 input = args[1]
 output = args[2]

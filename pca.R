@@ -1,11 +1,11 @@
 #! /usr/bin/env Rscript
 # (c) Konstantin Riege
-library("DESeq2")
-library("ggplot2")
-library("gplots")
-library("BiocParallel")
-library("genefilter")
-library("RColorBrewer")
+suppressMessages(library("DESeq2"))
+suppressMessages(library("ggplot2"))
+suppressMessages(library("gplots"))
+suppressMessages(library("BiocParallel"))
+suppressMessages(library("genefilter"))
+suppressMessages(library("RColorBrewer"))
 
 # threads <- 48
 # out <- /path/to/outdir

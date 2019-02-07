@@ -1,6 +1,6 @@
 #! /usr/bin/env Rscript
 # (c) Konstantin Riege, Arne Sahm
-library("httr")
+suppressMessages(library("httr"))
 
 args = commandArgs(TRUE)
 go = read.table(args[1], header=FALSE, sep="\t")
@@ -12,7 +12,7 @@ revigo = function(GOtable,destFolder,cutoff="0.70",isPValue="yes",whatIsBetter="
 	x = POST(url="http://revigo.irb.hr/revigo.jsp", encode="form", body=list(goList=goList, cutoff=cutoff, isPValue=isPValue, whatIsBetter=whatIsBetter, goSizes=goSizes, measure=measure, startRevigo="Please wait"))
 	if (x$status_code == 200){
 
-		# in case of webgestalt gmt database containing all three domains
+		# in case of webgestalt gmt database contains all three domains fetch table 1 to 3
 		# if (domain == "biological_process"){ 
 			treemap_R = content(GET("http://revigo.irb.hr/toR_treemap.jsp?table=1"),"text")	
 			write(content(GET("http://revigo.irb.hr/export_treemap.jsp?table=1"),"text"),paste(sep="",outprefix,".treemap.csv"))

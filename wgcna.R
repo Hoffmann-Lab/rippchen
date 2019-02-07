@@ -1,8 +1,8 @@
 #! /usr/bin/env Rscript
 # (c) Arne Sahm
-library('WGCNA')
-library('DGCA')
-library('ggplot2')
+suppressMessages(library('WGCNA'))
+suppressMessages(library('DGCA'))
+suppressMessages(library('ggplot2'))
 
 args = commandArgs(TRUE)
 threads = as.numeric(args[1])
@@ -83,7 +83,7 @@ wgcna_result = blockwiseModules(
   maxBlockSize = blockSize(50000, rectangularBlocks = TRUE, maxMemoryAllocation = 2^31*memory)
 )
 
-pdf(paste(out, "module.pdf", sep = "."))
+pdf(paste(out, "dendrogram.pdf", sep = "."))
 plotDendroAndColors(main="Gene dendrogram and modules",wgcna_result$dendrograms[[1]], labels2colors(wgcna_result$unmergedColors)[wgcna_result$blockGenes[[1]]],"Module colors",dendroLabels = FALSE, hang = 0.03,addGuide = TRUE, guideHang = 0.05)
 graphics.off()
 
@@ -91,3 +91,9 @@ save(wgcna_result, file=paste(out, "wgcna.Rdata", sep = "."))
 
 write.table(as.data.frame(wgcna_result$colors, row.names=row.names(tpms)), file=paste(out, 'cluster.tsv', sep = "."), quote=FALSE, sep='\t', col.names = F)
 write.table(as.data.frame(wgcna_result$unmergedColors, row.names=row.names(tpms)), file=paste(out, 'module.tsv', sep = "."), quote=FALSE, sep='\t', col.names = F)
+
+sink(paste(out, 'module2cluster', sep = "."))
+for (i in 0:max(wgcna_result$colors)){
+  cat(i,unique(sort(wgcna_result$unmergedColors[which(wgcna_result$colors %in% i)])),"\n")
+}
+sink()

@@ -18,7 +18,7 @@ compile::all(){
 		compile::metpeak && \
         compile::zerone && \
 		compile::idr && \
-		compile::dpgpc && \
+		# compile::dpgpc && \
 		compile::wgcna && \
 		compile::dgca && \
 		compile::webgestalt
@@ -83,7 +83,7 @@ compile::conda() {
 			bioconductor-biocinstaller bioconductor-biocparallel bioconductor-genomicfeatures bioconductor-genefilter bioconductor-deseq2 bioconductor-dexseq && \
 		# install r packages for custom scripts and dependencies for webgestalt (treemap) and those not automatically resolved by devtools wgcna installation
 		conda install -y --override-channels -c iuc -c bioconda -c main -c conda-forge -c defaults -c quantstack \
-			r-ggplot2 r-gplots r-rcolorbrewer r-svglite subread r-treemap r-wgcna && \
+			r-ggplot2 r-gplots r-rcolorbrewer r-svglite subread r-treemap r-wgcna r-pheatmap && \
 
 		conda deactivate
 	} || return 1
@@ -150,10 +150,10 @@ compile::segemehl () {
 		export C_INCLUDE_PATH=$CONDA_PREFIX/include && \
 		export LD_LIBRARY_PATH=$CONDA_PREFIX/lib && \
 		url='http://www.bioinf.uni-leipzig.de/Software/segemehl/downloads/segemehl-0.3.4.tar.gz' && \
-		wget -q $url -O $MUVAC/segemehl.tar.gz && \
-		tar -xzf $MUVAC/segemehl.tar.gz -C $MUVAC && \
-		rm $MUVAC/segemehl.tar.gz && \
-        cd $MUVAC/segemehl-0.3.4 && \
+		wget -q $url -O $insdir/segemehl.tar.gz && \
+		tar -xzf $insdir/segemehl.tar.gz -C $insdir && \
+		rm $insdir/segemehl.tar.gz && \
+        cd $insdir/segemehl-0.3.4 && \
 		make clean; true && \
 		make -j $threads all && \
 		mkdir -p bin && \
@@ -209,7 +209,7 @@ done
 [[ ! \$jvm_mem_opts ]] && jvm_mem_opts="-Xms512m -Xmx1g"
 
 pass_arr=(\$pass_args)
-if [[ \${pass_arr[0]} == org* ]]; then
+if [[ \${pass_arr[0]:=} == org* ]]; then
 	eval \$java \$jvm_mem_opts \$jvm_prop_opts -cp $2 \$pass_args
 else
 	eval \$java \$jvm_mem_opts \$jvm_prop_opts -jar $2 \$pass_args

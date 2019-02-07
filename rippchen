@@ -50,6 +50,8 @@ $(basename $0) -1 ctrA.fq,ctrB.fq -t1 treatA1.fq,treatB1.fq -r1 treatA2.fq,treat
 BASIC OPTIONS
 -1       | --fq1 [path,..]          : fastq input - single or first pair, comma seperated
 -2       | --fq2 [path,..]          : fastq input - optional. second pair, comma seperated
+-m       | --mapped [path,..]       : SAM/BAM input - single or first pair, comma seperated (replaces -1 and -2)
+                                      NOTE: Requires uniquely mapped reads or NH:I tag
 -a       | --adapter [string,..]    : adapter sequence(s) - optional
 -g       | --genome [path]          : genome fasta input
 -gtf     | --gtf [path]             : annotation gtf input - optional, default: genome.fasta.gtf
@@ -62,15 +64,23 @@ BASIC OPTIONS
                                       default: 30000 ($memthreads instances)
                                       NOTE: needs to be raised in case of GCThreads, HeapSize or OutOfMemory errors
 
+SAM/BAM INPUT SPECIFIC OPTIONS
+-no-uniq    : --no-uniqify          : disables extraction of properly paired and uniquely mapped reads
+-no-sort    : --no-sort             : disables sorting alignments
+-no-idx     : --no-index            : disables indexing alignments
+
 TOOL SPECIFIC OPTIONS
 -rx      | --regex                  : regex for sequence identifier with grouped tile information - default: ^\S+:(\d+):(\d+):(\d+)\s*.*
--d       | --distance               : read alignment hamming distance in % - default: 5
+-d       | --distance               : read alignment hamming distance in % - default: 4
 -f       | --fragmentsize           : fragment size of sequenced mate pairs - default: 150
 -i       | --insertsize             : maximum allowed insert for aligning mate pairs - default: 200000
 -dexnew  | --dexnewprepare [value]  : switch DEXSeq annotation file preparation method - default: 0
                                       0 - use preparation script shipped with DEXSeq
-                                      1 - do not merge transcripts and if present in GTF info, use protein_coding biotype only
+                                      1 - do not merge transcripts and if present in GTF info and use protein_coding biotype only
                                       2 - see [1] and additionally if feature name matches UTR/utr, exclude them
+-qi      | --quantifyid             : switch to other feature type for quantification - default: exon
+                                      NOTE: quantifying using a different feature will break differential gene expression analysis
+-qf      | --quantifyfeature        : switch to other feature identifier for quantification - default: gene_id
 
 PEAK CALLING OPTIONS
 -t1      | --treatmentfq1 [path,..] : *IP-Seq fastq input - single or first pair, comma seperated
@@ -100,21 +110,30 @@ DIFF GENE EXPR ANALYSIS OPTIONS
                                       2 - dUTP +-,++ (FR, reversely stranded)
 -no-pca  | --no-pca                 : disables pca plots
 -no-dea  | --no-diffexanalysis      : disables differential expression analysis (gene and/or peak) and course clustering
--no-iso  | --no-isoformanalysis     : disables differential isoform analysis
+-no-iso  | --no-isoformanalysis     : disables differential isoform analysis by DEXSeq and annotation preparation
 -no-clust| --no-clustering          : disables feature co-expression clustering for experiments defined via -c
--allclust| --allclustering          : enable additional co-expression clustering using all features
-                                      - default: foldchange difference > 1 filtered features of adjacent experiments (chronological order as defined via -c)
-                                      - attention! this is very slow ~ 10 hours for 4 experiments, 3 replicates and 50000 features
+-cf      | --clusterfilter [value]  : decide for a set of differntially expressed features to be clustered for co-expression - default: 0
+                                      0 - padj <= 0.05 in at least one comparison defined via -c
+                                      1 - padj <= 0.05 and a log2foldchange difference >= 0.5 in at least one comparison defined via -c
+                                      2 - if present in GTF info, use features of protein_coding biotype only
+                                      3 - discard features within the 30% percentile of lowest TPM values
+                                      20 - 2 + 0
+                                      21 - 2 + 1
+                                      23 - 2 + 3
+                                      230 - 2 + 0 + 3
+                                      231 - 2 + 1 + 3	
+-allclust| --allclustering          : Additionally use all features to be clustered for co-expression (very slow! ~ 10 hours for 4 human experiments)
+                                      - will discard features within the 30% percentile of lowest TPM values
 -no-go   | --no-geneontology        : disables gene ontology enrichment analysis
 
 GENERAL PIPELINE OPTIONS
--no-stats| --no-statistics          : disables fastq and mapping statistics
 -no-qual | --no-qualityanalysis     : disables quality analysis
 -no-trim | --no-trimming            : disables quality trimming
 -no-cor  | --no-correction          : disables majority based raw read error correction
 -no-rrm  | --no-rrnafilter          : disables rRNA filter
 -no-sege | --no-segemehl            : disables mapping by Segemehl
 -no-star | --no-star                : disables mapping by STAR
+-no-stats| --no-statistics          : disables fastq and mapping statistics
 -no-rmd  | --no-removeduplicates    : disables removing duplicates - highly recommended for DGE analysis
 -no-quant| --no-quantification      : disables read quantification, differential expression and isoform analysis
 
@@ -151,11 +170,12 @@ DEVELOPER OPTIONS
 -Srrm   : skip rRNA filtering
 -Ssege  : skip Segemehl mapping
 -Sstar  : skip STAR mapping
+-Suniq  : skip extraction of properly paired and uniquely mapped reads
 -Srep   : skip pooling/generating replicates
 -Ssort  : skip sorting and indexing of sam/bam files
 -Sstats : skip mapping statistics
--Sslice : skip slicing bams which affects
-          -Srmd : skip removing duplicates
+-Sslice : skip slicing bams which affects -Srmd
+-Srmd   : skip removing duplicates
 -Sidx   : skip intermediate and final bam indexing
 -Smacs  : skip peak calling by macs
 -Sgem   : skip peak calling by gem
@@ -164,7 +184,7 @@ DEVELOPER OPTIONS
 -Stpm   : skip TPM calculation
 -Sjtpm  : skip TPM concatenation
 -Spca   : skip pca on all samples
--Sdiff  : skip differential expression analysis
+-Sdea   : skip differential expression analysis
 -Siso   : skip differential isoform analysis
 -Sclust : skip co expression clustering
 -Sgo    : skip go enrichment
@@ -172,18 +192,11 @@ EOF
 	exit 0
 }
 
-# -Scount    : skip quantification
-# -Stpm      : skip tpm calculation
-# -Sdiff     : skip differential analysis
-# -Stoph     : skip TopHat2 mapping
-# -Sbwa      : skip BWA mapping
-
 checkopt (){
 	case $1 in
 	-h | --help) usage;;
 	-d | --devel) develusage;;
 
-	-no-stats | --no-statistics) nostats=1; return 0;;
 	-v | --verbose) verbose=1; return 0;;
 	-r | --remove) cleanup=1; return 0;;
 
@@ -193,8 +206,14 @@ checkopt (){
 	-no-rrm  | --no-rrnafilter) norrm=1; return 0;;
 	-no-sege | --no-segemehl) nosege=1; return 0;;
 	-no-star | --no-star) nostar=1; return 0;;
-	-no-toph | --no-tophat) notoph=1; return 0;;
+	-no-toph | --no-tophat) notop=1; return 0;;
 	-no-bwa  | --no-bwa) nobwa=1; return 0;;
+
+	-no-uniq    | --no-uniqify) nouniq=1; return 0;;
+	-no-sort    | --no-sort) nosort=1; return 0;;
+	-no-idx     | --no-index) noidx=1; return 0;;
+	-no-stats   | --no-statistics) nostats=1; return 0;;
+
 	-no-rmd  | --no-removeduplicates) normd=1; return 0;;
 
 	-no-macs | --no-macs) nomacs=1; return 0;;
@@ -217,6 +236,7 @@ checkopt (){
 	-Srrm) Srrm=1; return 0;;
 	-Ssege) Ssege=1; return 0;;
 	-Sstar) Sstar=1; return 0;;
+	-Suniq) Suniq=1; return 0;;
 	-Ssort) Ssort=1; return 0;;
 	-Sstats) Sstats=1; return 0;;
 	-Srep) Srep=1; return 0;;
@@ -232,13 +252,14 @@ checkopt (){
 	-Stpm) Stpm=1; return 0;;
 	-Sjtpm) Sjtpm=1; return 0;;
 	-Spca) Spca=1; return 0;;
-	-Sdiff) Sdiff=1; return 0;;
+	-Sdea) Sdea=1; return 0;;
 	-Siso) Siso=1; return 0;;
 	-Sclust) Sclust=1; return 0;;
 	-Sgo) Sgo=1; return 0;;
 
 	-1 | --fq1) nfq1=$2;;
 	-2 | --fq2) nfq2=$2;;
+	-m | --mapped) nmap=$2; noqual=1; notrim=1; nocor=1 norrm=1; nosege=1; nostar=1; notop=1; nobwa=1;;
 	-t1 | --treatmentfq1) tfq1=$2;;
 	-t2 | --treatmentfq2) tfq2=$2;;
 	-r1 | --replicatefq1) rfq1=$2;;
@@ -251,6 +272,9 @@ checkopt (){
 	-f | --fragmentsize) fragmentsize=$2;;
 	-i | --insertsize) insertsize=$2;;
 	-dexnew | --dexnewprepare) dexseqnew=$2;;
+	-cf | --clusterfilter) clusterfilter=$2;;
+	-qi | --quantifyid) quantifyid=$2;;
+	-qf | --quantifyfeature) quantifyfeature=$2;;
 
 	-t | --threads) threads=$2;;
 	-m | --mem) mem=$2;;
@@ -286,18 +310,26 @@ run() {
 	source $genome.md5s
 	[[ $Smd5 ]] && thismd5genome=$md5genome || thismd5genome=$(md5sum $genome | cut -d ' ' -f 1)
 
-	{	pipeline::fastqc && \
-		pipeline::cutadapt && \
-		pipeline::trimmomatic && \
-		pipeline::rcorrector && \
-		pipeline::sortmerna
-	} || return 1 
-
 	mapper=()
-	{	pipeline::segemehl && \
-		pipeline::star
-	} || return 1
-
+	if [[ ! ${mapped[0]} ]]; then
+		{	pipeline::fastqc && \
+			pipeline::cutadapt && \
+			pipeline::trimmomatic && \
+			pipeline::rcorrector && \
+			pipeline::sortmerna && \
+			pipeline::segemehl && \
+			pipeline::star
+		} || return 1
+	else 
+		custom=()
+		mapper+=(custom)
+		for f in ${mapped[@]}; do
+			custom+=($f)
+		done
+		pipeline::uniqify || return 1
+	fi
+    
+	[[ ${#mapper[@]} -eq 0 ]] && return 0
 	[[ ! $Smd5 ]] && sed -i "s/md5genome=.*/md5genome=$thismd5genome/" $genome.md5s
 
 	reslice=1
@@ -308,7 +340,7 @@ run() {
 		pipeline::indexbam
 	} || return 1
 
-	if [[ $tfq1 ]]; then
+	if [[ ! $norepl ]]; then
 		{	pipeline::macs && \
 			pipeline::gem
 		} || return 1
@@ -342,10 +374,13 @@ outdir=$PWD/results
 tmpdir=$outdir
 insdir=$RIPPCHEN
 regex='\S+:(\d+):(\d+):(\d+)\s*.*'
-accuracy=95
+accuracy=96
 fragmentsize=150
 insertsize=200000
 dexseqnew=0
+clusterfilter=0
+quantifyfeature='exon'
+quantifyid='gene_id'
 
 source $insdir/bin/rippchen/lib/version
 [[ $# -eq 0 ]] && usage
@@ -362,7 +397,7 @@ done
 [[ ! $insdir ]] && trapper "can not find installation. please do: export RIPPCHEN=/path/to/install/dir"
 [[ memthreads=$[memory/mem] -gt $threads ]] && memthreads=$threads
 [[ $memthreads -eq 0 ]] && trapper "too less memory available ($memavailable)"
-[[ ! $nfq1 ]] && [[ ! $tfq1 ]] && trapper ":ERROR: fastq file input missing - call "$(basename $0)" -h for help"
+[[ ! $nfq1 ]] && [[ ! $tfq1 ]] && [[ ! $nmap ]] && trapper ":ERROR: fastq file input missing - call "$(basename $0)" -h for help"
 [[ ! $(file $genome | grep ASCII) ]] && trapper "genome file does not exists or is compressed $genome"
 if [[ $annotation ]]; then
 	[[ ! $(file $annotation | grep ASCII) ]] && trapper "annotation file does not exists or is compressed $annotation"
@@ -383,6 +418,11 @@ strandness=($(echo $str | sed 's/,/ /g'))
 comparisons=($(echo $comp | sed 's/,/ /g'))
 adapter=($(echo $ada | sed 's/,/ /g'))
 [[ ! $tfq1 ]] && norepl=1
+if [[ $nfq1 ]]; then
+	unset nouniq
+	unset nosort
+	unset noidx
+fi
 nidx=() #normal idx 
 tidx=() #treatment idx
 ridx=() #replicate idx
@@ -396,6 +436,7 @@ fq2basenoex=()
 fqextension=()
 fqbaseprefix=()
 fqextractcmd=()
+mapped=()
 IFS=','
 i=-1
 for f in $nfq1; do
@@ -457,6 +498,10 @@ for f in {$nfq2,$tfq2,$rfq2}; do
 		fq2basenoex[$i]=$(basename ${fastq2[$i]} | rev | cut -d '.' -f 2- | rev)
 	fi
 	fq2basename[$i]=$(basename ${fastq2[$i]})
+done
+for f in $nmap; do
+	f=$(readlink -e $f) || trapper "alignment file does not exists $f"
+	mapped+=($f)
 done
 unset IFS
 

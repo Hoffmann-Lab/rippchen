@@ -7,10 +7,23 @@ RIPPCHEN comprises
 2) gene expression analysis comprising differential analysis, principal component analysis, coexpression clustering and go enrichment
 
 
+### REFERENCES
+(c) Konstantin Riege, Jeanne Wilbrandt, Arne Sahm
+
+
+### CONTACT
+konstantin{.}riege{a}uni{-}jena{.}de
+konstantin{a}bioinf{.}uni{-}leipzig{.}de
+konstantin{.}riege{a}leibniz{-}fli{.}de
+
+In case of troubles, don't hesitate to contact me
+
+
 ### REQUIREMENTS
 - Internet access
 - Linux
 - ~10GB disk space for all dependencies and tools going to be installed
+
 
 ### INSTALLATION
 1) create a shell variable RIPPCHEN assigned to an installation directory
@@ -37,6 +50,11 @@ git checkout $(git describe --tags)
 ./dlgenome -g [hg19|hg38|mm10] -o /path/to/genome/dir
 
 
+### LOGS and verbosity
+- a comprehensive log file 'run.log' file will be created in your output directory, unless defined otherwise
+- using the verbose option '-v' will additionally print full log to terminals stdout
+
+
 ### FIRST RUN INFO
 - genomes will be indexed for selected mappers
 => do not run multiple RIPPCHEN instances in parallel unless indexes are created
@@ -61,28 +79,78 @@ $RIPPCHEN/bin/rippchen/rippchen -h
 $RIPPCHEN/bin/rippchen/rippchen -1 R1.fq -2 R2.fq -g genome.fa
 
 
-### LOGS and verbosity
-- a comprehensive log file 'run.log' file will be created in your output directory, unless defined otherwise
-- using the verbose option '-v' will additionally print full log to terminals stdout
+### USECASES
+1) fastq input preprocessing
+$RIPPCHEN/bin/rippchen/rippchen -v -1 reads.fastq -g genome.fa -o results -l results/log -tmp /tmp
+# useful parameters
+-no-qual : disables quality analysis
+-no-trim : disables quality trimming
+-no-cor  : disables majority based raw read error correction
+-no-rrm  : disables rRNA filter
+-no-sege : disables mapping by Segemehl - NECESSARY FOR EARLY PIPELINE ABORT
+-no-star : disables mapping by STAR - NECESSARY FOR EARLY PIPELINE ABORT
+
+2) read mapping
+$RIPPCHEN/bin/rippchen/rippchen -v -1 reads.fastq -g genome.fa -o results -l results/log -tmp /tmp
+# useful parameters
+-no-qual : disables quality analysis
+-no-trim : disables quality trimming
+-no-cor  : disables majority based raw read error correction
+-no-rrm  : disables rRNA filter
+-no-sege : disables mapping by Segemehl
+-no-star : disables mapping by STAR
+-no-quant: desables read quantification and downstream analyses - NECESSARY FOR EARLY PIPELINE ABORT
+
+3) mapping input preprocessing
+$RIPPCHEN/bin/rippchen/rippchen -v -m mapping.(sam|bam) -g genome.fa -o results -l results/log -tmp /tmp
+# useful parameters
+-no-rmd  : do not remove duplicate reads
+-no-uniq : mapping file contains only uniquely mapped reads
+-no-sort : mapping file is already sorted
+-no-idx  : mapping file is indexed i.e. mapping.bam and mapping.bai exists next to each other
+
+4) read quantification and TPM calculation
+$RIPPCHEN/bin/rippchen/rippchen -v -m mapping.(sam|bam) -g genome.fa -gtf genome.gtf -o results -l results/log -tmp /tmp
+# useful parameters
+-no-rmd  : do not remove duplicate reads
+-no-uniq : mapping file contains only uniquely mapped reads
+-no-sort : mapping file is already sorted
+-no-idx  : mapping file is indexed i.e. mapping.bam and mapping.bai exists next to each other
+-qi      : exon_id or transcript_id or ...
+-qf      : exon or gene or CDS or ...
+-no-dea  : disables differential expression and downstream analyses if experiment info file is given by -c
+
+5) differential expression analyses
+$RIPPCHEN/bin/rippchen/rippchen -v -c COMPARISONS -m mapping.(sam|bam) -g genome.fa -gtf genome.gtf -o results -l results/log -tmp /tmp
+# useful parameters
+-no-rmd  : do not remove duplicate reads
+-no-uniq : mapping file contains only uniquely mapped reads
+-no-sort : mapping file is already sorted
+-no-idx  : mapping file is indexed i.e. mapping.bam and mapping.bai exists next to each other
+-no-pca  : disables pca plots
+-no-iso  : disables differential isoform analysis by DEXSeq
+-cf      : decide for a subset of features to be clustered
+-no-clust: disables feature co-expression clustering
+-no-go   : disables GO enrichment calculation
+
+6) peak calling
+$RIPPCHEN/bin/rippchen/rippchen -v -n1 ctr.fastq -t1 ip.N1.fastq -g genome.fa -o results -l results/log -tmp /tmp
+# useful parameters
+-r1      : replicate N2 ip file
+-f       : fragment size
+-no-macs : disables peak calling by macs
+-no-gem  : disables peak calling by gem
 
 
-### RUN IN BACKGROUND
-1) start a screen with a unique name
-screen -S myMUVACrun
-2) run muvac
-3) detach the screen by pressing all 3 keys 'ctrl+a+d'
-4) list screens running in background
-screen -ls
-4) resume a screen 
-screen -r myMUVACrun
-
-
-### REFERENCES
-(c) Konstantin Riege, Jeanne Wilbrandt, Arne Sahm
-
-### CONTACT
-konstantin{.}riege{a}uni{-}jena{.}de
-konstantin{a}bioinf{.}uni{-}leipzig{.}de
-konstantin{.}riege{a}leibniz{-}fli{.}de
-
-In case of troubles, don't hesitate to contact me
+### grid engines
+for f in *.fastq.gz; do
+    sh=$(basename $f .fastq.gz)
+cat << EOF > $sh.sh
+#!/usr/bin/env bash
+export RIPPCHEN=/path/to/rippchen
+\$RIPPCHEN/bin/rippchen/rippchen -v -1 $f -g genome.fa -o results -l results/$sh.log -tmp /tmp       
+EOF
+    echo "rm -f $sh.+(log|err) && qsub -S /bin/bash -e $sh.err -o $sh.log -V -cwd $sh.sh"
+	#to exclude hosts add: -l 'h=!HOST&!HOST'
+	#to restrict hosts add: -l 'h=HOST|HOST'
+done
