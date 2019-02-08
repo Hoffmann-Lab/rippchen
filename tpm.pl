@@ -33,10 +33,10 @@ while(<F>){
 	my @l = split /\t+/;
 	next unless $l[2] eq 'exon';
 	$l[-1]=~/gene_id\s+(\S+)/;
-	my $g = $1;
+	my $g = $1 ? $1 : $l[-1];
 	$g=~s/("|;)//g;
 	$l[-1]=~/transcript_id\s+(\S+)/;
-	my $t = $1;
+	my $t = $1 ? $1 : 'transcript';
 	$t=~s/("|;)//g;
 	if ($l[-1]=~/tag\s+\"CCDS\"/) {
 		$m{$g}{1}{$t} += $l[4]-$l[3];

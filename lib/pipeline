@@ -393,7 +393,7 @@ pipeline::uniqify() {
 	cmd1=()
 	for r in ${mapper[@]}; do
 		declare -n m=$r
-		odir=$outdir/mapped/$r/
+		odir=$outdir/mapped/$r
 		mkdir -p $odir
 		for i in ${!m[@]}; do
 			o=$odir/$(basename ${m[$i]})
@@ -413,7 +413,7 @@ pipeline::uniqify() {
 	return 0
 }
 
-pipeline::makereplicates() {
+pipeline::makereplicates() { #for peak calling only
 	[[ $norepl ]] && return 0
 	[[ ${#ridx[@]} -gt 0 ]] && echo ":INFO: generating pools" || echo ":INFO: generating pseudo-replicates"
 
@@ -492,17 +492,19 @@ pipeline::sortsambam() {
 	cmd2=()
 	for r in ${mapper[@]}; do
 		declare -n m=$r
-		mkdir -p $tmpdir/$r
+		tdir=$tmpdir/$r
+		odir=$outdir/mapped/$r
+		mkdir -p $tdir $odir
 		for i in ${!m[@]}; do
-			o=${m[$i]}
-			o=${o%.*}
-			tmp=$tmpdir/$r/$(basename $o).tmp
+			o=$(basename ${m[$i]})
+			tmp=$tdir/$o.tmp
+			o=$odir/${o%.*}.sorted.bam
 			if [[ $(file ${m[$i]} | grep -F ASCII) ]]; then
-				cmd1+=("rm -f $tmp.* && samtools view -@ $threads -b ${m[$i]} | samtools sort -@ $threads -T $tmp - > $o.sorted.bam\0")
+				cmd1+=("rm -f $tmp.* && samtools view -@ $threads -b ${m[$i]} | samtools sort -@ $threads -T $tmp - > $o\0")
 			else
-				cmd1+=("rm -f $tmp.* && samtools sort -@ $threads -T $tmp ${m[$i]} > $o.sorted.bam\0")
+				cmd1+=("rm -f $tmp.* && samtools sort -@ $threads -T $tmp ${m[$i]} > $o\0")
 			fi
-			m[$i]=$o.sorted.bam
+			m[$i]=$o
 		done
 	done
 
@@ -546,7 +548,7 @@ pipeline::mappingstats() {
 			fi
 		fi
 		
-		for f in $outdir/*/$(basename $f); do
+		for f in $(ls $outdir/*/$(basename $f) 2> /dev/null); do
 			if [[ $(file $f | grep -F compressed) ]]; then
 				if [[ $(file $f | grep gzip) ]]; then
 					cmd1+=("echo -e '$fname.fastq\tNo. $(basename $(dirname $f)) fragments:\n'\$[\$(gzip -cd $f | wc -l)/4] >> $o\0")
@@ -745,14 +747,17 @@ pipeline::removeduplicates() {
 	cmd3=()
 	for r in ${mapper[@]}; do
 		declare -n m=$r
+		odir=$outdir/mapped/$r
+		mkdir -p $odir
 		for i in ${!m[@]}; do
 			declare -n s=$r$i
 			for f in ${s[@]}; do
 				cmd1+=("samtools index $f ${f%.*}.bai\0")
 				cmd2+=("picard -Xmx${jmem}m -XX:ParallelGCThreads=$jgct -XX:ConcGCThreads=$jmgct -Djava.io.tmpdir=$tmpdir MarkDuplicates I=$f O=$f.rmdup M=$f.metrics READ_NAME_REGEX='$regex' REMOVE_DUPLICATES=true ASSUME_SORT_ORDER=coordinate VALIDATION_STRINGENCY=SILENT VERBOSITY=WARNING MAX_FILE_HANDLES=$nfh && mv $f.rmdup $f\0")
 			done
-			m[$i]=${m[$i]%.*}.rmdup.bam
-			cmd3+=("samtools merge -@ $threads -f ${m[$i]} ${s[*]}\0")
+			o=$odir/$(basename ${m[$i]%.*}).rmdup.bam
+			cmd3+=("samtools merge -@ $threads -f $o ${s[*]}\0")
+			m[$i]=$o
 		done
 	done
 
@@ -1184,6 +1189,7 @@ pipeline::dexseq() {
 	cmd3=()
 	cmd4=()
 	for r in ${mapper[@]}; do
+		mkdir -p $tmpdir/$r
 		for f in ${comparisons[@]}; do
 			comp=($(cut -d $'\t' -f 2 $f | uniq))
 			for i in $(seq 0 $[${#comp[@]}-2]); do
