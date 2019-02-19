@@ -83,7 +83,7 @@ compile::conda() {
 			bioconductor-biocinstaller bioconductor-biocparallel bioconductor-genomicfeatures bioconductor-genefilter bioconductor-deseq2 bioconductor-dexseq && \
 		# install r packages for custom scripts and dependencies for webgestalt (treemap) and those not automatically resolved by devtools wgcna installation
 		conda install -y --override-channels -c iuc -c bioconda -c main -c conda-forge -c defaults -c quantstack \
-			r-ggplot2 r-gplots r-rcolorbrewer r-svglite subread r-treemap r-wgcna r-pheatmap && \
+			r-ggplot2 r-gplots r-rcolorbrewer r-svglite subread r-treemap r-wgcna r-pheatmap r-ggpubr && \
 
 		conda deactivate
 	} || return 1

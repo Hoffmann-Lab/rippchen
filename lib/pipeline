@@ -2,16 +2,17 @@
 # (c) Konstantin Riege
 pipeline::fastqc() {
 	[[ $noqual ]] && return 0
-	echo ":INFO: calculating qualities"
+	tool=${1:-"raw"}
+	echo ":INFO: calculating $tool qualities"
 
 	cmd1=()
 	for f in {${fastq1[@]},${fastq2[@]}}; do
-		cmd1+=("fastqc -outdir $outdir/qualities $f\0")
+		cmd1+=("fastqc -outdir $outdir/qualities/$tool $f\0")
 	done
 
 	echo -n ${cmd1[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
-	if [[ ! $Squal ]]; then
-		{	mkdir -p $outdir/qualities && \
+	if ([[ $tool == "raw" ]] && [[ ! $Squal ]]) || ([[ $tool != "raw" ]] && [[ ! $Sexqual ]]); then
+		{	mkdir -p $outdir/qualities/$tool && \
 			echo -ne ${cmd1[@]} | /usr/bin/time -v xargs -0 -P $threads -I {} bash -c {}
 		} || return 1
 	fi
@@ -59,6 +60,10 @@ pipeline::cutadapt() {
 			echo -ne ${cmd1[@]} | /usr/bin/time -v xargs -0 -P $instances -I {} bash -c {} && \
 			conda activate py2
 		} || return 1
+	fi
+
+	if [[ $exqual ]]; then
+		pipeline::fastqc clipped || return 0
 	fi
 
 	return 0
@@ -138,6 +143,10 @@ pipeline::trimmomatic() {
 		} || return 1
 	fi
 
+	if [[ $exqual ]]; then
+		pipeline::fastqc trimmed || return 0
+	fi
+
 	return 0
 }
 
@@ -189,6 +198,10 @@ pipeline::rcorrector() {   # adjust picard regex accoring to added l:INT m:INT h
 			echo -ne ${cmd1[@]} | /usr/bin/time -v xargs -0 -P 1 -I {} bash -c {} && \
 			echo -ne ${cmd2[@]} | /usr/bin/time -v xargs -0 -P 1 -I {} bash -c {}
 		} || return 1
+	fi
+
+	if [[ $exqual ]]; then
+		pipeline::fastqc corrected || return 0
 	fi
 
 	return 0
@@ -250,6 +263,10 @@ pipeline::sortmerna() {
 		} || return 1
 	fi
 
+	if [[ $exqual ]]; then
+		pipeline::fastqc rrnafiltered || return 0
+	fi
+
 	return 0
 }
 
@@ -282,11 +299,12 @@ pipeline::segemehl() {
 		# YI:i:1 (laenge)
 		# YI:i:2 (orientation + laenge)
 		# YI:i:3 (chimeric)
+		# for splice site detection use $o.sngl.bed
 		if [[ ${fastq2[0]} ]]; then
-			cmd1+=("segemehl -S $o.dummy -I $insertsize -i $genome.segemehl.idx -d $genome -q ${fastq1[$i]} -p ${fastq2[$i]} -A $accuracy -t $threads | samtools view -@ $threads -b > $o.all && mv $o.sngl.bed $o.sj\0")
+			cmd1+=("segemehl -S $o.dummy -I $insertsize -i $genome.segemehl.idx -d $genome -q ${fastq1[$i]} -p ${fastq2[$i]} -A $accuracy -t $threads | samtools view -@ $threads -b > $o.all\0")
 			cmd2+=("samtools view -@ $threads -b -F 4 -f 2 $o.all > $o.bam\0")
 		else
-			cmd1+=("segemehl -S $o.dummy -i $genome.segemehl.idx -d $genome -q ${fastq1[$i]} -A $accuracy -t $threads | samtools view -@ $threads -b > $o.all && mv $o.sngl.bed $o.sj\0")
+			cmd1+=("segemehl -S $o.dummy -i $genome.segemehl.idx -d $genome -q ${fastq1[$i]} -A $accuracy -t $threads | samtools view -@ $threads -b > $o.all\0")
 			cmd2+=("samtools view -@ $threads -b -F 4 $o.all > $o.bam\0")
 		fi
 		
@@ -499,7 +517,7 @@ pipeline::sortsambam() {
 			o=$(basename ${m[$i]})
 			tmp=$tdir/$o.tmp
 			o=$odir/${o%.*}.sorted.bam
-			if [[ $(file ${m[$i]} | grep -F ASCII) ]]; then
+			if [[ $(file $(readlink -e ${m[$i]}) | grep -F ASCII) ]]; then
 				cmd1+=("rm -f $tmp.* && samtools view -@ $threads -b ${m[$i]} | samtools sort -@ $threads -T $tmp - > $o\0")
 			else
 				cmd1+=("rm -f $tmp.* && samtools sort -@ $threads -T $tmp ${m[$i]} > $o\0")
@@ -521,6 +539,8 @@ pipeline::mappingstats() {
 	[[ $nostats ]] && return 0
 	echo ":INFO: inferring mapping statistics"
 
+	multiplier=1
+	[[ ${fastq2[0]} ]] && multiplier=2
 	cmd1=()
 	cmd2=()
 	IFS=','
@@ -529,34 +549,25 @@ pipeline::mappingstats() {
 
 		fname=$(basename $f)
 		fname=${fname%.*}
-		[[ $(file $f | grep -F compressed) ]] && fname=${fname%.*}
+		[[ $(file $(readlink -e $f) | grep -F compressed) ]] && fname=${fname%.*}
 
-		o=$outdir/statistics/$fname.fastq.txt
-		[[ ! $Sstats ]] && rm -f $o
-		
-		if [[ -e $outdir/qualities/${fname}_fastqc.zip ]]; then
-			cmd1+=("echo -e $fname'.fastq\tNo. raw fragments:\n'\$(unzip -p $outdir/qualities/${fname}_fastqc.zip ${fname}_fastqc/fastqc_data.txt | grep -m 1 -F Total | awk '{print \$3}') >> $o\0")
-		else
-			if [[ $(file $f | grep -F compressed) ]]; then
-				if [[ $(file $f | grep gzip) ]]; then
-					cmd1+=("echo -e '$fname.fastq\tNo. raw fragments:\n'\$[\$(gzip -cd $f | wc -l)/4] >> $o\0")
-				else
-					cmd1+=("echo -e '$fname.fastq\tNo. raw fragments:\n'\$[\$(bzip2 -cd $f | wc -l)/4] >> $o\0")
-				fi
+		o=$outdir/statistics/$fname.stats
+		[ ! $Sstats ]] && rm -f $o
+		for f in $f $(ls $outdir/*/$(basename $f) 2> /dev/null); do
+			[[ $(readlink -e $f) =~ $outdir ]] && tool=$(basename $(dirname $f)) || tool='raw' # see pipeline::fastqc
+
+			if [[ -e $outdir/qualities/$tool/${fname}_fastqc.zip ]]; then	
+				cmd1+=("echo -e '$fname\t$tool reads\t'\$(unzip -p $outdir/qualities/$tool/${fname}_fastqc.zip ${fname}_fastqc/fastqc_data.txt | grep -m 1 -F Total | awk -v mult=$multiplier '{print \$3*mult}') >> $o\0")
 			else
-				cmd1+=("echo -e '$fname.fastq\tNo. raw fragments:\n'\$[\$(wc -l $f | cut -d ' ' -f 1)/4] >> $o\0")
-			fi
-		fi
-		
-		for f in $(ls $outdir/*/$(basename $f) 2> /dev/null); do
-			if [[ $(file $f | grep -F compressed) ]]; then
-				if [[ $(file $f | grep gzip) ]]; then
-					cmd1+=("echo -e '$fname.fastq\tNo. $(basename $(dirname $f)) fragments:\n'\$[\$(gzip -cd $f | wc -l)/4] >> $o\0")
+				if [[ $(file $(readlink -e $f) | grep -F compressed) ]]; then
+					if [[ $(file $(readlink -e $f) | grep gzip) ]]; then
+						cmd1+=("echo -e '$fname\t$tool reads\t'\$[\$(gzip -cd $f | wc -l)/4*$multiplier] >> $o\0")
+					else
+						cmd1+=("echo -e '$fname\t$tool reads\t'\$[\$(bzip2 -cd $f | wc -l)/4*$multiplier] >> $o\0")
+					fi
 				else
-					cmd1+=("echo -e '$fname.fastq\tNo. $(basename $(dirname $f)) fragments:\n'\$[\$(bzip2 -cd $f | wc -l)/4] >> $o\0")
+					cmd1+=("echo -e '$fname\t$tool reads\t'\$[\$(wc -l $f | cut -d ' ' -f 1)/4*$multiplier] >> $o\0")
 				fi
-			else 
-				cmd1+=("echo -e '$fname.fastq\tNo. $(basename $(dirname $f)) fragments:\n'\$[\$(wc -l $f | cut -d ' ' -f 1)/4] >> $o\0")
 			fi
 		done
 	done
@@ -564,26 +575,152 @@ pipeline::mappingstats() {
 
 	for r in ${mapper[@]}; do
 		declare -n m=$r
+		mkdir -p $outdir/statistics/$r
 		for f in ${m[@]}; do
 			fdir=$(dirname $f)
-			fname=$(basename $f | sed 's/\.unique\..*//')
+			fname=$(basename $f)
+			fname=${fname%.*}
+			fname=$(echo $fname | sed 's/\.unique\..*//')
+			fname=$(echo $fname | sed 's/\.sorted\..*//')
 			mkdir -p $outdir/statistics/$r/
-			o=$outdir/statistics/$r/$fname.bam.txt
+			o=$outdir/statistics/$r/$fname.stats
+			fqstats=$outdir/statistics/$fname.stats
+			[[ ! -e $fdir/$fname.bam ]] && return 1
+
 			[[ ! $Sstats ]] && rm -f $o
-			
-			for f in $(find $fdir -type f -name "$fname*.bam" | grep -v readgrouped); do
-				cmd1+=("tac <(tac <(LC_ALL=C samtools view $f | perl -M'List::Util qw(sum)' -F'\\\t' -lane '@x=\$F[5]=~/(\d+N)/g; \$s{\$#x+2}++; END{print \$_.\" \".\$s{\$_} for sort {\$a<=>\$b} keys %s}'); echo -e '$(basename $f)\t$r splits:\n') >> $o\0")
-				cmd2+=("tac <(tac <(samtools flagstat -@ $threads $f); echo -e '$(basename $f)\t$r mappings:\n') >> $o\0")
+			cmd2+=("samtools flagstat -@ $threads $fdir/$fname.bam | awk '{if(NR==1){print \"$fname\\\tmulti mappings\\\t\"\$1} print \"# \"\$0}' >> $o\0")
+            cmd=''
+			for f in $(find $fdir -type f -name "$fname.*.bam" | grep -v readgrouped | sort -r); do # rev to get chrM reads from rmdup instead of uniq
+				[[ -e ${f%.*}.sorted.bam ]] && continue
+				type=$(basename $f .bam | sed 's/\.sorted\.*//' | awk -F '.' '{print $NF}')
+				cmd2+=("samtools flagstat -@ $threads $f | awk '{if(NR==1){print \"$fname\\\t$type mappings\\\t\"\$1} print \"# \"\$0}' >> $o\0")
+                [[ -e ${f%.*}.bai ]] && cmd="samtools idxstats -@ $threads $f | awk '!/^\*/{if(\$1==\"chrM\"){print \"$fname\\\tchrM mappings\\\t\"\$(NF-1)} print \"# \"\$0}' >> $o\0"
 			done
+            [[ $cmd ]] && cmd2+=($cmd)
 		done
 	done
 
 	echo -n ${cmd1[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
 	echo -n ${cmd2[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
 	if [[ ! $Sstats ]]; then 
-		{	mkdir -p $outdir/statistics
+		{	echo -ne ${cmd1[@]} | /usr/bin/time -v xargs -0 -P $threads -I {} bash -c {} && \
+			echo -ne ${cmd2[@]} | /usr/bin/time -v xargs -0 -P 1 -I {} bash -c {} && \
+			conda activate py2r && \
+			pipeline::_vizmappingstats && \
+			conda activate py2
+		} || return 1
+	fi
+
+	return 0
+}
+
+pipeline::_vizmappingstats() {
+	cmd1=()
+
+	IFS=','
+	for f in {$nfq1,$tfq1,$rfq1}; do
+		unset IFS
+		fname=$(basename $f)
+		fname=${fname%.*}
+		[[ $(file $(readlink -e $f) | grep -F compressed) ]] && fname=${fname%.*}
+		fqstats=$outdir/statistics/$fname.stats
+
+		o2=$outdir/statistics/$fname
+		echo -e 'source\ttype\tcount' > $o2.tsv
+		echo -e 'source\ttype\tcount' > $o2.barplot.tsv
+
+		all=$(grep -F "raw reads" $fqstats | cut -f 3) 
+		grep -F "raw reads" $fqstats | awk -F '\t' -v all=$all '{print $1" ("all")\t"$2"\t100"}' >> $o2.tsv || return 1
+		for q in clipped trimmed rrnafiltered; do 
+			grep -F "$q reads" $fqstats |  awk -F '\t' -v all=$all '{print $1" ("all")\t"$2"\t"(100*$NF/all)}' >> $o2.tsv
+		done
+		awk -F '\t' 'NR>1{if($1 == f){print l"\t"(c-$3)}else{if(l){print l"\t"c}} l=$1"\t"$2; f=$1; c=$3}END{print l"\t"c}' $o2.tsv >> $o2.barplot.tsv
+		cmd1+=("Rscript -e \"suppressMessages(library('ggplot2')); suppressMessages(library('scales')); m = read.table('$o2.barplot.tsv', header=T, sep='\\\t'); l=length(m\\\$type)/length(unique(m\\\$source)); l=m\\\$type[1:l]; m\\\$type = factor(m\\\$type, levels=l); pdf('$o2.barplot.pdf'); ggplot(m, aes(x = source, y = count, fill = type)) + ggtitle('Preprocessing statistics') + xlab('Source file') + ylab('Read count in %') + theme_bw() + guides(fill=guide_legend(title=NULL)) + geom_bar(position = 'fill', stat = 'identity') + scale_y_continuous(labels = percent_format()); graphics.off(); \"\0")
+	done
+	unset IFS
+
+	for r in ${mapper[@]}; do
+		declare -n m=$r
+		for f in ${m[@]}; do
+			fdir=$(dirname $f)
+			fname=$(basename $f)
+			fname=${fname%.*}
+			fname=$(echo $fname | sed 's/\.unique\..*//')
+			fname=$(echo $fname | sed 's/\.sorted\..*//')
+			fqstats=$outdir/statistics/$fname.stats
+			lastprep=$(tail -1 $outdir/statistics/$fname.tsv | cut -f 2) #clipped or trimmed or rrnafiltered - depends on user selection
+
+			o2=$outdir/statistics/$r/$fname
+			echo -e 'source\ttype\tcount' > $o2.tsv
+			echo -e 'source\ttype\tcount' > $o2.barplot.tsv
+            
+			all=$(grep -F "$lastprep" $fqstats | cut -f 3)
+			grep -F "$lastprep" $fqstats |  awk -F '\t' -v all=$all '{print $1" ("all")\t"$2"\t100"}' >> $o2.tsv || return 1
+			for q in multi unique rmdup chrM; do
+				#if more multimapped than reads c=100
+				grep -F "$q mappings" $outdir/statistics/$r/$fname.stats |  awk -F "\t" -v all=$all '{c=(100*$NF/all); if(c>100){c=100}; print $1" ("all")\t"$2"\t"c}' >> $o2.tsv
+			done
+			awk -F '\t' 'NR>1{if($1 == f){print l"\t"(c-$3)}else{if(l){print l"\t"c}} l=$1"\t"$2; f=$1; c=$3}END{print l"\t"c}' $o2.tsv >> $o2.barplot.tsv
+			cmd1+=("Rscript -e \"suppressMessages(library('ggplot2')); suppressMessages(library('scales')); m = read.table('$o2.barplot.tsv', header=T, sep='\\\t'); l=length(m\\\$type)/length(unique(m\\\$source)); l=m\\\$type[1:l]; m\\\$type = factor(m\\\$type, levels=l); pdf('$o2.barplot.pdf'); ggplot(m, aes(x = source, y = count, fill = type)) + ggtitle('Mapping statistics') + xlab('Source file') + ylab('Read count in %') + theme_bw() + guides(fill=guide_legend(title=NULL)) + geom_bar(position = 'fill', stat = 'identity') + scale_y_continuous(labels = percent_format()); graphics.off(); \"\0")
+		done
+	done
+
+	echo -n ${cmd1[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+	{	conda activate py2r && \
+		echo -ne ${cmd1[@]} | /usr/bin/time -v xargs -0 -P $threads -I {} bash -c {} && \
+		conda activate py2
+	} || return 1
+
+	return 0
+}
+
+pipeline::joinvizmappingstats() {
+	[[ $nostats ]] && return 0
+	echo ":INFO: joining mapping statistics"
+
+	cmd1=()
+
+	o1=$outdir/statistics/preprocessed
+	echo -e 'source\ttype\tcount' > $o1.tsv
+	echo -e 'source\ttype\tcount' > $o1.barplot.tsv
+	IFS=','
+	for f in {$nfq1,$tfq1,$rfq1}; do
+		unset IFS
+		fname=$(basename $f)
+		fname=${fname%.*}
+		[[ $(file $(readlink -e $f) | grep -F compressed) ]] && fname=${fname%.*}
+		
+		o2=$outdir/statistics/$fname
+		tail -n +2 $o2.tsv >> $o1.tsv || return 1
+		tail -n +2 $o2.barplot.tsv >> $o1.barplot.tsv
+	done
+	unset IFS
+	cmd1+=("Rscript -e \"suppressMessages(library('ggplot2')); suppressMessages(library('scales')); m = read.table('$o1.barplot.tsv', header=T, sep='\\\t'); l=length(m\\\$type)/length(unique(m\\\$source)); l=m\\\$type[1:l]; m\\\$type = factor(m\\\$type, levels=l); pdf('$o1.barplot.pdf'); ggplot(m, aes(x = source, y = count, fill = type)) + ggtitle('Preprocessing statistics') + xlab('Source file') + ylab('Read count in %') + theme_bw() + theme(axis.text.x = element_text(angle = 90, hjust = 1)) + guides(fill=guide_legend(title=NULL)) + geom_bar(position = 'fill', stat = 'identity') + scale_y_continuous(labels = percent_format()); graphics.off(); \"\0")
+
+	for r in ${mapper[@]}; do
+		declare -n m=$r
+		o1=$outdir/statistics/$r/mapped
+		echo -e 'source\ttype\tcount' > $o1.tsv
+		echo -e 'source\ttype\tcount' > $o1.barplot.tsv
+		for f in ${m[@]}; do
+			fdir=$(dirname $f)
+			fname=$(basename $f)
+			fname=${fname%.*}
+			fname=$(echo $fname | sed 's/\.unique\..*//')
+			fname=$(echo $fname | sed 's/\.sorted\..*//')
+
+			o2=$outdir/statistics/$r/$fname
+			tail -n +2 $o2.tsv >> $o1.tsv || return 1
+			tail -n +2 $o2.barplot.tsv >> $o1.barplot.tsv
+		done
+		cmd1+=("Rscript -e \"suppressMessages(library('ggplot2')); suppressMessages(library('scales')); m = read.table('$o1.barplot.tsv', header=T, sep='\\\t'); l=length(m\\\$type)/length(unique(m\\\$source)); l=m\\\$type[1:l]; m\\\$type = factor(m\\\$type, levels=l); pdf('$o1.barplot.pdf'); ggplot(m, aes(x = source, y = count, fill = type)) + ggtitle('Mapping statistics') + xlab('Source file') + ylab('Read count in %') + theme_bw() + theme(axis.text.x = element_text(angle = 90, hjust = 1)) + guides(fill=guide_legend(title=NULL)) + geom_bar(position = 'fill', stat = 'identity') + scale_y_continuous(labels = percent_format()); graphics.off(); \"\0")
+	done
+
+	echo -n ${cmd1[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+	if [[ ! $Sjstats ]]; then 
+		{	conda activate py2r && \
 			echo -ne ${cmd1[@]} | /usr/bin/time -v xargs -0 -P $threads -I {} bash -c {} && \
-			echo -ne ${cmd2[@]} | /usr/bin/time -v xargs -0 -P 1 -I {} bash -c {}
+			conda activate py2
 		} || return 1
 	fi
 
@@ -822,7 +959,7 @@ pipeline::_inferstrandness() {
 		declare -n m=$r
 		for f in ${m[@]}; do
 			tmp=$(infer_experiment.py -q 0 -i $f -r $tmpdir/gtf 2>&1 | perl -lane '$p=1 if /This is PairEnd Data/; $s1=$F[-1] if $F[-2]=~/^\"\d?\+\+/; $s2=$F[-1] if $F[-2]=~/^\"\d?\+-/; END{exit 1 unless $s1 && $s2; $p=0 unless $p; print $s1 > 0.7 ? "$p 1" : $s2 > 0.7 ? "$p 2" : "$p 0"}')
-			[[ $? -gt 0 ]] && return 1
+			[[ $[0${PIPESTATUS[@]/#/+}] -gt 0 ]] && return 1
 			pairedness+=($(echo $tmp | cut -d ' ' -f 1))
 			strandness+=($(echo $tmp | cut -d ' ' -f 2))
 		done
@@ -1370,7 +1507,7 @@ pipeline::_vizcoexpression() {
                 #[[ $f == "experiments" ]] && Rscript -e "ALL=scan('$o.genes', character(), quiet=T); A=scan('$o.filtered.genes', character(), quiet=T); B=scan('$o.module.$i.genes', character(), quiet=T); overlap=intersect(A,B); cat('module.$i',phyper(length(overlap), length(A), length(ALL)-length(A), length(B), lower.tail = F)); cat('\n')"
                 cmd1+=("vizco.R $o.module.$inew.tpm $o.module.$inew.trajectories.pdf\0")
 
-				cmd1+=("Rscript -e \"suppressMessages(library(pheatmap)); suppressMessages(library(RColorBrewer)); args = commandArgs(TRUE); m = matrix(); gr = c(0); ac = c(); ar = c(); n=-1; for (f in args){n=n+1; x = read.table(f, header=T, sep='\\\t'); tmp = as.matrix(x[,-1]); l=length(x\\\$gene); if(l<2){next}; rownames(tmp) = x\\\$gene; c = hclust(dist(tmp)); tmp = tmp[c\\\$order,]; ar = c(ar, rownames(tmp)); ac = c(ac, rep('Module$inew', l)); gr = c(gr, gr[length(gr)]+l); if(length(m[1,])>1) m = rbind(m,tmp) else m = tmp}; write.table(as.data.frame(m), quote=FALSE, col.names=TRUE,sep='\\\t', file='$outdir/coexpressed/$r/$f.module.$inew.heatmap.tsv'); pheatmap(m, color=rev(colorRampPalette(brewer.pal(9, 'RdBu'))(100)), cluster_cols = F, cluster_rows = F, gaps_row = gr, filename = '$outdir/coexpressed/$r/$f.module.$inew.heatmap.pdf', annotation_names_row = F, show_rownames = F, border_color=NA, legend_breaks = c(min(m),-1:1), legend_labels = c('Z-Score', '-1', '0', '1'), main='Module $inew')\" $o.module.$inew.zscores\0")
+				cmd1+=("Rscript -e \"suppressMessages(library(pheatmap)); suppressMessages(library(RColorBrewer)); args = commandArgs(TRUE); m = matrix(); gr = c(0); ac = c(); ar = c(); n=-1; for (f in args){n=n+1; x = read.table(f, header=T, sep='\\\t'); tmp = as.matrix(x[,-1]); l=length(x\\\$gene); if(l<2){next}; rownames(tmp) = x\\\$gene; c = hclust(dist(tmp)); tmp = tmp[c\\\$order,]; ar = c(ar, rownames(tmp)); ac = c(ac, rep('Module$inew', l)); gr = c(gr, gr[length(gr)]+l); if(length(m[1,])>1) m = rbind(m,tmp) else m = tmp}; write.table(as.data.frame(m), quote=FALSE, col.names=TRUE,sep='\\\t', file='$outdir/coexpressed/$r/$f.module.$inew.heatmap.tsv'); pheatmap(m, color=rev(colorRampPalette(brewer.pal(9, 'RdBu'))(100)), cluster_cols = F, cluster_rows = F, gaps_row = gr, filename = '$outdir/coexpressed/$r/$f.module.$inew.heatmap.pdf', annotation_names_row = F, show_rownames = F, border_color=NA, legend_breaks = c(min(m),-1,0,1,max(m)), legend_labels = c('','-1','Z-Score','1',''), main='Module $inew')\" $o.module.$inew.zscores\0")
 			done
 			cmd1+=("vizco.R $o.module.mean.tpm $o.module.trajectories.pdf\0")
 
@@ -1390,19 +1527,19 @@ pipeline::_vizcoexpression() {
                 #[[ $f == "experiments" ]] && Rscript -e "ALL=scan('$o.genes', character(), quiet=T); A=scan('$o.filtered.genes', character(), quiet=T); B=scan('$o.cluster.$i.genes', character(), quiet=T); overlap=intersect(A,B); cat('cluster.$i',phyper(length(overlap), length(A), length(ALL)-length(A), length(B), lower.tail = F)); cat('\n')"
                 cmd1+=("vizco.R $o.cluster.$i.tpm $o.cluster.$i.trajectories.pdf\0")
 
-                cmd1+=("Rscript -e \"suppressMessages(library(pheatmap)); suppressMessages(library(RColorBrewer)); args = commandArgs(TRUE); m = matrix(); gr = c(0); ac = c(); ar = c(); n=-1; for (f in args){n=n+1; x = read.table(f, header=T, sep='\\\t'); tmp = as.matrix(x[,-1]); l=length(x\\\$gene); if(l<2){next}; rownames(tmp) = x\\\$gene; c = hclust(dist(tmp)); tmp = tmp[c\\\$order,]; ar = c(ar, rownames(tmp)); ac = c(ac, rep('Cluster$i', l)); gr = c(gr, gr[length(gr)]+l); if(length(m[1,])>1) m = rbind(m,tmp) else m = tmp}; write.table(as.data.frame(m), quote=FALSE, col.names=TRUE,sep='\\\t', file='$outdir/coexpressed/$r/$f.cluster.$i.heatmap.tsv'); pheatmap(m, color=rev(colorRampPalette(brewer.pal(9, 'RdBu'))(100)), cluster_cols = F, cluster_rows = F, gaps_row = gr, filename = '$outdir/coexpressed/$r/$f.cluster.$i.heatmap.pdf', annotation_names_row = F, show_rownames = F, border_color=NA, legend_breaks = c(min(m),-1:1), legend_labels = c('Z-Score', '-1', '0', '1'), main='Cluster $i')\" $o.cluster.$i.zscores\0")
+                cmd1+=("Rscript -e \"suppressMessages(library(pheatmap)); suppressMessages(library(RColorBrewer)); args = commandArgs(TRUE); m = matrix(); gr = c(0); ac = c(); ar = c(); n=-1; for (f in args){n=n+1; x = read.table(f, header=T, sep='\\\t'); tmp = as.matrix(x[,-1]); l=length(x\\\$gene); if(l<2){next}; rownames(tmp) = x\\\$gene; c = hclust(dist(tmp)); tmp = tmp[c\\\$order,]; ar = c(ar, rownames(tmp)); ac = c(ac, rep('Cluster$i', l)); gr = c(gr, gr[length(gr)]+l); if(length(m[1,])>1) m = rbind(m,tmp) else m = tmp}; write.table(as.data.frame(m), quote=FALSE, col.names=TRUE,sep='\\\t', file='$outdir/coexpressed/$r/$f.cluster.$i.heatmap.tsv'); pheatmap(m, color=rev(colorRampPalette(brewer.pal(9, 'RdBu'))(100)), cluster_cols = F, cluster_rows = F, gaps_row = gr, filename = '$outdir/coexpressed/$r/$f.cluster.$i.heatmap.pdf', annotation_names_row = F, show_rownames = F, border_color=NA, legend_breaks = c(min(m),-1,0,1,max(m)), legend_labels = c('','-1','Z-Score','1',''), main='Cluster $i')\" $o.cluster.$i.zscores\0")
 
                 files=$(awk -v i=$i '$1==i{print}' $o.new.module2cluster | perl -lane "shift @F; print '$o.module.'.\$_.'.zscores' for @F")
                 n=$(awk -v i=$i '$1==i{gsub(/^0*/,"",$2); print $2-1}' $o.new.module2cluster)
-                cmd1+=("Rscript -e \"suppressMessages(library(pheatmap)); suppressMessages(library(RColorBrewer)); args = commandArgs(TRUE); m = matrix(); gr = c(0); ac = c(); ar = c(); n=$n; for (f in args){n=n+1; x = read.table(f, header=T, sep='\\\t'); tmp = as.matrix(x[,-1]); l=length(x\\\$gene); if(l<2){next}; rownames(tmp) = x\\\$gene; c = hclust(dist(tmp)); tmp = tmp[c\\\$order,]; ar = c(ar, rownames(tmp)); ac = c(ac, rep(sprintf('Module%03d', n), l)); gr = c(gr, gr[length(gr)]+l); if(length(m[1,])>1) m = rbind(m,tmp) else m = tmp}; write.table(as.data.frame(m), quote=FALSE, col.names=TRUE,sep='\\\t', file='$outdir/coexpressed/$r/$f.cluster.$i.heatmap.module.tsv'); pheatmap(m, color=rev(colorRampPalette(brewer.pal(9, 'RdBu'))(100)), cluster_cols = F, cluster_rows = F, annotation_row = data.frame( row.names = ar, Module = ac), gaps_row = gr, filename = '$outdir/coexpressed/$r/$f.cluster.$i.heatmap.module.pdf', annotation_names_row = F, show_rownames = F, border_color=NA, legend_breaks = c(min(m),-1:1), legend_labels = c('Z-Score', '-1', '0', '1'), main='Modules of Cluster $i')\" $files\0")
+                cmd1+=("Rscript -e \"suppressMessages(library(pheatmap)); suppressMessages(library(RColorBrewer)); args = commandArgs(TRUE); m = matrix(); gr = c(0); ac = c(); ar = c(); n=$n; for (f in args){n=n+1; x = read.table(f, header=T, sep='\\\t'); tmp = as.matrix(x[,-1]); l=length(x\\\$gene); if(l<2){next}; rownames(tmp) = x\\\$gene; c = hclust(dist(tmp)); tmp = tmp[c\\\$order,]; ar = c(ar, rownames(tmp)); ac = c(ac, rep(sprintf('Module%03d', n), l)); gr = c(gr, gr[length(gr)]+l); if(length(m[1,])>1) m = rbind(m,tmp) else m = tmp}; write.table(as.data.frame(m), quote=FALSE, col.names=TRUE,sep='\\\t', file='$outdir/coexpressed/$r/$f.cluster.$i.heatmap.module.tsv'); pheatmap(m, color=rev(colorRampPalette(brewer.pal(9, 'RdBu'))(100)), cluster_cols = F, cluster_rows = F, annotation_row = data.frame( row.names = ar, Module = ac), gaps_row = gr, filename = '$outdir/coexpressed/$r/$f.cluster.$i.heatmap.module.pdf', annotation_names_row = F, show_rownames = F, border_color=NA, legend_breaks = c(min(m),-1,0,1,max(m)), legend_labels = c('','-1','Z-Score','1',''), main='Modules of Cluster $i')\" $files\0")
             done
 			cmd1+=("vizco.R $o.cluster.mean.tpm $o.cluster.trajectories.pdf\0")
 
 			files=$(find $outdir/coexpressed/$r -type f -name "$f.cluster.???.zscores" | sort -V) #??? to avoid mean - alternative: [0-9][0-9][0-9] or -regex "..."
-			cmd1+=("Rscript -e \"suppressMessages(library(pheatmap)); suppressMessages(library(RColorBrewer)); args = commandArgs(TRUE); m = matrix(); gr = c(0); ac = c(); ar = c(); n=-1; for (f in args){n=n+1; x = read.table(f, header=T, sep='\\\t'); tmp = as.matrix(x[,-1]); l=length(x\\\$gene); if(l<2){next}; rownames(tmp) = x\\\$gene; c = hclust(dist(tmp)); tmp = tmp[c\\\$order,]; ar = c(ar, rownames(tmp)); ac = c(ac, rep(sprintf('Cluster%03d', n), l)); gr = c(gr, gr[length(gr)]+l); if(length(m[1,])>1) m = rbind(m,tmp) else m = tmp}; write.table(as.data.frame(m), quote=FALSE, col.names=TRUE,sep='\\\t', file='$outdir/coexpressed/$r/$f.cluster.heatmap.tsv'); pheatmap(m, color=rev(colorRampPalette(brewer.pal(9, 'RdBu'))(100)), cluster_cols = F, cluster_rows = F, annotation_row = data.frame( row.names = ar, Cluster = ac ), gaps_row = gr, filename = '$outdir/coexpressed/$r/$f.cluster.heatmap.pdf', annotation_names_row = F, show_rownames = F, border_color=NA, legend_breaks = c(min(m),-1:1), legend_labels = c('Z-Score', '-1', '0', '1'), main='All Cluster')\" $files\0")
+			cmd1+=("Rscript -e \"suppressMessages(library(pheatmap)); suppressMessages(library(RColorBrewer)); args = commandArgs(TRUE); m = matrix(); gr = c(0); ac = c(); ar = c(); n=-1; for (f in args){n=n+1; x = read.table(f, header=T, sep='\\\t'); tmp = as.matrix(x[,-1]); l=length(x\\\$gene); if(l<2){next}; rownames(tmp) = x\\\$gene; c = hclust(dist(tmp)); tmp = tmp[c\\\$order,]; ar = c(ar, rownames(tmp)); ac = c(ac, rep(sprintf('Cluster%03d', n), l)); gr = c(gr, gr[length(gr)]+l); if(length(m[1,])>1) m = rbind(m,tmp) else m = tmp}; write.table(as.data.frame(m), quote=FALSE, col.names=TRUE,sep='\\\t', file='$outdir/coexpressed/$r/$f.cluster.heatmap.tsv'); pheatmap(m, color=rev(colorRampPalette(brewer.pal(9, 'RdBu'))(100)), cluster_cols = F, cluster_rows = F, annotation_row = data.frame( row.names = ar, Cluster = ac ), gaps_row = gr, filename = '$outdir/coexpressed/$r/$f.cluster.heatmap.pdf', annotation_names_row = F, show_rownames = F, border_color=NA, legend_breaks = c(min(m),-1,0,1,max(m)), legend_labels = c('','-1','Z-Score','1',''), main='All Cluster')\" $files\0")
 
 			files=$(find $outdir/coexpressed/$r -type f -name "$f.module.???.zscores" | sort -V)
-			cmd1+=("Rscript -e \"suppressMessages(library(pheatmap)); suppressMessages(library(RColorBrewer)); args = commandArgs(TRUE); m = matrix(); gr = c(0); ac = c(); ar = c(); n=-1; for (f in args){n=n+1; x = read.table(f, header=T, sep='\\\t'); tmp = as.matrix(x[,-1]); l=length(x\\\$gene); if(l<2){next}; rownames(tmp) = x\\\$gene; c = hclust(dist(tmp)); tmp = tmp[c\\\$order,]; ar = c(ar, rownames(tmp)); ac = c(ac, rep(sprintf('Module%03d', n), l)); gr = c(gr, gr[length(gr)]+l); if(length(m[1,])>1) m = rbind(m,tmp) else m = tmp}; write.table(as.data.frame(m), quote=FALSE, col.names=TRUE,sep='\\\t', file='$outdir/coexpressed/$r/$f.module.heatmap.tsv'); pheatmap(m, color=rev(colorRampPalette(brewer.pal(9, 'RdBu'))(100)), cluster_cols = F, cluster_rows = F, annotation_row = data.frame( row.names = ar, Module = ac ), gaps_row = gr, filename = '$outdir/coexpressed/$r/$f.module.heatmap.pdf', annotation_names_row = F, show_rownames = F, border_color=NA, legend_breaks = c(min(m),-1:1), legend_labels = c('Z-Score', '-1', '0', '1'), main='All Cluster Modules')\" $files\0")
+			cmd1+=("Rscript -e \"suppressMessages(library(pheatmap)); suppressMessages(library(RColorBrewer)); args = commandArgs(TRUE); m = matrix(); gr = c(0); ac = c(); ar = c(); n=-1; for (f in args){n=n+1; x = read.table(f, header=T, sep='\\\t'); tmp = as.matrix(x[,-1]); l=length(x\\\$gene); if(l<2){next}; rownames(tmp) = x\\\$gene; c = hclust(dist(tmp)); tmp = tmp[c\\\$order,]; ar = c(ar, rownames(tmp)); ac = c(ac, rep(sprintf('Module%03d', n), l)); gr = c(gr, gr[length(gr)]+l); if(length(m[1,])>1) m = rbind(m,tmp) else m = tmp}; write.table(as.data.frame(m), quote=FALSE, col.names=TRUE,sep='\\\t', file='$outdir/coexpressed/$r/$f.module.heatmap.tsv'); pheatmap(m, color=rev(colorRampPalette(brewer.pal(9, 'RdBu'))(100)), cluster_cols = F, cluster_rows = F, annotation_row = data.frame( row.names = ar, Module = ac ), gaps_row = gr, filename = '$outdir/coexpressed/$r/$f.module.heatmap.pdf', annotation_names_row = F, show_rownames = F, border_color=NA, legend_breaks = c(min(m),-1,0,1,max(m)), legend_labels = c('','-1','Z-Score','1',''), main='All Cluster Modules')\" $files\0")
 			#TODO add cluster annotation
 			# cmd1+=("Rscript -e \"suppressMessages(library(pheatmap)); suppressMessages(library(RColorBrewer)); args = commandArgs(TRUE); m = matrix(); gr = c(0); am = c(); ac = c(); ar = c(); n=$n; for (f in args){n=n+1; x = read.table(f, header=T, sep='\\\t'); tmp = as.matrix(x[,-1]); l=length(x\\\$gene); if(l<2){next}; rownames(tmp) = x\\\$gene; c = hclust(dist(tmp)); tmp = tmp[c\\\$order,]; ar = c(ar, rownames(tmp)); am = c(am, rep(sprintf('Module%03d', n), l)); ac = c(ac, rep('Cluster$i',l)); gr = c(gr, gr[length(gr)]+l); if(length(m[1,])>1) m = rbind(m,tmp) else m = tmp}; write.table(as.data.frame(m), quote=FALSE, col.names=TRUE,sep='\\\t', file='$outdir/coexpressed/$r/$f.cluster.$i.heatmap.module.tsv'); pheatmap(m, color=rev(colorRampPalette(brewer.pal(9, 'RdBu'))(100)), cluster_cols = F, cluster_rows = F, annotation_row = data.frame( row.names = ar, Module = am, Cluster = ac ), gaps_row = gr, filename = '$outdir/coexpressed/$r/$f.cluster.$i.heatmap.module.pdf', annotation_names_row = F, show_rownames = F, legend_breaks = c(min(m),-1:1), legend_labels = c('Z-Score', '-1', '0', '1'), main='Modules of Cluster $i')\" files\0")
 		done
@@ -1486,6 +1623,16 @@ pipeline::goenrichment() {
 }
 
 pipeline::_vizgoenrichment() {
+	if [[ $(revigo &>/dev/null; echo $?) -eq 0 ]]; then
+		pipeline::_vizgoenrichment_default || return 1
+	else
+		pipeline::_vizgoenrichment_fallback || return 1
+	fi
+
+	return 0
+}
+
+pipeline::_vizgoenrichment_default() {
 	numbars=10
 	cmd1=()
 	cmd2=()
@@ -1507,9 +1654,11 @@ pipeline::_vizgoenrichment() {
 						o=$odir/$domain
 						for p in full fdr05 p05; do
 							[[ ! -s $o.$p.tsv ]] && continue
-							cmd1+=("revigo.R $o.$p.tsv $o.$p $domain\0")
-							d=${domain/_/ }
-							cmd2+=("Rscript -e \"x=read.table('$o.$p.scatterplot.csv',header=TRUE,sep=','); c=read.table('$o.raw.counts',header=T,sep='\\\t'); names(x)[1]='go'; x=merge(x,c,by='go'); x\\\$description=paste(x\\\$description,' ','(',x\\\$count,')', sep=''); x\\\$log10.p.value = abs(x\\\$log10.p.value); x=x[order(-x\\\$log10.p.value),]; x=head(x,min($numbars,nrow(x))); pdf('$o.$p.barplot.pdf',width=max(nchar(x\\\$description))/5,height=min($numbars,nrow(x))/2+1.8); par(mar=c(5,max(nchar(x\\\$description))/3+3,5,1)); barplot(rev(x\\\$log10.p.value),main='GO category $d',horiz=T,names.arg=rev(x\\\$description), xlim=c(0, max(x\\\$log10.p.value)+2), xlab='-log10 p-value', col=rainbow($rainbow)[$color], cex.names=0.8, las=1); graphics.off();\"\0")
+							#NOTE!!! log_10-pvalue in default but log-10-pvalue in fallback => R replaces special character e.g. '\s' and '-' by '.'
+							cmd1+=("revigo $o.$p.tsv --stdout | awk 'NR>2{OFS=\",\"; if(NR>3){gsub(/_/,\" \",\$3); \$3=\"\\\"\"\$3\"\\\"\"}; print}' | sed 's/\\t/,/g' | cut -d ',' -f 2- > $o.$p.revigo.csv && awk -F',' 'NR==1 || \$(NF-2) < 0.7' $o.$p.revigo.csv > $o.$p.treemap.csv\0")
+							d=$(echo $domain | sed -r 's/([^_]{1,3})[^_]*_(\S+)/\u\1. \2/')
+							cmd2+=("Rscript -e \"x=read.table('$o.$p.revigo.csv',header=TRUE,sep=','); c=read.table('$o.raw.counts',header=T,sep='\\\t'); names(x)[1]='go'; x=merge(x,c,by='go'); x\\\$description=paste(x\\\$description,' ','(',x\\\$count,')', sep=''); x\\\$log10_p.value = abs(x\\\$log10_p.value); x=x[order(-x\\\$log10_p.value),]; x=head(x,min($numbars,nrow(x))); pdf('$o.$p.barplot.pdf',width=max(nchar(x\\\$description))/5,height=min($numbars,nrow(x))/2+1.8); par(mar=c(5,max(nchar(x\\\$description))/3+3,5,1)); barplot(rev(x\\\$log10_p.value),main='$d',horiz=T,names.arg=rev(x\\\$description), xlim=c(0, max(x\\\$log10_p.value)+2), xlab='-log10 p-value', col=rainbow($rainbow)[$color], cex.names=0.8, las=1); graphics.off();\"\0")
+							cmd2+=("Rscript -e \"suppressMessages(library('treemap')); x=read.table('$o.$p.treemap.csv',header=T,sep=','); x\\\$log10_p.value = abs(x\\\$log10_p.value); pdf('$o.$p.treemap.pdf', width=16, height=9); treemap(x, index = 'description', vSize = 'log10_p.value', type = 'categorical', vColor = 'representative', title = '$d' , inflate.labels=T, lowerbound.cex.labels = 0, force.print.labels=T, position.legend = 'none'); graphics.off();\"\0")
 
 							grep -f <(cut -f 1 $o.$p.tsv) $o.raw | awk '{print $NF}' | perl -F';' -lane 'print $_ for @F' | sort -Vu > $o.$p.genes
 							head -1 $outdir/counted/$r/experiments.mean.zscores > $o.$p.zscores
@@ -1535,9 +1684,97 @@ pipeline::_vizgoenrichment() {
                     	o=$odir/$domain
                         for p in full fdr05 p05; do
                         	[[ ! -s $o.$p.tsv ]] && continue
-							cmd1+=("revigo.R $o.$p.tsv $o.$p $domain\0")
-							d=${domain/_/ }
-							cmd2+=("Rscript -e \"x=read.table('$o.$p.scatterplot.csv',header=TRUE,sep=','); c=read.table('$o.raw.counts',header=T,sep='\\\t'); names(x)[1]='go'; x=merge(x,c,by='go'); x\\\$description=paste(x\\\$description,' ','(',x\\\$count,')', sep=''); x\\\$log10.p.value = abs(x\\\$log10.p.value); x=x[order(-x\\\$log10.p.value),]; x=head(x,min($numbars,nrow(x))); pdf('$o.$p.barplot.pdf',width=max(nchar(x\\\$description))/5,height=min($numbars,nrow(x))/2+1.8); par(mar=c(5,max(nchar(x\\\$description))/3+3,5,1)); barplot(rev(x\\\$log10.p.value),main='GO category $d',horiz=T,names.arg=rev(x\\\$description), xlim=c(0, max(x\\\$log10.p.value)+2), xlab='-log10 p-value', col=rainbow($rainbow)[$color], cex.names=0.8, las=1); graphics.off();\"\0")
+							cmd1+=("revigo $o.$p.tsv --stdout | awk 'NR>2{OFS=\",\"; if(NR>3){gsub(/_/,\" \",\$3); \$3=\"\\\"\"\$3\"\\\"\"}; print}' | sed 's/\\t/,/g' | cut -d ',' -f 2- > $o.$p.revigo.csv && awk -F',' 'NR==1 || \$(NF-2) < 0.7' $o.$p.revigo.csv > $o.$p.treemap.csv\0")
+							d=$(echo $domain | sed -r 's/([^_]{1,3})[^_]*_(\S+)/\u\1. \2/')
+							#NOTE!!! log_10-pvalue in default but log-10-pvalue in fallback => R replaces special character e.g. '\s' and '-' by '.'
+							cmd2+=("Rscript -e \"x=read.table('$o.$p.revigo.csv',header=TRUE,sep=','); c=read.table('$o.raw.counts',header=T,sep='\\\t'); names(x)[1]='go'; x=merge(x,c,by='go'); x\\\$description=paste(x\\\$description,' ','(',x\\\$count,')', sep=''); x\\\$log10_p.value = abs(x\\\$log10_p.value); x=x[order(-x\\\$log10_p.value),]; x=head(x,min($numbars,nrow(x))); pdf('$o.$p.barplot.pdf',width=max(nchar(x\\\$description))/5,height=min($numbars,nrow(x))/2+1.8); par(mar=c(5,max(nchar(x\\\$description))/3+3,5,1)); barplot(rev(x\\\$log10_p.value),main='$d',horiz=T,names.arg=rev(x\\\$description), xlim=c(0, max(x\\\$log10_p.value)+2), xlab='-log10 p-value', col=rainbow($rainbow)[$color], cex.names=0.8, las=1); graphics.off();\"\0")
+							cmd2+=("Rscript -e \"suppressMessages(library('treemap')); x=read.table('$o.$p.treemap.csv',header=T,sep=','); x\\\$log10_p.value = abs(x\\\$log10_p.value); pdf('$o.$p.treemap.pdf', width=16, height=9); treemap(x, index = 'description', vSize = 'log10_p.value', type = 'categorical', vColor = 'representative', title = '$d' , inflate.labels=T, lowerbound.cex.labels = 0, force.print.labels=T, position.legend = 'none'); graphics.off();\"\0")
+
+							grep -f <(cut -f 1 $o.$p.tsv) $o.raw | awk '{print $NF}' | perl -F';' -lane 'print $_ for @F' | sort -Vu > $o.$p.genes
+							head -1 $outdir/counted/$r/experiments.mean.zscores > $o.$p.zscores
+							grep -f $o.$p.genes $outdir/counted/$r/experiments.mean.zscores >> $o.$p.zscores
+							[[ $(wc -l < $o.$p.zscores) -lt 3 ]] && continue
+							cmd2+=("Rscript -e \"suppressMessages(library('gplots')); library('RColorBrewer'); x = read.table('$o.$p.zscores', header=T, sep='\\\t'); m = as.matrix(x[,-1]); pdf('$o.$p.heatmap.pdf'); write.table(as.data.frame(m), quote=FALSE, col.names=TRUE,sep='\\\t', file='$o.$p.heatmap.tsv'); heatmap.2(m, col = colorRampPalette(brewer.pal(9, 'RdBu'))(100), Rowv = T, Colv = F, scale = 'none', dendrogram = 'row', trace = 'none', srtCol=0, labRow=FALSE, labCol = colnames(x)[2:length(x)], margin=c(2,2), cexRow = 0.6, cexCol = 1, keysize=1, density.info='none', key.title = NA, key.ylab = NA, key.xlab = 'TPM Z-Scores', main='${d^*} enriched genes ($p)', ylab='${c^*} $i')\"\0")
+						done
+                    done
+                done
+			done
+		done
+	done
+
+	echo -n ${cmd1[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+	echo -n ${cmd2[@]} | sed 's/\\0\s*/\n/g' | awk '$1=":CMD: "$1'
+	#do not run revigo cmds in parallel to avoid random download!
+	if [[ ! $Sgo ]]; then
+		{	conda activate py2r && \
+			echo -ne ${cmd1[@]} | /usr/bin/time -v xargs -0 -P $threads -I {} bash -c {} && \
+			echo -ne ${cmd2[@]} | /usr/bin/time -v xargs -0 -P $threads -I {} bash -c {} && \
+			conda activate py2
+		} || return 1
+	fi
+
+	return 0
+}
+
+pipeline::_vizgoenrichment_fallback() {
+	numbars=10
+	cmd1=()
+	cmd2=()
+	for r in ${mapper[@]}; do
+		rainbow=0
+		for f in ${comparisons[@]}; do
+			comp=($(cut -d $'\t' -f 2 $f | uniq))
+			rainbow=$[rainbow+(comp*(comp-1))/2]
+		done
+		color=0
+		for f in ${comparisons[@]}; do
+			comp=($(cut -d $'\t' -f 2 $f | uniq))
+			for i in $(seq 0 $[${#comp[@]}-2]); do
+				for j in $(seq $[i+1] $[${#comp[@]}-1]); do
+					odir=$outdir/enriched/$r/${comp[$i]}_${comp[$j]}
+					mkdir -p $odir
+					((color++))
+					for domain in biological_process cellular_component molecular_function; do
+						o=$odir/$domain
+						for p in full fdr05 p05; do
+							[[ ! -s $o.$p.tsv ]] && continue
+							cmd1+=("revigo.R $o.$p.tsv $o.$p $domain && cp $o.$p.scatterplot.csv $o.$p.revigo.csv\0")
+							d=$(echo $domain | sed -r 's/([^_]{1,3})[^_]*_(\S+)/\u\1. \2/')
+							#NOTE!!! log_10-pvalue in default but log-10-pvalue in fallback => R replaces special character e.g. '\s' and '-' by '.'
+							cmd2+=("Rscript -e \"x=read.table('$o.$p.revigo.csv',header=TRUE,sep=','); c=read.table('$o.raw.counts',header=T,sep='\\\t'); names(x)[1]='go'; x=merge(x,c,by='go'); x\\\$description=paste(x\\\$description,' ','(',x\\\$count,')', sep=''); x\\\$log10.p.value = abs(x\\\$log10.p.value); x=x[order(-x\\\$log10.p.value),]; x=head(x,min($numbars,nrow(x))); pdf('$o.$p.barplot.pdf',width=max(nchar(x\\\$description))/5,height=min($numbars,nrow(x))/2+1.8); par(mar=c(5,max(nchar(x\\\$description))/3+3,5,1)); barplot(rev(x\\\$log10.p.value),main='$d',horiz=T,names.arg=rev(x\\\$description), xlim=c(0, max(x\\\$log10.p.value)+2), xlab='-log10 p-value', col=rainbow($rainbow)[$color], cex.names=0.8, las=1); graphics.off();\"\0")
+							#not necessary but nicer
+							cmd2+=("Rscript -e \"suppressMessages(library('treemap')); x=read.table('$o.$p.treemap.csv',header=T,sep=','); x\\\$log10_p.value = abs(x\\\$log10_p.value); pdf('$o.$p.treemap.pdf', width=16, height=9); treemap(x, index = 'description', vSize = 'log10_p.value', type = 'categorical', vColor = 'representative', title = '$d' , inflate.labels=T, lowerbound.cex.labels = 0, force.print.labels=T, position.legend = 'none'); graphics.off();\"\0")
+
+							grep -f <(cut -f 1 $o.$p.tsv) $o.raw | awk '{print $NF}' | perl -F';' -lane 'print $_ for @F' | sort -Vu > $o.$p.genes
+							head -1 $outdir/counted/$r/experiments.mean.zscores > $o.$p.zscores
+							grep -f $o.$p.genes $outdir/counted/$r/experiments.mean.zscores >> $o.$p.zscores
+							[[ $(wc -l < $o.$p.zscores) -lt 3 ]] && continue
+							cmd2+=("Rscript -e \"suppressMessages(library('gplots')); library('RColorBrewer'); x = read.table('$o.$p.zscores' ,header=T, sep='\\\t'); m = as.matrix(x[,-1]); pdf('$o.$p.heatmap.pdf'); write.table(as.data.frame(m), quote=FALSE, col.names=TRUE,sep='\\\t', file='$o.$p.heatmap.tsv'); heatmap.2(m, col = rev(colorRampPalette(brewer.pal(9, 'RdBu'))(100)), Rowv = T, Colv = F, scale = 'none', dendrogram = 'row', trace = 'none', srtCol=0, labRow=FALSE, labCol = colnames(x)[2:length(x)], margin=c(2,2), cexRow = 0.6, cexCol = 1, keysize=1, density.info='none', key.title = NA, key.ylab = NA, key.xlab = 'TPM based z-Scores', main='${d^*} enriched genes ($p)', ylab='${comp[$i]} vs ${comp[$j]}')\"\0")
+						done
+					done
+				done
+			done
+		done
+
+		for f in experiments.filtered experiments; do
+            for c in cluster module; do
+				[[ ! -s $outdir/coexpressed/$r/$f.$c.tsv ]] && continue
+				rainbow=$(find $outdir/coexpressed/$r -type f -name "$f.$c.*.genes" | wc -l)
+				color=0
+                for i in $(find $outdir/coexpressed/$r -type f -name "$f.$c.*.genes" | sed -r 's/.+\.([0-9]+)\.genes$/\1/' | sort -n); do
+                    odir=$outdir/enriched/$r/$f.$c.$i
+                    mkdir -p $odir
+                    ((color++))
+                    for domain in biological_process cellular_component molecular_function; do
+                    	o=$odir/$domain
+                        for p in full fdr05 p05; do
+                        	[[ ! -s $o.$p.tsv ]] && continue
+							cmd1+=("revigo.R $o.$p.tsv $o.$p $domain && cp $o.$p.scatterplot.csv $o.$p.revigo.csv\0")
+							d=$(echo $domain | sed -r 's/([^_]{1,3})[^_]*_(\S+)/\u\1. \2/')
+							#NOTE!!! log_10-pvalue in default but log-10-pvalue in fallback => R replaces special character e.g. '\s' and '-' by '.'
+							cmd2+=("Rscript -e \"x=read.table('$o.$p.revigo.csv',header=TRUE,sep=','); c=read.table('$o.raw.counts',header=T,sep='\\\t'); names(x)[1]='go'; x=merge(x,c,by='go'); x\\\$description=paste(x\\\$description,' ','(',x\\\$count,')', sep=''); x\\\$log10.p.value = abs(x\\\$log10.p.value); x=x[order(-x\\\$log10.p.value),]; x=head(x,min($numbars,nrow(x))); pdf('$o.$p.barplot.pdf',width=max(nchar(x\\\$description))/5,height=min($numbars,nrow(x))/2+1.8); par(mar=c(5,max(nchar(x\\\$description))/3+3,5,1)); barplot(rev(x\\\$log10.p.value),main='$d',horiz=T,names.arg=rev(x\\\$description), xlim=c(0, max(x\\\$log10.p.value)+2), xlab='-log10 p-value', col=rainbow($rainbow)[$color], cex.names=0.8, las=1); graphics.off();\"\0")
+							#not necessary but nicer
+							cmd2+=("Rscript -e \"suppressMessages(library('treemap')); x=read.table('$o.$p.treemap.csv',header=T,sep=','); x\\\$log10_p.value = abs(x\\\$log10_p.value); pdf('$o.$p.treemap.pdf', width=16, height=9); treemap(x, index = 'description', vSize = 'log10_p.value', type = 'categorical', vColor = 'representative', title = '$d' , inflate.labels=T, lowerbound.cex.labels = 0, force.print.labels=T, position.legend = 'none'); graphics.off();\"\0")
 
 							grep -f <(cut -f 1 $o.$p.tsv) $o.raw | awk '{print $NF}' | perl -F';' -lane 'print $_ for @F' | sort -Vu > $o.$p.genes
 							head -1 $outdir/counted/$r/experiments.mean.zscores > $o.$p.zscores

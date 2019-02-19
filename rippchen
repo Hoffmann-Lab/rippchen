@@ -128,6 +128,7 @@ DIFF GENE EXPR ANALYSIS OPTIONS
 
 GENERAL PIPELINE OPTIONS
 -no-qual | --no-qualityanalysis     : disables quality analysis
+-ex-qual | --extended-qualities     : enable quality analysis for each pre-processing step (clipping, trimming, error correction, rRNA filter)
 -no-trim | --no-trimming            : disables quality trimming
 -no-cor  | --no-correction          : disables majority based raw read error correction
 -no-rrm  | --no-rrnafilter          : disables rRNA filter
@@ -164,6 +165,7 @@ DEVELOPER OPTIONS
 
 -Smd5   : skip check for md5sums
 -Squal  : skip quality analysis
+-Sexqual: skip extended quality analysis
 -Sclip  : skip adapter clipping
 -Strim  : skip trimming
 -Scor   : skip raw read correction
@@ -174,6 +176,7 @@ DEVELOPER OPTIONS
 -Srep   : skip pooling/generating replicates
 -Ssort  : skip sorting and indexing of sam/bam files
 -Sstats : skip mapping statistics
+-Sjstats: skip joining mapping statistics
 -Sslice : skip slicing bams which affects -Srmd
 -Srmd   : skip removing duplicates
 -Sidx   : skip intermediate and final bam indexing
@@ -201,6 +204,7 @@ checkopt (){
 	-r | --remove) cleanup=1; return 0;;
 
 	-no-qual | --no-qualityanalysis) noqual=1; return 0;;
+	-ex-qual | --extended-qualities) exqual=1; return 0;;
 	-no-trim | --no-trimming) notrim=1; return 0;;
 	-no-cor  | --no-correction) nocor=1; return 0;;
 	-no-rrm  | --no-rrnafilter) norrm=1; return 0;;
@@ -230,6 +234,7 @@ checkopt (){
 
 	-Smd5) Smd5=1; return 0;;
 	-Squal) Squal=1; return 0;;
+	-Sexqual) Sexqual=1; return 0;;
 	-Sclip) Sclip=1; return 0;;
 	-Strim) Strim=1; return 0;;
 	-Scor) Scor=1; return 0;;
@@ -239,6 +244,7 @@ checkopt (){
 	-Suniq) Suniq=1; return 0;;
 	-Ssort) Ssort=1; return 0;;
 	-Sstats) Sstats=1; return 0;;
+	-Sjstats) Sjstats=1; return 0;;
 	-Srep) Srep=1; return 0;;
 	-Sslice) Sslice=1; return 0;;
 	-Srmd) Srmd=1; return 0;;
@@ -335,9 +341,10 @@ run() {
 	reslice=1
 	{	pipeline::makereplicates && \
 		pipeline::sortsambam && \
+		pipeline::removeduplicates && \ # indexes input bam
+        pipeline::indexbam && \
 		pipeline::mappingstats && \
-		pipeline::removeduplicates && \
-		pipeline::indexbam
+		pipeline::joinvizmappingstats
 	} || return 1
 
 	if [[ ! $norepl ]]; then
@@ -398,11 +405,11 @@ done
 [[ memthreads=$[memory/mem] -gt $threads ]] && memthreads=$threads
 [[ $memthreads -eq 0 ]] && trapper "too less memory available ($memavailable)"
 [[ ! $nfq1 ]] && [[ ! $tfq1 ]] && [[ ! $nmap ]] && trapper ":ERROR: fastq file input missing - call "$(basename $0)" -h for help"
-[[ ! $(file $genome | grep ASCII) ]] && trapper "genome file does not exists or is compressed $genome"
+[[ ! $(file $(readlink -e $genome) | grep ASCII) ]] && trapper "genome file does not exists or is compressed $genome"
 if [[ $annotation ]]; then
-	[[ ! $(file $annotation | grep ASCII) ]] && trapper "annotation file does not exists or is compressed $annotation"
+	[[ ! $(file $(readlink -e $annotation) | grep ASCII) ]] && trapper "annotation file does not exists or is compressed $annotation"
 else
-	if [[ $(file $genome.gtf | grep ASCII) ]]; then
+	if [[ $(file $(readlink -e $genome.gtf) | grep ASCII) ]]; then
 		annotation=$genome.gtf
 	else 
 		if [[ ! $tfq1 ]]; then
@@ -440,10 +447,10 @@ mapped=()
 IFS=','
 i=-1
 for f in $nfq1; do
+	readlink -e $f &> /dev/null || trapper "fastq file does not exists $f"
 	fastq1[((++i))]=$f
 	nidx+=($i)
-	f=$(readlink -e $f) || trapper "fastq file does not exists $f"
-	fqextractcmd[$i]=$(file $f | grep -Eo '(gzip|bzip)')" -cd"
+	fqextractcmd[$i]=$(file $(readlink -e $f) | grep -Eo '(gzip|bzip)')" -cd"
 	if [[ $? -eq 0 ]]; then
 		fqextension[$i]=$(basename ${fastq1[$i]} | rev | cut -d '.' -f 2 | rev)
 		fq1basenoex[$i]=$(basename ${fastq1[$i]} | rev | cut -d '.' -f 3- | rev)
@@ -456,10 +463,10 @@ for f in $nfq1; do
 	fqbaseprefix[$i]=$(basename ${fastq1[$i]} | cut -d '.' -f 1)
 done
 for f in $tfq1; do
+	readlink -e $f &> /dev/null || trapper "fastq file does not exists $f"
 	fastq1[((++i))]=$f
 	[[ $rfq1 ]] && tidx+=($i) || pidx+=($i) #necessary for pooling, make pseudo-replicates respectively
-	f=$(readlink -e $f) || trapper "fastq file does not exists $f"
-	fqextractcmd[$i]=$(file $f | grep -Eo '(gzip|bzip)')" -cd"
+	fqextractcmd[$i]=$(file $(readlink -e $f) | grep -Eo '(gzip|bzip)')" -cd"
 	if [[ $? -eq 0 ]]; then
 		fqextension[$i]=$(basename ${fastq1[$i]} | rev | cut -d '.' -f 2 | rev)
 		fq1basenoex[$i]=$(basename ${fastq1[$i]} | rev | cut -d '.' -f 3- | rev)
@@ -472,10 +479,10 @@ for f in $tfq1; do
 	fqbaseprefix[$i]=$(basename ${fastq1[$i]} | cut -d '.' -f 1)
 done
 for f in $rfq1; do
+	readlink -e $f &> /dev/null || trapper "fastq file does not exists $f"
 	fastq1[((++i))]=$f
 	ridx+=($i)
-	f=$(readlink -e $f) || trapper "fastq file does not exists $f"
-	fqextractcmd[$i]=$(file $f | grep -Eo '(gzip|bzip)')" -cd"
+	fqextractcmd[$i]=$(file $(readlink -e $f) | grep -Eo '(gzip|bzip)')" -cd"
 	if [[ $? -eq 0 ]]; then
 		fqextension[$i]=$(basename ${fastq1[$i]} | rev | cut -d '.' -f 2 | rev)
 		fq1basenoex[$i]=$(basename ${fastq1[$i]} | rev | cut -d '.' -f 3- | rev)
@@ -489,8 +496,8 @@ for f in $rfq1; do
 done
 i=-1
 for f in {$nfq2,$tfq2,$rfq2}; do
+	readlink -e $f &> /dev/null || trapper "fastq file does not exists $f"
 	fastq2[((++i))]=$f
-	f=$(readlink -e $f) || trapper "fastq file does not exists $f"
 	[[ $comp ]] && [[ $(basename ${fastq2[$i]} | cut -d '.' -f 1) != ${fqbaseprefix[$i]} ]] && trapper "'.'-separated basenames do not match"
 	if [[ ${fqextractcmd[$i]} ]]; then
 		fq2basenoex[$i]=$(basename ${fastq2[$i]} | rev | cut -d '.' -f 3- | rev)
@@ -500,7 +507,7 @@ for f in {$nfq2,$tfq2,$rfq2}; do
 	fq2basename[$i]=$(basename ${fastq2[$i]})
 done
 for f in $nmap; do
-	f=$(readlink -e $f) || trapper "alignment file does not exists $f"
+	readlink -e $f &> /dev/null || trapper "alignment file does not exists $f"
 	mapped+=($f)
 done
 unset IFS
