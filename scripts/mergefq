@@ -30,11 +30,11 @@ t=$(cat /proc/cpuinfo | grep -cF processor 2> /dev/null || echo 1)
 m=$(grep -i memtotal /proc/meminfo | awk '{printf("%d",$2*0.8/1024)}' 2> /dev/null || echo "2G")
 while getopts i:j:o:u:d:t:m:zh ARG; do
 	case $ARG in
-		i) i=$OPTARG;;
-		j) j=$OPTARG;;
-		o) o=$OPTARG;;
+		i) i="$OPTARG";;
+		j) j="$OPTARG";;
+		o) o="$OPTARG";;
 		u) u=$OPTARG;;
-		d) d=$OPTARG;;
+		d) d="$OPTARG";;
 		t) t=$OPTARG;;
 		m) m=$OPTARG;;
 		z) z=1;;
@@ -52,22 +52,16 @@ else
 	z='cat'
 fi
 
+open=$(readlink -e "$i" | file -f - | grep -Eo '(gzip|bzip)' && echo -cd || echo cat)
+
 if [[ $u -gt 0 ]]; then
 	if [[ $u -eq 2 ]]; then
-		eval cat $i | paste - - - - | sed -n '2~2p' | tr '\t' '\n' | $z > $o
+		exec $open "$i" | paste - - - - | sed -n '2~2p' | tr '\t' '\n' | $z > "$o"
 	else 
-		eval cat $i | paste - - - - | sed -n '1~2p' | tr '\t' '\n' | $z > $o
+		exec $open "$i" | paste - - - - | sed -n '1~2p' | tr '\t' '\n' | $z > "$o"
 	fi
 else
-	if [[ $(file $i | grep compressed) ]]; then
-		if [[ $(file $i | grep gzip) ]]; then
-			eval gzip -cd $i $j | paste - - - - | LC_ALL=C sort -k1,1 -S $m -T $d --parallel=$t | tr '\t' '\n' | $z > $o
-		else
-			eval bzip2 -cd $i $j | paste - - - - | LC_ALL=C sort -k1,1 -S $m -T $d --parallel=$t | tr '\t' '\n' | $z > $o
-		fi
-	else
-		eval cat $i $j | paste - - - - | LC_ALL=C sort -k1,1 -S $m -T $d --parallel=$t | tr '\t' '\n' | $z > $o
-	fi
+	exec $open "$i" "$j" | paste - - - - | LC_ALL=C sort -k1,1 -S $m -T "$d" --parallel=$t | tr '\t' '\n' | $z > "$o"
 fi
 
 exit

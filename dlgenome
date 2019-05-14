@@ -1,16 +1,18 @@
 #! /usr/bin/env bash
 # (c) Konstantin Riege
 shopt -s extglob
-trap 'trapper' INT TERM
+trap 'die' INT TERM
 #trap 'kill -PIPE 0' EXIT # kills parental processes as well - shlog conflict
 #trap 'kill -PIPE -- -$$' EXIT # kill all childs - works only if $$ is process group leader
 #trap 'kill -PIPE $(jobs -p)' EXIT # same as above
 trap 'kill -PIPE $(pstree -p $$ | grep -Eo "\([0-9]+\)" | grep -Eo "[0-9]+") &> /dev/null' EXIT # parse pstree
 # AVOID DOUBLE FORKS -> run(){cmd &}; run & -> i.e. cmd gets new process group and cannot be killed
 
-trapper(){
+die(){
 	rm -rf $outdir/tmp
-	echo ":ERROR: failed" | tee -a $log
+	echo -ne "\e[0;31m"
+	echo ":ERROR: $*" | tee -a $log >&2
+	echo -ne "\e[m"
 	exit 1
 }
 
@@ -434,12 +436,12 @@ checkopt (){
 	return 0
 }
 
-[[ ! $OSTYPE =~ linux ]] && trapper "unsupported operating system"
+[[ ! $OSTYPE =~ linux ]] && die "unsupported operating system"
 threads=$(cat /proc/cpuinfo | grep -cF processor)
 release=''
 
 [[ $# -eq 0 ]] && usage
-[[ $# -eq 1 ]] && [[ ! $1 =~ ^- ]] && echo ":ERROR: illegal option $1" && trapper
+[[ $# -eq 1 ]] && [[ ! $1 =~ ^- ]] && die "illegal option $1"
 for i in $(seq 1 $#); do
 	if [[ ${!i} =~ ^- ]]; then
 		[[ i -lt $# ]] && j=$((i+1))
@@ -464,13 +466,13 @@ touch $log || {
 
 if [[ $v ]]; then
 	dlgenome::$g$release 2>&1 | tee -a $log
-	[[ ${PIPESTATUS[0]} -gt 0 ]] && trapper
+	[[ ${PIPESTATUS[0]} -gt 0 ]] && die
 else
 	echo ":INFO: check log by executing: tail -f $log"
 	progressbar &
 	progresslog $log &
 	dlgenome::$g$release &> $log
-	[[ $? -gt 0 ]] && trapper
+	[[ $? -gt 0 ]] && die
 fi
 
 echo ":INFO: success" | tee -a $log

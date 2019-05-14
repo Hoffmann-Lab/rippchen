@@ -1,16 +1,18 @@
 #! /usr/bin/env bash
 # (c) Konstantin Riege
 shopt -s extglob
-trap 'trapper' INT TERM
+trap 'die' INT TERM
 #trap 'kill -PIPE 0' EXIT # kills parental processes as well - shlog conflict
 #trap 'kill -PIPE -- -$$' EXIT # kill all childs - works only if $$ is process group leader
 #trap 'kill -PIPE $(jobs -p)' EXIT # same as above
 trap 'kill -PIPE $(pstree -p $$ | grep -Eo "\([0-9]+\)" | grep -Eo "[0-9]+") &> /dev/null' EXIT # parse pstree
 # AVOID DOUBLE FORKS -> run(){cmd &}; run & -> i.e. cmd gets new process group and cannot be killed
 
-trapper() {
-	cleanup=''
-	[[ $* ]] && echo ":ERROR: $*" || echo ":ERROR: failed"
+die() {
+	unset cleanup
+	echo -ne "\e[0;31m"
+	echo ":ERROR: $*" >&2
+	echo -ne "\e[m"
 	exit 1
 }
 
@@ -29,277 +31,7 @@ cleanup() {
 	fi
 }
 
-usage() {
-cat << EOF
-DESCRIPTION
-RIPPCHEN are tasty!
-acquire a taste for peak calling from *IP-Seq experiments or for differential gene expression- and ontology analysis from RNA-Seq data
-
-VERSION
-$version
-
-SYNOPSIS DGE ANALYSIS
-$(basename $0) -1 ctr1.fq,ctr2.fq,treat1.fq,treat2.fq -g genome.fa -c info
-
-SYNOPSIS PEAK CALLING
-$(basename $0) -1 ctrA.fq,ctrB.fq -t1 treatA1.fq,treatB1.fq -r1 treatA2.fq,treatB2.fq -g genome.fa
-
-SYNOPSIS PEAK CALLING AND DGE ANALYSIS
-$(basename $0) -1 ctrA.fq,ctrB.fq -t1 treatA1.fq,treatB1.fq -r1 treatA2.fq,treatB2.fq -g genome.fa -c info
-
-BASIC OPTIONS
--1       | --fq1 [path,..]          : fastq input - single or first pair, comma seperated
--2       | --fq2 [path,..]          : fastq input - optional. second pair, comma seperated
--m       | --mapped [path,..]       : SAM/BAM input - single or first pair, comma seperated (replaces -1 and -2)
-                                      NOTE: Requires uniquely mapped reads or NH:I tag
--a       | --adapter [string,..]    : adapter sequence(s) - optional
--g       | --genome [path]          : genome fasta input
--gtf     | --gtf [path]             : annotation gtf input - optional, default: genome.fasta.gtf
--o       | --out [path]             : output directory - default: $outdir
--l       | --log [path]             : output directory - default: $outdir/run.log
--tmp     | --tmp                    : temporary directory - default: $tmpdir/rippchen_tmp
--t       | --threads [number]       : threads - predicted default: $threads
--m       | --memory [value]         : amout of memory for creating bam slices and processing them in parallel instances
-                                      available: $memory
-                                      default: 30000 ($memthreads instances)
-                                      NOTE: needs to be raised in case of GCThreads, HeapSize or OutOfMemory errors
-
-SAM/BAM INPUT SPECIFIC OPTIONS
--no-uniq    : --no-uniqify          : disables extraction of properly paired and uniquely mapped reads
--no-sort    : --no-sort             : disables sorting alignments
--no-idx     : --no-index            : disables indexing alignments
-
-TOOL SPECIFIC OPTIONS
--rx      | --regex                  : regex for sequence identifier with grouped tile information - default: ^\S+:(\d+):(\d+):(\d+)\s*.*
--d       | --distance               : read alignment hamming distance in % - default: 4
--f       | --fragmentsize           : fragment size of sequenced mate pairs - default: 150
--i       | --insertsize             : maximum allowed insert for aligning mate pairs - default: 200000
--dexnew  | --dexnewprepare [value]  : switch DEXSeq annotation file preparation method - default: 0
-                                      0 - use preparation script shipped with DEXSeq
-                                      1 - do not merge transcripts and if present in GTF info and use protein_coding biotype only
-                                      2 - see [1] and additionally if feature name matches UTR/utr, exclude them
--qi      | --quantifyid             : switch to other feature type for quantification - default: exon
-                                      NOTE: quantifying using a different feature will break differential gene expression analysis
--qf      | --quantifyfeature        : switch to other feature identifier for quantification - default: gene_id
-
-PEAK CALLING OPTIONS
--t1      | --treatmentfq1 [path,..] : *IP-Seq fastq input - single or first pair, comma seperated
-                                      - triggers peak calling against a control fastq input (see BASIC OPTIONS)
--t2      | --treatmentfq2 [path,..] : *IP-Seq fastq input - optional. second pair, comma seperated
--r1      | --replicatefq1 [path,..] : *IP-Seq replicate fastq input - optional. single or first pair, comma seperated
--r2      | --replicatefq2 [path,..] : *IP-Seq replicate fastq input - optional. second pair, comma seperated
--no-macs | --no-macs                : disables peak calling by macs
--no-gem  | --no-gem                 : disables peak calling by gem
--no-mpeak| --no-metpeak             : disables peak calling by metpeak
-
-DIFF GENE EXPR ANALYSIS OPTIONS
--c       | --comparisons [path,..]  : experiments info file(s) for pairwise comparisons (according to column two)
-                                      - triggers differential gene expression analysis
-                                      - requires annotation gtf input (see BASIC OPTIONS)
-                                      - format: 4 or 5 tab-seperated columns (5 in case of paired analysis)
-                                        common_basename   experiment   [single-end|paired-end]   Nreplicate   pairs
-                                      - fastq files needs to have equal basename ('.'-seperated) in column 1
-                                      - example for input A1.R1.fq, A1.R2.fq, A2.fq, B.R1.fq, B.R2.fq, C.fq:
-                                        A1   experimentA   paired-end   N1   patient1
-                                        A2   experimentA   single-end   N2   patient2
-                                        B    experimentB   paired-end   N1   patient1
-                                        C    experimentC   single-end   N1   patient2
--s       | --strand [value,..]      : experiment(s) strandness - default: predicted unless defined
-                                      0 - unstranded
-                                      1 - dUTP ++,-+ (FR stranded)
-                                      2 - dUTP +-,++ (FR, reversely stranded)
--no-pca  | --no-pca                 : disables pca plots
--no-dea  | --no-diffexanalysis      : disables differential expression analysis (gene and/or peak) and course clustering
--no-iso  | --no-isoformanalysis     : disables differential isoform analysis by DEXSeq and annotation preparation
--no-clust| --no-clustering          : disables feature co-expression clustering for experiments defined via -c
--cf      | --clusterfilter [value]  : decide for a set of differntially expressed features to be clustered for co-expression - default: 0
-                                      0 - padj <= 0.05 in at least one comparison defined via -c
-                                      1 - padj <= 0.05 and a log2foldchange difference >= 0.5 in at least one comparison defined via -c
-                                      2 - if present in GTF info, use features of protein_coding biotype only
-                                      3 - discard features within the 30% percentile of lowest TPM values
-                                      20 - 2 + 0
-                                      21 - 2 + 1
-                                      23 - 2 + 3
-                                      230 - 2 + 0 + 3
-                                      231 - 2 + 1 + 3	
--allclust| --allclustering          : Additionally use all features to be clustered for co-expression (very slow! ~ 10 hours for 4 human experiments)
-                                      - will discard features within the 30% percentile of lowest TPM values
--no-go   | --no-geneontology        : disables gene ontology enrichment analysis
-
-GENERAL PIPELINE OPTIONS
--no-qual | --no-qualityanalysis     : disables quality analysis
--ex-qual | --extended-qualities     : enable quality analysis for each pre-processing step (clipping, trimming, error correction, rRNA filter)
--no-trim | --no-trimming            : disables quality trimming
--no-cor  | --no-correction          : disables majority based raw read error correction
--no-rrm  | --no-rrnafilter          : disables rRNA filter
--no-sege | --no-segemehl            : disables mapping by Segemehl
--no-star | --no-star                : disables mapping by STAR
--no-stats| --no-statistics          : disables fastq and mapping statistics
--no-rmd  | --no-removeduplicates    : disables removing duplicates - highly recommended for DGE analysis
--no-quant| --no-quantification      : disables read quantification, differential expression and isoform analysis
-
-
-MISC OPTIONS
--r       | --remove                 : clean up after successful termination
--v       | --verbose                : enable verbose mode
--h       | --help                   : prints this message
--d       | --devel                  : prints developer options
-
-REFERENCES
-(c) Konstantin Riege
-konstantin.riege{a}leibniz-fli{.}de
-EOF
-	exit 0
-}
-# -no-star | --no-star             : disables mapping by STAR
-# -no-toph | --no-tophat           : disables mapping by TopHat2
-# -no-bwa  | --no-bwa              : disables mapping by BWA
-
-develusage() {
-cat << EOF
-DESCRIPTION
-In case of restarting or to resume an analysis, these options will skip
-calculations for the following intermediate results in processing order
-
-DEVELOPER OPTIONS
-
--Smd5   : skip check for md5sums
--Squal  : skip quality analysis
--Sexqual: skip extended quality analysis
--Sclip  : skip adapter clipping
--Strim  : skip trimming
--Scor   : skip raw read correction
--Srrm   : skip rRNA filtering
--Ssege  : skip Segemehl mapping
--Sstar  : skip STAR mapping
--Suniq  : skip extraction of properly paired and uniquely mapped reads
--Srep   : skip pooling/generating replicates
--Ssort  : skip sorting and indexing of sam/bam files
--Sstats : skip mapping statistics
--Sjstats: skip joining mapping statistics
--Sslice : skip slicing bams which affects -Srmd
--Srmd   : skip removing duplicates
--Sidx   : skip intermediate and final bam indexing
--Smacs  : skip peak calling by macs
--Sgem   : skip peak calling by gem
--Smet   : skip peak calling by metpeak
--Scount : skip read quantification
--Stpm   : skip TPM calculation
--Sjtpm  : skip TPM concatenation
--Spca   : skip pca on all samples
--Sdea   : skip differential expression analysis
--Siso   : skip differential isoform analysis
--Sclust : skip co expression clustering
--Sgo    : skip go enrichment
-EOF
-	exit 0
-}
-
-checkopt (){
-	case $1 in
-	-h | --help) usage;;
-	-d | --devel) develusage;;
-
-	-v | --verbose) verbose=1; return 0;;
-	-r | --remove) cleanup=1; return 0;;
-
-	-no-qual | --no-qualityanalysis) noqual=1; return 0;;
-	-ex-qual | --extended-qualities) exqual=1; return 0;;
-	-no-trim | --no-trimming) notrim=1; return 0;;
-	-no-cor  | --no-correction) nocor=1; return 0;;
-	-no-rrm  | --no-rrnafilter) norrm=1; return 0;;
-	-no-sege | --no-segemehl) nosege=1; return 0;;
-	-no-star | --no-star) nostar=1; return 0;;
-	-no-toph | --no-tophat) notop=1; return 0;;
-	-no-bwa  | --no-bwa) nobwa=1; return 0;;
-
-	-no-uniq    | --no-uniqify) nouniq=1; return 0;;
-	-no-sort    | --no-sort) nosort=1; return 0;;
-	-no-idx     | --no-index) noidx=1; return 0;;
-	-no-stats   | --no-statistics) nostats=1; return 0;;
-
-	-no-rmd  | --no-removeduplicates) normd=1; return 0;;
-
-	-no-macs | --no-macs) nomacs=1; return 0;;
-	-no-gem  | --no-gem) nogem=1; return 0;;
-	-no-mpeak| --no-metpeak) nometpeak=1; return 0;;
-
-	-no-quant| --no-quantification) noquant=1; nodea=1; noiso=1; noclust=1; nogo=1; return 0;;
-	-no-pca  | --no-pca) nopca=1; return 0;;
-	-no-dea  | --no-diffexanalysis) nodea=1; return 0;;
-	-no-iso  | --no-isoformanalysis) noiso=1; return 0;;
-	-no-clust| --no-clustering) noclust=1; return 0;;
-	-allclust| --allclustering) allclust=1; return 0;;
-	-no-go   | --no-geneontology) nogo=1; return 0;;
-
-	-Smd5) Smd5=1; return 0;;
-	-Squal) Squal=1; return 0;;
-	-Sexqual) Sexqual=1; return 0;;
-	-Sclip) Sclip=1; return 0;;
-	-Strim) Strim=1; return 0;;
-	-Scor) Scor=1; return 0;;
-	-Srrm) Srrm=1; return 0;;
-	-Ssege) Ssege=1; return 0;;
-	-Sstar) Sstar=1; return 0;;
-	-Suniq) Suniq=1; return 0;;
-	-Ssort) Ssort=1; return 0;;
-	-Sstats) Sstats=1; return 0;;
-	-Sjstats) Sjstats=1; return 0;;
-	-Srep) Srep=1; return 0;;
-	-Sslice) Sslice=1; return 0;;
-	-Srmd) Srmd=1; return 0;;
-	-Sidx) Sidx=1; return 0;;
-
-	-Smacs) Smacs=1; return 0;;
-	-Sgem) Sgem=1; return 0;;
-	-Smet) Smet=1; return 0;;
-
-	-Scount) Scount=1; return 0;;
-	-Stpm) Stpm=1; return 0;;
-	-Sjtpm) Sjtpm=1; return 0;;
-	-Spca) Spca=1; return 0;;
-	-Sdea) Sdea=1; return 0;;
-	-Siso) Siso=1; return 0;;
-	-Sclust) Sclust=1; return 0;;
-	-Sgo) Sgo=1; return 0;;
-
-	-1 | --fq1) nfq1=$2;;
-	-2 | --fq2) nfq2=$2;;
-	-m | --mapped) nmap=$2; noqual=1; notrim=1; nocor=1 norrm=1; nosege=1; nostar=1; notop=1; nobwa=1;;
-	-t1 | --treatmentfq1) tfq1=$2;;
-	-t2 | --treatmentfq2) tfq2=$2;;
-	-r1 | --replicatefq1) rfq1=$2;;
-	-r2 | --replicatefq2) rfq2=$2;;
-	-rx | --regex) regex=$2;;
-	-c | --comparisons) comp=$2;;
-	-s | --strand) str=$2;;
-	-a | --adapter) ada=$2;;
-	-d | --distance) accuracy=$[100-$2];;
-	-f | --fragmentsize) fragmentsize=$2;;
-	-i | --insertsize) insertsize=$2;;
-	-dexnew | --dexnewprepare) dexseqnew=$2;;
-	-cf | --clusterfilter) clusterfilter=$2;;
-	-qi | --quantifyid) quantifyid=$2;;
-	-qf | --quantifyfeature) quantifyfeature=$2;;
-
-	-t | --threads) threads=$2;;
-	-m | --mem) mem=$2;;
-	-g | --genome) genome=$2;;
-	-gtf | --gtf) annotation=$2;;
-	-o | --out) outdir=$2;;
-	-l | --log) log=$2;;
-	-tmp | --tmp) tmpdir=$2;;
-	
-	-*) echo ":ERROR: illegal option $1"; return 1;; 
-	*) echo ":ERROR: illegal option $2"; return 1;;
-	esac
-	[[ ! $2 ]] && echo ":ERROR: argument missing for option $1" && return 1
-	[[ $2 =~ ^- ]] && echo ":ERROR: illegal argument $2 for option $1" && return 1
-
-	return 0
-}
-
-run() {
+pipeline() {
 	echo ":INFO: started with command: $cmd"
 
 	source $insdir/conda/bin/activate py2
@@ -307,47 +39,134 @@ run() {
 	export C_INCLUDE_PATH=$CONDA_PREFIX/include
 	export LD_LIBRARY_PATH=$CONDA_PREFIX/lib
 	export JAVA_HOME=$(ls -vd $insdir/jdk*/ | tail -1)
-	export PATH=$(readlink -e $insdir/bin/* | xargs -echo | sed 's/ /:/g'):$PATH
 	export MALLOC_ARENA_MAX=4
-	
+	export PATH=$(readlink -e $insdir/bin/* | xargs -echo | sed 's/ /:/g'):$PATH
+	export PATH=$(readlink -e $insdir/bin/rippchen/scripts):$PATH
+
+	source $insdir/bin/rippchen/lib/commander
+	source $insdir/bin/rippchen/lib/configure
+	source $insdir/bin/rippchen/lib/helper
+	source $insdir/bin/rippchen/lib/preprocessing
 	source $insdir/bin/rippchen/lib/pipeline
 
-	[[ ! -e $genome.md5s ]] && cp $insdir/bin/rippchen/lib/md5s $genome.md5s
-	source $genome.md5s
-	[[ $Smd5 ]] && thismd5genome=$md5genome || thismd5genome=$(md5sum $genome | cut -d ' ' -f 1)
+	[[ $genome ]] && {
+		[[ ! -e $genome.md5s ]] && cp $insdir/bin/rippchen/lib/md5s $genome.md5s
+		source $genome.md5s
+		[[ $Smd5 ]] && thismd5genome=$md5genome || thismd5genome=$(md5sum $genome | cut -d ' ' -f 1)
+	}
 
 	mapper=()
 	if [[ ! ${mapped[0]} ]]; then
-		{	pipeline::fastqc && \
-			pipeline::cutadapt && \
-			pipeline::trimmomatic && \
-			pipeline::rcorrector && \
-			pipeline::sortmerna && \
-			pipeline::segemehl && \
+		{	preprocessing::fastqc \
+				-S ${noqual:=false} \
+				-s ${Squal:=false} \
+				-t $threads \
+				-o $outdir/qualities/raw \
+				-1 fastq1 \
+				-2 fastq2
+		} || return 1
+		if [[ $adapter ]]; then
+			${noclip:=false} || {
+				{	preprocessing::cutadapt \
+						-S ${noclip:=false} \
+						-s ${Sclip:=false} \
+						-a adapter \
+						-t $threads \
+						-o $outdir/clipped \
+						-1 fastq1 \
+						-2 fastq2 && \
+					preprocessing::fastqc \
+						-S ${noqual:=false} \
+						-s ${Squal:=false} \
+						-t $threads \
+						-o $outdir/qualities/clipped \
+						-1 fastq1 \
+						-2 fastq2
+				} || return 1
+			}
+		fi
+		${notrim:=false} || { 
+			{	preprocessing::trimmomatic \
+					-S ${notrim:=false} \
+					-s ${Strim:=false} \
+					-t $threads \
+					-m $mem \
+					-o $outdir/trimmed \
+					-p $tmpdir \
+					-1 fastq1 \
+					-2 fastq2 && \
+				preprocessing::fastqc \
+					-S ${noqual:=false} \
+					-s ${Squal:=false} \
+					-t $threads \
+					-o $outdir/qualities/trimmed \
+					-1 fastq1 \
+					-2 fastq2
+			} || return 1
+		}
+		${nocor:=false} || {
+			{	preprocessing::rcorrector \
+					-S ${nocor:=false} \
+					-s ${Scor:=false} \
+					-t $threads \
+					-o $outdir/corrected \
+					-p $tmpdir \
+					-1 fastq1 \
+					-2 fastq2 && \
+				preprocessing::fastqc \
+					-S ${noqual:=false} \
+					-s ${Squal:=false} \
+					-t $threads \
+					-o $outdir/qualities/corrected \
+					-1 fastq1 \
+					-2 fastq2
+			} || return 1
+		}
+		${norrm:=false} || {
+			{	preprocessing::sortmerna \
+					-S ${norrm:=false} \
+					-s ${Srrm:=false} \
+					-t $threads \
+					-m $mem \
+					-o $outdir/rrnafiltered \
+					-p $tmpdir \
+					-1 fastq1 \
+					-2 fastq2 && \
+				preprocessing::fastqc \
+					-S ${noqual:=false} \
+					-s ${Squal:=false} \
+					-t $threads \
+					-o $outdir/qualities/rrnafiltered \
+					-1 fastq1 \
+					-2 fastq2
+			} || return 1
+		}
+		{	pipeline::segemehl && \
 			pipeline::star
 		} || return 1
-	else 
+	else
 		custom=()
 		mapper+=(custom)
-		for f in ${mapped[@]}; do
+		for f in "${mapped[@]}"; do
 			custom+=($f)
 		done
 		pipeline::uniqify || return 1
 	fi
     
 	[[ ${#mapper[@]} -eq 0 ]] && return 0
-	[[ ! $Smd5 ]] && sed -i "s/md5genome=.*/md5genome=$thismd5genome/" $genome.md5s
+	[[ $genome ]] && [[ ! $Smd5 ]] && sed -i "s/md5genome=.*/md5genome=$thismd5genome/" $genome.md5s
 
 	reslice=1
-	{	pipeline::makereplicates && \
+	#rmdup is slice based parellelized and thus indexes bams first
+	{	[[ ! $tfq1 ]] || pipeline::prepareplicates && \
 		pipeline::sortsambam && \
-		pipeline::removeduplicates && \ # indexes input bam
+		pipeline::removeduplicates && \
         pipeline::indexbam && \
 		pipeline::mappingstats && \
-		pipeline::joinvizmappingstats
+		pipeline::joinmappingstats
 	} || return 1
 
-	if [[ ! $norepl ]]; then
+	if [[ $tfq1 ]]; then
 		{	pipeline::macs && \
 			pipeline::gem
 		} || return 1
@@ -371,9 +190,11 @@ run() {
 	return 0
 }
 
-[[ ! $OSTYPE =~ linux ]] && trapper "unsupported operating system"
-cmd=$(basename $0)" $@"
-threads=$(cat /proc/cpuinfo | grep -cF processor)
+[[ ! $OSTYPE =~ linux ]] && die "unsupported operating system"
+bash --version | head -1 | cut -d ' ' -f 4 | cut -d '.' -f 1-2 | awk '$0<4.4{exit 1}' || die "requieres bash version 4.4 or above"
+[[ ! $RIPPCHEN ]] && die "can not find installation. please do: export RIPPCHEN=/path/to/install/dir"
+cmd=$(basename $0)" $*"
+threads=$(grep -cF processor /proc/cpuinfo)
 memory=$(grep -F -i memavailable /proc/meminfo | awk '{printf("%d",$2*0.9/1024)}')
 mem=30000
 [[ memthreads=$[memory/mem] -gt $threads ]] && memthreads=$threads
@@ -390,152 +211,98 @@ quantifyfeature='exon'
 quantifyid='gene_id'
 
 source $insdir/bin/rippchen/lib/version
-[[ $# -eq 0 ]] && usage
-[[ $# -eq 1 ]] && [[ ! $1 =~ ^- ]] && echo ":ERROR: illegal option $1" && trapper
-for i in $(seq 1 $#); do
-	if [[ ${!i} =~ ^- ]]; then
-		[[ i -lt $# ]] && j=$((i+1))
-		checkopt "${!i}" "${!j}" || trapper
-	else 
-		((++i))
-	fi
-done
+source $insdir/bin/rippchen/lib/options
 
-[[ ! $insdir ]] && trapper "can not find installation. please do: export RIPPCHEN=/path/to/install/dir"
+options::parse "$@" || die "parameterization issue"
+
 [[ memthreads=$[memory/mem] -gt $threads ]] && memthreads=$threads
-[[ $memthreads -eq 0 ]] && trapper "too less memory available ($memavailable)"
-[[ ! $nfq1 ]] && [[ ! $tfq1 ]] && [[ ! $nmap ]] && trapper ":ERROR: fastq file input missing - call "$(basename $0)" -h for help"
-[[ ! $(file $(readlink -e $genome) | grep ASCII) ]] && trapper "genome file does not exists or is compressed $genome"
-if [[ $annotation ]]; then
-	[[ ! $(file $(readlink -e $annotation) | grep ASCII) ]] && trapper "annotation file does not exists or is compressed $annotation"
+[[ $memthreads -eq 0 ]] && die "too less memory available ($memavailable)"
+[[ ! $nfq1 ]] && [[ ! $tfq1 ]] && [[ ! $nmap ]] && die "fastq file input missing - call "$(basename $0)" -h for help"
+if [[ $genome ]]; then
+	readlink -e $genome | file -f - | grep -qF ASCII || die "genome file does not exists or is compressed $genome"
 else
-	if [[ $(file $(readlink -e $genome.gtf) | grep ASCII) ]]; then
+	echo ":WARNING: proceeding without genome file"
+	nosege=true
+	nostar=true
+fi
+if [[ $annotation ]]; then
+	readlink -e $annotation | file -f - | grep -qF ASCII || die "annotation file does not exists or is compressed $annotation"
+else
+	readlink -e $genome.gtf | file -f - | grep -qF ASCII && {
 		annotation=$genome.gtf
-	else 
+	} || {
 		if [[ ! $tfq1 ]]; then
 			echo ":WARNING: proceeding without gtf file"
 			noquant=1
 		else
-			[[ $comp ]] && trapper "annotation file needed"
+			[[ $comp ]] && die "annotation file needed"
 		fi
-	fi
+	}
 fi
+[[ ! $tfq1 ]] && normd=true
 
-strandness=($(echo $str | sed 's/,/ /g'))
-comparisons=($(echo $comp | sed 's/,/ /g'))
-adapter=($(echo $ada | sed 's/,/ /g'))
-[[ ! $tfq1 ]] && norepl=1
-if [[ $nfq1 ]]; then
-	unset nouniq
-	unset nosort
-	unset noidx
-fi
+# all idx of fastq1[.] are equal to mapper[.]
 nidx=() #normal idx 
+nridx=() #normal replicate idx 
 tidx=() #treatment idx
-ridx=() #replicate idx
-pidx=() #pool idx -> all idx work for fastq[.] and mapper[.]
+ridx=() #treatment replicate idx
+pidx=() #pool (2x0.5) idx 
 fastq1=()
 fastq2=()
-fq1basename=()
-fq2basename=()
-fq1basenoex=()
-fq2basenoex=()
-fqextension=()
-fqbaseprefix=()
-fqextractcmd=()
 mapped=()
-IFS=','
+
 i=-1
+IFS=','
 for f in $nfq1; do
-	readlink -e $f &> /dev/null || trapper "fastq file does not exists $f"
+	readlink -e $f &> /dev/null || die "single or first mate fastq file does not exists $f"
 	fastq1[((++i))]=$f
 	nidx+=($i)
-	fqextractcmd[$i]=$(file $(readlink -e $f) | grep -Eo '(gzip|bzip)')" -cd"
-	if [[ $? -eq 0 ]]; then
-		fqextension[$i]=$(basename ${fastq1[$i]} | rev | cut -d '.' -f 2 | rev)
-		fq1basenoex[$i]=$(basename ${fastq1[$i]} | rev | cut -d '.' -f 3- | rev)
-	else
-		fqextractcmd[$i]=""
-		fqextension[$i]=$(basename ${fastq1[$i]} | rev | cut -d '.' -f 1 | rev)
-		fq1basenoex[$i]=$(basename ${fastq1[$i]} | rev | cut -d '.' -f 2- | rev)
-	fi
-	fq1basename[$i]=$(basename ${fastq1[$i]})
-	fqbaseprefix[$i]=$(basename ${fastq1[$i]} | cut -d '.' -f 1)
+done
+for f in $nrfq1; do
+	readlink -e $f &> /dev/null || die "single or first mate replicate fastq file does not exists $f"
+	fastq1[((++i))]=$f
+	nridx+=($i)
 done
 for f in $tfq1; do
-	readlink -e $f &> /dev/null || trapper "fastq file does not exists $f"
+	readlink -e $f &> /dev/null || die "single or first mate treatment fastq file does not exists $f"
 	fastq1[((++i))]=$f
 	[[ $rfq1 ]] && tidx+=($i) || pidx+=($i) #necessary for pooling, make pseudo-replicates respectively
-	fqextractcmd[$i]=$(file $(readlink -e $f) | grep -Eo '(gzip|bzip)')" -cd"
-	if [[ $? -eq 0 ]]; then
-		fqextension[$i]=$(basename ${fastq1[$i]} | rev | cut -d '.' -f 2 | rev)
-		fq1basenoex[$i]=$(basename ${fastq1[$i]} | rev | cut -d '.' -f 3- | rev)
-	else
-		fqextractcmd[$i]=""
-		fqextension[$i]=$(basename ${fastq1[$i]} | rev | cut -d '.' -f 1 | rev)
-		fq1basenoex[$i]=$(basename ${fastq1[$i]} | rev | cut -d '.' -f 2- | rev)
-	fi
-	fq1basename[$i]=$(basename ${fastq1[$i]})
-	fqbaseprefix[$i]=$(basename ${fastq1[$i]} | cut -d '.' -f 1)
 done
 for f in $rfq1; do
-	readlink -e $f &> /dev/null || trapper "fastq file does not exists $f"
+	readlink -e $f &> /dev/null  || die "single or first mate treatment replicate fastq file does not exists $f"
 	fastq1[((++i))]=$f
 	ridx+=($i)
-	fqextractcmd[$i]=$(file $(readlink -e $f) | grep -Eo '(gzip|bzip)')" -cd"
-	if [[ $? -eq 0 ]]; then
-		fqextension[$i]=$(basename ${fastq1[$i]} | rev | cut -d '.' -f 2 | rev)
-		fq1basenoex[$i]=$(basename ${fastq1[$i]} | rev | cut -d '.' -f 3- | rev)
-	else
-		fqextractcmd[$i]=""
-		fqextension[$i]=$(basename ${fastq1[$i]} | rev | cut -d '.' -f 1 | rev)
-		fq1basenoex[$i]=$(basename ${fastq1[$i]} | rev | cut -d '.' -f 2- | rev)
-	fi
-	fq1basename[$i]=$(basename ${fastq1[$i]})
-	fqbaseprefix[$i]=$(basename ${fastq1[$i]} | cut -d '.' -f 1)
 done
 i=-1
-for f in {$nfq2,$tfq2,$rfq2}; do
-	readlink -e $f &> /dev/null || trapper "fastq file does not exists $f"
+for f in {$nfq2,$nrfq2,$tfq2,$rfq2}; do
+	readlink -e $f &> /dev/null || die "second mate fastq file does not exists $f"
 	fastq2[((++i))]=$f
-	[[ $comp ]] && [[ $(basename ${fastq2[$i]} | cut -d '.' -f 1) != ${fqbaseprefix[$i]} ]] && trapper "'.'-separated basenames do not match"
-	if [[ ${fqextractcmd[$i]} ]]; then
-		fq2basenoex[$i]=$(basename ${fastq2[$i]} | rev | cut -d '.' -f 3- | rev)
-	else
-		fq2basenoex[$i]=$(basename ${fastq2[$i]} | rev | cut -d '.' -f 2- | rev)
-	fi
-	fq2basename[$i]=$(basename ${fastq2[$i]})
+	[[ $comp ]] && [[ $(basename ${fastq2[$i]} | cut -d '.' -f 1) != ${fqbaseprefix[$i]} ]] && die "'.'-separated basenames do not match"
 done
 for f in $nmap; do
-	readlink -e $f &> /dev/null || trapper "alignment file does not exists $f"
+	readlink -e $f &> /dev/null || die "alignment file does not exists $f"
 	mapped+=($f)
 done
 unset IFS
 
-# [[ $nfq2 ]] && [[ ${#fastq1[@]} != ${#fastq2[@]} ]] && trapper "unequal number of input mate pair fastq files"
-# [[ $rfq1 ]] && [[ ${#nidx[@]} != ${#tidx[@]} ]] && trapper "unequal number of corresponding normal and treated fastq files"
-# [[ ! $rfq1 ]] && [[ ${#nidx[@]} != ${#pidx[@]} ]] && trapper "unequal number of corresponding normal and treated fastq files"
-# [[ $trfq1 ]] && [[ ${#tidx[@]} != ${#ridx[@]} ]] && trapper "unequal number of corresponding replicate fastq files"
-
 [[ ! $log ]] && log=$outdir/run.log
 tmpdir=$tmpdir/rippchen_tmp
-mkdir -p $(dirname $log) || trapper "can not create log file directory $(dirname $log)"
-mkdir -p $outdir || trapper "can not create output directory $outdir"
-mkdir -p $tmpdir || trapper "can not create temporary directory $tmpdir"
+mkdir -p $(dirname $log) || die "can not create log file directory $(dirname $log)"
+mkdir -p $outdir || die "can not create output directory $outdir"
+mkdir -p $tmpdir || die "can not create temporary directory $tmpdir"
 outdir=$(readlink -e $outdir)
 tmpdir=$(readlink -e $tmpdir)
 
 rm -f $log
 touch $log
 if [[ $verbose ]]; then
-	run 2>&1 | tee -a $log
-	[[ ${PIPESTATUS[0]} -gt 0 ]] && trapper
+	pipeline 2>&1 | tee -a $log
+	[[ ${PIPESTATUS[0]} -gt 0 ]] && die
 else
 	source $insdir/bin/rippchen/lib/progress
 	progress::bar &
 	progress::log $log &
-	run &>> $log
-	[[ $? -gt 0 ]] && trapper
+	pipeline &>> $log || die
 fi
 
 echo ":INFO: success" | tee -a $log

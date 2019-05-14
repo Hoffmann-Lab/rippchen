@@ -99,7 +99,7 @@ $RIPPCHEN/bin/rippchen/rippchen -v -1 reads.fastq -g genome.fa -o results -l res
 -no-rrm  : disables rRNA filter
 -no-sege : disables mapping by Segemehl
 -no-star : disables mapping by STAR
--no-quant: desables read quantification and downstream analyses - NECESSARY FOR EARLY PIPELINE ABORT
+-no-quant: disables read quantification and downstream analyses - NECESSARY FOR EARLY PIPELINE ABORT
 
 3) mapping input preprocessing
 $RIPPCHEN/bin/rippchen/rippchen -v -m mapping.(sam|bam) -g genome.fa -o results -l results/log -tmp /tmp

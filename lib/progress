@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # (c) Konstantin Riege
+
 progress::bar() {
-	mod=0
+	local mod=0
 	while true; do
 		((++mod))
 		case $mod in
@@ -18,7 +19,7 @@ progress::bar() {
 }
 
 progress::log() {
-	tail -f $1 2>&1 | grep -E --line-buffered '^\s*(:INFO|:ERROR|Elapsed \(wall|Maximum resident)'
+	tail -f $1 2>&1 | grep -E --line-buffered '^\s*(:INFO:|:ERROR:|:BENCHMARK:|:WARNING:)'
 
 	return 0
 }

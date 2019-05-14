@@ -1,4 +1,5 @@
 #! /usr/bin/env bash
+# (c) Konstantin Riege
 
 #genome.fa
 md5genome=

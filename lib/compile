@@ -1,5 +1,6 @@
 #! /usr/bin/env bash
 # (c) Konstantin Riege
+
 compile::upgrade(){
 	compile::rippchen || return 1
 
@@ -9,8 +10,8 @@ compile::upgrade(){
 compile::all(){
 	{	compile::rippchen && \
 		compile::conda && \
-		compile::perlmodules && \
 		compile::java && \
+		compile::perlmodules && \
 		compile::sortmerna && \
 		compile::segemehl && \
 		compile::gem && \
@@ -20,8 +21,8 @@ compile::all(){
 		compile::idr && \
 		# compile::dpgpc && \
 		compile::wgcna && \
-		compile::dgca && \
-		compile::webgestalt
+		compile::dgca
+		# compile::webgestalt (needs r-treemap)
 	} || return 1
 
 	return 0
@@ -42,48 +43,51 @@ compile::conda() {
 	{	echo ":INFO: installing conda and tools" && \
 		mkdir -p $insdir/conda && \
 		url='https://repo.continuum.io/miniconda/Miniconda2-latest-Linux-x86_64.sh' && \
-		# url='https://repo.continuum.io/miniconda/Miniconda2-4.5.11-Linux-x86_64.sh'
-		wget -q $url -O $insdir/miniconda.sh && \
+		wget -q -O $insdir/miniconda.sh $url && \
 		bash $insdir/miniconda.sh -b -f -p $insdir/conda && \
 		rm $insdir/miniconda.sh && \
 		source $insdir/conda/bin/activate && \
-		# conda update -y conda - optional, better stay with the version shipped and tested in miniconda
-		conda create -y -n py2 python=2; true && \
-		# create special r environment which needs to be based on python2 to resolve all dependencies - especially pythoninr for webgestalt
-		conda create -y -n py2r python=2; true && \
-		conda create -y -n py3 python=3; true && \
-		# pip install --upgrade pip - causes troubles since pip 18.x
-
+		conda create -y -n py2 python=2 && \
+		conda create -y -n py2r python=2 && \
+		conda create -y -n py3 python=3 && \
+		
 		# readline 7 causes library version number to be lower on the shared object warnings
 		# use quantstack gcc for r and perl module installation - defaults gcc has a weird usage
-		# under perl 5.26 List::MoreUtils installation fails
+		# under perl > 5.22 List::MoreUtils installation fails
+		# macs2, tophat2/hisat2 and R stuff needs python2 whereas cutadapt,idr,rseqc need python3 env
 		conda activate py2 && \
 		conda install -y --override-channels -c iuc -c bioconda -c main -c conda-forge -c defaults -c quantstack \
-			gcc-7 libgcc-7 automake zlib ncurses xz bzip2 pigz pbzip2 ghostscript readline=6 \
-			perl=5.22 perl-threaded \
-			star bwa tophat \
-			fastqc trimmomatic rcorrector samtools picard macs2 rseqc bedtools && \
-		# package maintainers forgot this step ..
-		chmod 755 $insdir/conda/envs/py2/bin/run_rcorrector.pl && \
-
-		# python3 necessary for multithreaded cutadapt and idr
-		conda activate py3 && \
-		# r-essentials readline - readline is now shipped with miniconda, r-essentials causes troubles with webgestalt and is not necessary anymore to be installed prior to other packages
+			gcc-7 libgcc-7 && \
 		conda install -y --override-channels -c iuc -c bioconda -c main -c conda-forge -c defaults -c quantstack \
-			gcc-7 libgcc-7 automake zlib ncurses xz bzip2 pigz pbzip2 readline=6 \
-			cutadapt && \
+			make automake zlib ncurses xz bzip2 pigz pbzip2 ghostscript readline=6 perl=5.22 perl-threaded=5.22 && \
+		conda install -y --override-channels -c iuc -c bioconda -c main -c conda-forge -c defaults -c quantstack \
+			fastqc trimmomatic rcorrector \
+			star bwa hisat2 macs2 \
+			samtools picard bedtools && \
+		chmod 755 $insdir/conda/envs/py2/bin/run_rcorrector.pl && \
+		conda clean -y -a && \
 
-		# split installation, otherwise solving environment takes hours!!?
+		conda activate py3 && \
+		conda install -y --override-channels -c iuc -c bioconda -c main -c conda-forge -c defaults -c quantstack \
+			gcc-7 libgcc-7 && \
+		conda install -y --override-channels -c iuc -c bioconda -c main -c conda-forge -c defaults -c quantstack \
+			make automake zlib ncurses xz bzip2 pigz pbzip2 ghostscript readline=6 && \
+		conda install -y --override-channels -c iuc -c bioconda -c main -c conda-forge -c defaults -c quantstack \
+			cutadapt rseqc && \
+		conda clean -y -a && \
+
 		conda activate py2r && \
 		conda install -y --override-channels -c iuc -c bioconda -c main -c conda-forge -c defaults -c quantstack \
-			gcc-7 libgcc-7 automake zlib ncurses xz bzip2 pigz pbzip2 readline=6 \
-			r r-devtools && \
-		# install bioconductor parallel and deseq packages and biocinstaller for metpeak
+			gcc-7 libgcc-7 && \
 		conda install -y --override-channels -c iuc -c bioconda -c main -c conda-forge -c defaults -c quantstack \
-			bioconductor-biocinstaller bioconductor-biocparallel bioconductor-genomicfeatures bioconductor-genefilter bioconductor-deseq2 bioconductor-dexseq && \
-		# install r packages for custom scripts and dependencies for webgestalt (treemap) and those not automatically resolved by devtools wgcna installation
+			make automake zlib ncurses xz bzip2 pigz pbzip2 ghostscript readline=6 && \
 		conda install -y --override-channels -c iuc -c bioconda -c main -c conda-forge -c defaults -c quantstack \
-			r-ggplot2 r-gplots r-rcolorbrewer r-svglite subread r-treemap r-wgcna r-pheatmap r-ggpubr && \
+			r-devtools bioconductor-biocinstaller bioconductor-biocparallel \
+			bioconductor-genomicfeatures bioconductor-genefilter \
+			subread r-wgcna bioconductor-deseq2 bioconductor-dexseq bioconductor-enrichmentbrowser && \
+		conda install -y --override-channels -c iuc -c bioconda -c main -c conda-forge -c defaults -c quantstack \
+			r-dplyr r-ggplot2 r-gplots r-rcolorbrewer r-svglite r-pheatmap r-ggpubr && \
+		conda clean -y -a && \
 
 		conda deactivate
 	} || return 1
@@ -91,10 +95,17 @@ compile::conda() {
 	return 0
 }
 
+## HELP for manual R package installation
+# from github:
+# Rscript -e "options(unzip='$(which unzip)'); Sys.setenv(TAR='$(which tar)'); library('devtools'); install_github('cran/WebGestaltR', threads=$threads)"
+# from src as linked at bioconductor.org
+# wget -O ~/src.tar.gz http://master.bioconductor.org/packages/release/bioc/src/contrib/EnrichmentBrowser_2.14.0.tar.gz
+# Rscript -e "options(unzip='$(which unzip)'); Sys.setenv(TAR='$(which tar)'); install.packages('~/src.tar.gz', repos = NULL, type = 'source')"
+
 compile::java() {
 	{	echo ":INFO: installing java" && \
-		url=$(curl -s https://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html | grep -Eo 'http[^"]+linux-x64.tar.gz') && \
-		wget --no-cookies --no-check-certificate --header "Cookie: oraclelicense=accept-securebackup-cookie" $url -O $insdir/java.tar.gz && \
+		url="http://download.oracle.com/otn-pub/java/jdk/11.0.2+9/f51449fcd52f4d52b93a989c5c56ed3c/jdk-11.0.2_linux-x64_bin.tar.gz" && \
+		wget -q --no-cookies --no-check-certificate --header "Cookie: oraclelicense=accept-securebackup-cookie" -O $insdir/java.tar.gz $url && \
 		tar -xzf $insdir/java.tar.gz -C $insdir && \
 		rm $insdir/java.tar.gz && \
 		mkdir -p $insdir/bin && \
@@ -117,6 +128,28 @@ compile::perlmodules() {
 	return 0
 }
 
+compile::sortmerna_new_buggy() {
+	{	echo ":INFO: installing sortmerna" && \
+		source $insdir/conda/bin/activate py2 && \
+		url='https://github.com/biocore/sortmerna/archive/v3.0.3.tar.gz' && \
+		wget -q $url -O $insdir/sortmerna.tar.gz && \
+		tar -xzf $insdir/sortmerna.tar.gz -C $insdir && \
+		rm $insdir/sortmerna.tar.gz && \
+		cd $(ls -dv $insdir/sortmerna-*/ | tail -1) && \
+		url='https://github.com/biocore/sortmerna/releases/download/v3.0.3/sortmerna-3.0.3-Linux_U16.sh' && \
+		wget -q $url -O install.sh && \
+		bash install.sh --prefix=$PWD --skip-license && \
+		ln -sfn $PWD/bin $insdir/bin/sortmerna
+	} || return 1
+
+	for i in rRNA_databases/*.fasta; do
+		o=index/$(basename $i .fasta)-L18
+		echo -ne "bin/indexdb --ref $i,$o -m $memory -L 18\0"
+	done | xargs -0 -P $threads -I {} bash -c {} || return 1
+
+	return 0
+}
+
 compile::sortmerna() {
 	{	echo ":INFO: installing sortmerna" && \
 		source $insdir/conda/bin/activate py2 && \
@@ -133,13 +166,10 @@ compile::sortmerna() {
 		ln -sfn $PWD/bin $insdir/bin/sortmerna
 	} || return 1
 
-	cmd=()
 	for i in rRNA_databases/*.fasta; do
 		o=index/$(basename $i .fasta)-L18
-		cmd+=("bin/indexdb_rna --ref $i,$o -m $memory -L 18\0")
-	done
-	{	echo -ne ${cmd[@]} | xargs -0 -P $threads -I {} bash -c {}
-	} || return 1
+		echo -ne "bin/indexdb_rna --ref $i,$o -m $memory -L 18\0"
+	done | xargs -0 -P $threads -I {} bash -c {} || return 1
 
 	return 0
 }
@@ -164,58 +194,58 @@ compile::segemehl () {
 		ln -sfn $PWD/bin $insdir/bin/segemehl
 	} || return 1
 
-cat << EOF > $insdir/bin/segemehl/segemehl || return 1
-#!/usr/bin/env bash
-[[ \$CONDA_PREFIX ]] && export PKG_CONFIG_PATH=\$CONDA_PREFIX/lib/pkgconfig
-l=\$(pkg-config --variable=libdir htslib)
-[[ \$l ]] && export LD_LIBRARY_PATH=\$l
-\$(cd \$(dirname \$0) && echo \$PWD)/segemehl.x \$*
-EOF
-cat << EOF > $insdir/bin/segemehl/haarz || return 1
-#!/usr/bin/env bash
-[[ \$CONDA_PREFIX ]] && export PKG_CONFIG_PATH=\$CONDA_PREFIX/lib/pkgconfig
-l=\$(pkg-config --variable=libdir htslib)
-[[ \$l ]] && export LD_LIBRARY_PATH=\$l
-\$(cd \$(dirname \$0) && echo \$PWD)/haarz.x \$*
-EOF
+	cat <<- 'EOF' > $insdir/bin/segemehl/segemehl || return 1
+		#!/usr/bin/env bash
+		[[ $CONDA_PREFIX ]] && export PKG_CONFIG_PATH=$CONDA_PREFIX/lib/pkgconfig
+		l=$(pkg-config --variable=libdir htslib)
+		[[ $l ]] && export LD_LIBRARY_PATH=$l
+		$(cd $(dirname $0) && echo $PWD)/segemehl.x $*
+	EOF
+	cat <<- 'EOF' > $insdir/bin/segemehl/haarz || return 1
+		#!/usr/bin/env bash
+		[[ $CONDA_PREFIX ]] && export PKG_CONFIG_PATH=$CONDA_PREFIX/lib/pkgconfig
+		l=$(pkg-config --variable=libdir htslib)
+		[[ $l ]] && export LD_LIBRARY_PATH=$l
+		$(cd $(dirname $0) && echo $PWD)/haarz.x $*
+	EOF
 
 	return 0
 }
 
 compile::javawrapper() {
-cat << EOF > $1 || return 1
-#!/usr/bin/env bash
-set -eu -o pipefail
-export LC_ALL=en_US.UTF-8
+	cat <<- EOF > $1 || return 1
+		#!/usr/bin/env bash
+		set -eu -o pipefail
+		export LC_ALL=en_US.UTF-8
 
-java=java
-if [[ -n \$JAVA_HOME ]]; then
-	if [[ -e \$JAVA_HOME/bin/java ]]; then
-		java=\$JAVA_HOME/bin/java
-	fi
-fi
+		java=java
+		if [[ -n \$JAVA_HOME ]]; then
+			if [[ -e \$JAVA_HOME/bin/java ]]; then
+				java=\$JAVA_HOME/bin/java
+			fi
+		fi
 
-jvm_mem_opts=""
-jvm_prop_opts=""
-pass_args=""
-for arg in \$@; do
-	case \$arg in
-		'-D'*) jvm_prop_opts="\$jvm_prop_opts \$arg";;
-		'-XX'*) jvm_prop_opts="\$jvm_prop_opts \$arg";;
-		'-Xm'*) jvm_mem_opts="\$jvm_mem_opts \$arg";;
-		*) pass_args="\$pass_args \$arg";;
-	esac
-done
-[[ ! \$jvm_mem_opts ]] && jvm_mem_opts="-Xms512m -Xmx1g"
+		jvm_mem_opts=""
+		jvm_prop_opts=""
+		pass_args=""
+		for arg in \$@; do
+			case \$arg in
+				'-D'*) jvm_prop_opts="\$jvm_prop_opts \$arg";;
+				'-XX'*) jvm_prop_opts="\$jvm_prop_opts \$arg";;
+				'-Xm'*) jvm_mem_opts="\$jvm_mem_opts \$arg";;
+				*) pass_args="\$pass_args \$arg";;
+			esac
+		done
+		[[ ! \$jvm_mem_opts ]] && jvm_mem_opts="-Xms512m -Xmx1g"
 
-pass_arr=(\$pass_args)
-if [[ \${pass_arr[0]:=} == org* ]]; then
-	eval \$java \$jvm_mem_opts \$jvm_prop_opts -cp $2 \$pass_args
-else
-	eval \$java \$jvm_mem_opts \$jvm_prop_opts -jar $2 \$pass_args
-fi
-exit
-EOF
+		pass_arr=(\$pass_args)
+		if [[ \${pass_arr[0]:=} == org* ]]; then
+			eval \$java \$jvm_mem_opts \$jvm_prop_opts -cp $2 \$pass_args
+		else
+			eval \$java \$jvm_mem_opts \$jvm_prop_opts -jar $2 \$pass_args
+		fi
+		exit
+	EOF
 	chmod 755 $1 || return 1
 	
 	return 0
@@ -330,11 +360,11 @@ compile::dpgpc() {
 		ln -sfn $PWD/bin $insdir/bin/DP_GP_cluster
 	} || return 1
 
-cat << EOF > $insdir/bin/DP_GP_cluster/DP_GP_cluster || return 1
-#!/usr/bin/env bash
-export PYTHONPATH=\$CONDA_PREFIX/lib/python2.7/site-packages/:\$PYTHONPATH
-\$(cd \$(dirname \$0) && echo \$PWD)/DP_GP_cluster.py \$*
-EOF
+	cat <<- 'EOF' > $insdir/bin/DP_GP_cluster/DP_GP_cluster || return 1
+		#!/usr/bin/env bash
+		export PYTHONPATH=$CONDA_PREFIX/lib/python2.7/site-packages/:$PYTHONPATH
+		$(cd $(dirname \$0) && echo $PWD)/DP_GP_cluster.py $*
+	EOF
 	return 0
 }
 

@@ -1,2 +1,4 @@
 #! /usr/bin/env bash
-version=0.2.0
+# (c) Konstantin Riege
+
+version=0.3.0
