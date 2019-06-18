@@ -8,7 +8,7 @@ RIPPCHEN comprises
 
 
 ### REFERENCES
-(c) Konstantin Riege, Jeanne Wilbrandt, Arne Sahm
+(c) Konstantin Riege, Jeanne Wilbrandt
 
 
 ### CONTACT
@@ -37,17 +37,17 @@ cd rippchen
 6) checkout latest stable release
 git checkout $(git describe --tags)
 7) install RIPPCHEN and all necessary tools (will take a while)
-./setup -i all
+./setup.sh -i all -d $RIPPCHEN
 
 
 ### UPGRADE
 1) follow the INSTALLATION steps 4 to 6
-./setup -i upgrade
+./setup.sh -i upgrade
 
 
 ### DOWNLOAD HG19/GRCh37 or HG38/GRCh38 or MM10/GRCm38 and corresponding files (annotation .gtf, ontology .go, description .info)
 1) follow the INSTALLATION steps 4 to 6
-./dlgenome -g [hg19|hg38|mm10] -o /path/to/genome/dir
+./bashbone/scripts/dlgenome.sh -g [hg19|hg38|mm10] -o /path/to/genome/dir
 
 
 ### LOGS and verbosity
@@ -59,7 +59,7 @@ git checkout $(git describe --tags)
 - genomes will be indexed for selected mappers
 => do not run multiple RIPPCHEN instances in parallel unless indexes are created
 - in case indexes are already available 
-=> copy $RIPPCHEN/bin/rippchen/lib/md5s to <genome.fa>.md5s and insert values returned by the command: md5sum <file>
+=> copy $RIPPCHEN/latest/bashbone/lib/md5.sh to <genome.fa>.md5.sh and insert values returned by the command: md5sum <file>
 
 
 ### RUN
@@ -73,25 +73,25 @@ git checkout $(git describe --tags)
 => 3 tab-separated column file: gene_id gene_name gene_description
 
 2) calling for help?
-$RIPPCHEN/bin/rippchen/rippchen -h
+$RIPPCHEN/latest/rippchen/rippchen.sh -h
 
 3) synopsis
-$RIPPCHEN/bin/rippchen/rippchen -1 R1.fq -2 R2.fq -g genome.fa
+$RIPPCHEN/latest/rippchen/rippchen.sh -1 R1.fq -2 R2.fq -g genome.fa
 
 
 ### USECASES
 1) fastq input preprocessing
-$RIPPCHEN/bin/rippchen/rippchen -v -1 reads.fastq -g genome.fa -o results -l results/log -tmp /tmp
+$RIPPCHEN/latest/rippchen/rippchen.sh -v 2 -1 reads.fastq -o results -l results/log -tmp /tmp
 # useful parameters
 -no-qual : disables quality analysis
 -no-trim : disables quality trimming
 -no-cor  : disables majority based raw read error correction
 -no-rrm  : disables rRNA filter
--no-sege : disables mapping by Segemehl - NECESSARY FOR EARLY PIPELINE ABORT
--no-star : disables mapping by STAR - NECESSARY FOR EARLY PIPELINE ABORT
+-skip [[qual|trim|cor|rrm],...]
+-resume [qual|trim|cor|rrm]
 
 2) read mapping
-$RIPPCHEN/bin/rippchen/rippchen -v -1 reads.fastq -g genome.fa -o results -l results/log -tmp /tmp
+$RIPPCHEN/latest/rippchen/rippchen.sh -v 2 -1 reads.fastq -g genome.fa -o results -l results/log -tmp /tmp
 # useful parameters
 -no-qual : disables quality analysis
 -no-trim : disables quality trimming
@@ -99,58 +99,48 @@ $RIPPCHEN/bin/rippchen/rippchen -v -1 reads.fastq -g genome.fa -o results -l res
 -no-rrm  : disables rRNA filter
 -no-sege : disables mapping by Segemehl
 -no-star : disables mapping by STAR
--no-quant: disables read quantification and downstream analyses - NECESSARY FOR EARLY PIPELINE ABORT
+-skip [[qual|trim|cor|rrm|sege|star],...]
+-resume [sege|star]
 
-3) mapping input preprocessing
-$RIPPCHEN/bin/rippchen/rippchen -v -m mapping.(sam|bam) -g genome.fa -o results -l results/log -tmp /tmp
+3) mapping input postprocessing
+$RIPPCHEN/latest/rippchen/rippchen -v 2 -m mapping.(sam|bam) -g genome.fa -o results -l results/log -tmp /tmp
 # useful parameters
--no-rmd  : do not remove duplicate reads
 -no-uniq : mapping file contains only uniquely mapped reads
 -no-sort : mapping file is already sorted
--no-idx  : mapping file is indexed i.e. mapping.bam and mapping.bai exists next to each other
+-no-rmd  : mapping file shall not be filtered for duplicates
+-skip [[uniq|sort|rmd],...]
+-resume [uniq|sort|rmd]
 
 4) read quantification and TPM calculation
-$RIPPCHEN/bin/rippchen/rippchen -v -m mapping.(sam|bam) -g genome.fa -gtf genome.gtf -o results -l results/log -tmp /tmp
+$RIPPCHEN/latest/rippchen/rippchen.sh -v 2 -m mapping.(sam|bam) -g genome.fa -gtf genome.gtf -o results -l results/log -tmp /tmp
 # useful parameters
--no-rmd  : do not remove duplicate reads
 -no-uniq : mapping file contains only uniquely mapped reads
 -no-sort : mapping file is already sorted
--no-idx  : mapping file is indexed i.e. mapping.bam and mapping.bai exists next to each other
--qi      : exon_id or transcript_id or ...
--qf      : exon or gene or CDS or ...
--no-dea  : disables differential expression and downstream analyses if experiment info file is given by -c
+-no-rmd  : mapping file shall not be filtered for duplicates
+-qt      : gene_id or transcript_id or ...
+-ql      : exon or gene or CDS or ...
+-skip [[uniq|sort|rmd],...]
+-resume [uniq|sort|rmd]
 
 5) differential expression analyses
-$RIPPCHEN/bin/rippchen/rippchen -v -c COMPARISONS -m mapping.(sam|bam) -g genome.fa -gtf genome.gtf -o results -l results/log -tmp /tmp
+$RIPPCHEN/latest/rippchen/rippchen.sh -v 2 -c COMPARISONS -m mapping.(sam|bam) -g genome.fa -gtf genome.gtf -o results -l results/log -tmp /tmp
 # useful parameters
--no-rmd  : do not remove duplicate reads
 -no-uniq : mapping file contains only uniquely mapped reads
 -no-sort : mapping file is already sorted
--no-idx  : mapping file is indexed i.e. mapping.bam and mapping.bai exists next to each other
--no-pca  : disables pca plots
--no-iso  : disables differential isoform analysis by DEXSeq
 -cf      : decide for a subset of features to be clustered
 -no-clust: disables feature co-expression clustering
 -no-go   : disables GO enrichment calculation
+-skip [[uniq|sort|quant|tpm|dea|clust|go],...]
+-resume [uniq|sort|quant|tpm|dea|clust|go]
 
 6) peak calling
-$RIPPCHEN/bin/rippchen/rippchen -v -n1 ctr.fastq -t1 ip.N1.fastq -g genome.fa -o results -l results/log -tmp /tmp
+$RIPPCHEN/latest/rippchen/rippchen.sh -v 2 -n1 ctr.fastq -t1 ip.N1.fastq -g genome.fa -o results -l results/log -tmp /tmp
 # useful parameters
+-nr1     : replicate N2 ctr file
 -r1      : replicate N2 ip file
 -f       : fragment size
+-no-rmd  : mapping file shall not be filtered for duplicates
 -no-macs : disables peak calling by macs
 -no-gem  : disables peak calling by gem
-
-
-### grid engines
-for f in *.fastq.gz; do
-    sh=$(basename $f .fastq.gz)
-cat << EOF > $sh.sh
-#!/usr/bin/env bash
-export RIPPCHEN=/path/to/rippchen
-\$RIPPCHEN/bin/rippchen/rippchen -v -1 $f -g genome.fa -o results -l results/$sh.log -tmp /tmp       
-EOF
-    echo "rm -f $sh.+(log|err) && qsub -S /bin/bash -e $sh.err -o $sh.log -V -cwd $sh.sh"
-	#to exclude hosts add: -l 'h=!HOST&!HOST'
-	#to restrict hosts add: -l 'h=HOST|HOST'
-done
+-skip [[qual|trim|cor|rrm|uniq|sort|rmd],...]
+-resume [qual|trim|cor|rrm|uniq|sort|rmd]
