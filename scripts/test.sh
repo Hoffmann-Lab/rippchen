@@ -1,6 +1,10 @@
 #! /usr/bin/env bash
 
-export RIPPCHEN=/misc/paras/data/programs/rippchen_3
+[[ $RIPPCHEN ]] || {
+	echo -n "where is rippchen? [/path/to/install/dir]: "
+	read -r p
+	export RIPPCHEN=$(readlink -e ${p/#*~/$HOME})
+}
 
 ### preprocessing
 prep(){

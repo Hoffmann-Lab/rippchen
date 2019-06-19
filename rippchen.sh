@@ -29,7 +29,7 @@ cleanup() {
 
 [[ ! $OSTYPE =~ linux ]] && die "unsupported operating system"
 bash --version | head -1 | cut -d ' ' -f 4 | cut -d '.' -f 1-2 | awk '$0<4.4{exit 1}' || die "requieres bash version 4.4 or above"
-[[ ! $RIPPCHEN ]] && die "can not find installation. please do: export RIPPCHEN=/path/to/install/dir"
+[[ ! $RIPPCHEN ]] && die "cannot find installation. please run setup and/or do: export RIPPCHEN=/path/to/install/dir"
 INSDIR=$RIPPCHEN
 for f in {$INSDIR/latest/bashbone/lib/*.sh,$INSDIR/latest/rippchen/lib/*.sh}; do
 	source $f

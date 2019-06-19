@@ -1,6 +1,5 @@
 #! /usr/bin/env bash
 # (c) Konstantin Riege
-shopt -s extglob
 trap 'die' INT TERM
 trap 'kill -PIPE $(pstree -p $$ | grep -Eo "\([0-9]+\)" | grep -Eo "[0-9]+") &> /dev/null' EXIT
 
