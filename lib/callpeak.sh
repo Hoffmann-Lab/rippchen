@@ -112,7 +112,7 @@ callpeak::mkreplicates() { #for peak calling only
 	return 0
 }
 
-callpeak::macs() {
+callpeak::macs_chip() {
 	[[ $nomacs ]] && return 0
 	echo ":INFO: peak calling - macs"
 
@@ -190,7 +190,7 @@ callpeak::macs() {
 	return 0
 }
 
-callpeak::macs_m6a() {
+callpeak::macs_rip() {
 	[[ $nomacs ]] && return 0
 	echo ":INFO: peak calling - macs"
 
@@ -219,12 +219,13 @@ callpeak::macs_m6a() {
 			cmd0+=("samtools view -h ${m[${ridx[$i]}]} > ${m[${ridx[$i]}]}.sam\0")
 			cmd0+=("samtools view -h ${m[${nidx[$i]}]} > ${m[${nidx[$i]}]}.sam\0")
 
+			#--shift 30 semmed to work well but cannot be explained
 			cmd1+=("macs2 callpeak -t ${m[${pidx[$i]}]}.sam -c ${m[${nidx[$i]}]}.sam -f SAM -g hs --OUTDIR $odir -n $op.model --tempdir $tmp -B --SPMR --keep-dup all -q 0.05 --verbose 1 --mfold 3 500 --bw $FRAGMENTSIZE\0")
-			cmd1+=("macs2 callpeak -t ${m[${pidx[$i]}]}.sam -c ${m[${nidx[$i]}]}.sam -f SAM -g hs --OUTDIR $odir -n $op.nomodel --tempdir $tmp -B --SPMR --keep-dup all -q 0.05 --verbose 1 --nomodel --shift -30 --extsize $[FRAGMENTSIZE-30]\0")
+			cmd1+=("macs2 callpeak -t ${m[${pidx[$i]}]}.sam -c ${m[${nidx[$i]}]}.sam -f SAM -g hs --OUTDIR $odir -n $op.nomodel --tempdir $tmp -B --SPMR --keep-dup all -q 0.05 --verbose 1 --nomodel --shift 0 --extsize $[FRAGMENTSIZE-0]\0")
 			cmd1+=("macs2 callpeak -t ${m[${tidx[$i]}]}.sam -c ${m[${nidx[$i]}]}.sam -f SAM -g hs --OUTDIR $odir -n $ot.model --tempdir $tmp -B --SPMR --keep-dup all -q 0.05 --verbose 1 --mfold 3 500 --bw $FRAGMENTSIZE\0")
-			cmd1+=("macs2 callpeak -t ${m[${tidx[$i]}]}.sam -c ${m[${nidx[$i]}]}.sam -f SAM -g hs --OUTDIR $odir -n $ot.nomodel --tempdir $tmp -B --SPMR --keep-dup all -q 0.05 --verbose 1 --nomodel --shift -30 --extsize $[FRAGMENTSIZE-30]\0")
+			cmd1+=("macs2 callpeak -t ${m[${tidx[$i]}]}.sam -c ${m[${nidx[$i]}]}.sam -f SAM -g hs --OUTDIR $odir -n $ot.nomodel --tempdir $tmp -B --SPMR --keep-dup all -q 0.05 --verbose 1 --nomodel --shift 0 --extsize $[FRAGMENTSIZE-0]\0")
 			cmd1+=("macs2 callpeak -t ${m[${ridx[$i]}]}.sam -c ${m[${nidx[$i]}]}.sam -f SAM -g hs --OUTDIR $odir -n $or.model --tempdir $tmp -B --SPMR --keep-dup all -q 0.05 --verbose 1 --mfold 3 500 --bw $FRAGMENTSIZE\0")
-			cmd1+=("macs2 callpeak -t ${m[${ridx[$i]}]}.sam -c ${m[${nidx[$i]}]}.sam -f SAM -g hs --OUTDIR $odir -n $or.nomodel --tempdir $tmp -B --SPMR --keep-dup all -q 0.05 --verbose 1 --nomodel --shift -30 --extsize $[FRAGMENTSIZE-30]\0")
+			cmd1+=("macs2 callpeak -t ${m[${ridx[$i]}]}.sam -c ${m[${nidx[$i]}]}.sam -f SAM -g hs --OUTDIR $odir -n $or.nomodel --tempdir $tmp -B --SPMR --keep-dup all -q 0.05 --verbose 1 --nomodel --shift 0 --extsize $[FRAGMENTSIZE-0]\0")
 
 			cmd2+=("bedtools merge -c 5,7,8,9 -o collapse -i <(sort -k1,1V -k2,2n -k3,3n $odir/$op.model_peaks.narrowPeak $odir/$op.nomodel_peaks.narrowPeak) | perl -M'List::Util qw(max)' -lane 'print join(\"\\\t\",@F[0..2],\"merged_peak_\".(++\$x),max(split/,/,\$F[3]),\".\",max(split/,/,\$F[4]),max(split/,/,\$F[5]),max(split/,/,\$F[6]),\"-1\")' > $odir/$op.narrowPeak\0")
 			cmd2+=("bedtools merge -c 5,7,8,9 -o collapse -i <(sort -k1,1V -k2,2n -k3,3n $odir/$ot.model_peaks.narrowPeak $odir/$ot.nomodel_peaks.narrowPeak) | perl -M'List::Util qw(max)' -lane 'print join(\"\\\t\",@F[0..2],\"merged_peak_\".(++\$x),max(split/,/,\$F[3]),\".\",max(split/,/,\$F[4]),max(split/,/,\$F[5]),max(split/,/,\$F[6]),\"-1\")' > $odir/$ot.narrowPeak\0")
@@ -255,7 +256,7 @@ callpeak::macs_m6a() {
 	return 0
 }
 
-callpeak::gem() {
+callpeak::gem_chip() {
 	[[ $nogem ]] && return 0
 	echo ":INFO: peak calling - gem"
 
@@ -330,7 +331,7 @@ callpeak::gem() {
 	return 0
 }
 
-callpeak::gem_m6a() {
+callpeak::gem_rip() {
 	[[ $nogem ]] && return 0
 	echo ":INFO: peak calling - gem"
 

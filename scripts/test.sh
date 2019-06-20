@@ -1,5 +1,6 @@
 #! /usr/bin/env bash
 
+THREADS=$(grep -cF processor /proc/cpuinfo)
 [[ $RIPPCHEN ]] || {
 	echo -n "where is rippchen? [/path/to/install/dir]: "
 	read -r p
@@ -10,16 +11,16 @@
 prep(){
 	$RIPPCHEN/latest/rippchen/rippchen.sh \
 		-v 2 \
-		-t 8 \
+		-t $THREADS \
 		-1 $RIPPCHEN/latest/rippchen/data/test.SE.fq.gz \
-		-o test_se
+		-o /ssd/tmp/rippchen_test_se
 
 	$RIPPCHEN/latest/rippchen/rippchen.sh \
 		-v 2 \
-		-t 8 \
+		-t $THREADS \
 		-1 $RIPPCHEN/latest/rippchen/data/test.R1.fastq.gz \
 		-2 $RIPPCHEN/latest/rippchen/data/test.R2.fastq.gz \
-		-o test_pe
+		-o /ssd/tmp/rippchen_test_pe
 }
 echo -n "test preprocessing? [y|n]: "
 read -r yn
@@ -29,19 +30,19 @@ read -r yn
 map(){
 	$RIPPCHEN/latest/rippchen/rippchen.sh \
 		-v 2 \
-		-t 8 \
+		-t $THREADS \
 		-g $RIPPCHEN/latest/rippchen/data/test.fa \
 		-1 $RIPPCHEN/latest/rippchen/data/test.SE.fq.gz \
-		-o test_se \
+		-o /ssd/tmp/rippchen_test_se \
 		-resume sege
 
 	$RIPPCHEN/latest/rippchen/rippchen.sh \
 		-v 2 \
-		-t 8 \
+		-t $THREADS \
 		-g $RIPPCHEN/latest/rippchen/data/test.fa \
 		-1 $RIPPCHEN/latest/rippchen/data/test.R1.fastq.gz \
 		-2 $RIPPCHEN/latest/rippchen/data/test.R2.fastq.gz \
-		-o test_pe \
+		-o /ssd/tmp/rippchen_test_pe \
 		-resume sege
 }
 echo -n "test mapping? [y|n]: "
@@ -51,21 +52,21 @@ read -r yn
 quant(){
 	$RIPPCHEN/latest/rippchen/rippchen.sh \
 		-v 2 \
-		-t 8 \
+		-t $THREADS \
 		-g $RIPPCHEN/latest/rippchen/data/test.fa \
 		-gtf $RIPPCHEN/latest/rippchen/data/test.gtf \
 		-1 $RIPPCHEN/latest/rippchen/data/test.SE.fq.gz \
-		-o test_se \
+		-o /ssd/tmp/rippchen_test_se \
 		-resume quant
 
 	$RIPPCHEN/latest/rippchen/rippchen.sh \
 		-v 2 \
-		-t 8 \
+		-t $THREADS \
 		-g $RIPPCHEN/latest/rippchen/data/test.fa \
 		-gtf $RIPPCHEN/latest/rippchen/data/test.gtf \
 		-1 $RIPPCHEN/latest/rippchen/data/test.R1.fastq.gz \
 		-2 $RIPPCHEN/latest/rippchen/data/test.R2.fastq.gz \
-		-o test_pe \
+		-o /ssd/tmp/rippchen_test_pe \
 		-resume quant
 }
 echo -n "test quantification? [y|n]: "
@@ -80,53 +81,58 @@ coex(){
 	done
 	configure::environment -i $INSDIR
 
-	clusterfilter=0
+	mkdir -p /ssd/tmp/rippchen_test_counted/segemehl
+	cp /misc/paras/data/kons/holger_tumorDriver/RNA-Seq/results/counted/segemehl/*counts* /ssd/tmp/rippchen_test_counted/segemehl
+	chmod 644 /ssd/tmp/rippchen_test_counted/segemehl/*
+
 	mapper=(segemehl)
-	comparisons=(/ssd/tmp/COMPARISONS)
+	comparisons=(/misc/paras/data/kons/holger_tumorDriver/RNA-Seq/COMPARISONS)
 	coexpressions=()
 	expression::deseq \
 		-S false \
 		-s false \
-		-t 40 \
+		-t $THREADS \
 		-r mapper \
 		-c comparisons \
-		-i /ssd/tmp/test_counted \
-		-o /ssd/tmp/test_deseq
+		-i /ssd/tmp/rippchen_test_counted \
+		-o /ssd/tmp/rippchen_test_deseq
 
 	expression::joincounts \
 		-S false \
 		-s false \
-		-t 40 \
+		-t $THREADS \
 		-r mapper \
 		-c comparisons \
-		-i /ssd/tmp/test_counted \
-		-j /ssd/tmp/test_deseq \
-		-o /ssd/tmp/test_counted \
-		-p /ssd/tmp/test_tmp
+		-i /ssd/tmp/rippchen_test_counted \
+		-j /ssd/tmp/rippchen_test_deseq \
+		-o /ssd/tmp/rippchen_test_counted \
+		-p /ssd/tmp/rippchen_test_tmp
 
 	cluster::coexpression \
 		-S false \
 		-s false \
-		-t 40 \
-		-m 40000 \
+		-t $THREADS \
+		-m 30000 \
 		-r mapper \
 		-c comparisons \
 		-z coexpressions \
-		-i /ssd/tmp/test_counted \
-		-j /ssd/tmp/test_deseq \
-		-o /ssd/tmp/test_coexpressed \
-		-p /ssd/tmp/test_tmp
+		-i /ssd/tmp/rippchen_test_counted \
+		-j /ssd/tmp/rippchen_test_deseq \
+		-o /ssd/tmp/rippchen_test_coexpressed \
+		-p /ssd/tmp/rippchen_test_tmp
 
 	enrichment::go \
 		-S false \
 		-s false \
-		-t 40 \
+		-t $THREADS \
 		-r mapper \
-		-i /ssd/tmp/test_deseq \
+		-c comparisons \
 		-l coexpressions \
+		-i /ssd/tmp/rippchen_test_deseq \
 		-g /misc/paras/data/genomes/GRCm38.p6/GRCm38.p6.fa.gtf.go
+
 }
-echo -n "test coexpression? [y|n]: "
+echo -n "test deseq and coexpression? [y|n]: "
 read -r yn
 [[ $yn == "y" ]] && coex
 
@@ -144,12 +150,12 @@ slice(){
 	declare -A slicesinfo
 	alignment::slice \
 		-S false \
-		-s true \
-		-t 40 \
+		-s false \
+		-t $THREADS \
 		-m 30000 \
 		-r mapper \
 		-c slicesinfo \
-		-p /ssd/tmp/test_slices
+		-p /ssd/tmp/rippchen_test_slices
 
 	for f in "${segemehl[@]}"; do
 		echo "$f"
@@ -159,12 +165,12 @@ slice(){
 	alignment::rmduplicates \
 		-S false \
 		-s false \
-		-t 40 \
+		-t $THREADS \
 		-m 30000 \
 		-r mapper \
 		-c slicesinfo \
-		-p /ssd/tmp/test_tmp \
-		-o /ssd/tmp/test_rmdup
+		-p /ssd/tmp/rippchen_test_tmp \
+		-o /ssd/tmp/rippchen_test_rmdup
 }
 echo -n "test slicing? [y|n]: "
 read -r yn

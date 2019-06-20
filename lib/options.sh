@@ -56,12 +56,13 @@ options::usage() {
 		                                      NOTE: needs to be raised in case of GCThreads, HeapSize or OutOfMemory errors
 
 		PEAK CALLING OPTIONS
+		-ip      | --iptype [chip|rip]      : type of *IP-Seq experiment - default: chip
 		-n1      | --normalfq1 [path,..]    : normal fastq input - single or first pair, comma seperated
 		-n2      | --normalfq2 [path,..]    : normal fastq input - optional. second pair, comma seperated
-		-nr1     | --normalrepfq1 [path,..] : normal replicate fastq input - optional. single or first pair, comma seperated
-		-nr2     | --normalrepfq2 [path,..] : normal replicate fastq input - optional. second pair, comma seperated
 		-t1      | --treatmentfq1 [path,..] : *IP-Seq fastq input - single or first pair, comma seperated
 		-t2      | --treatmentfq2 [path,..] : *IP-Seq fastq input - optional. second pair, comma seperated
+		-nr1     | --normalrepfq1 [path,..] : normal replicate fastq input - optional. single or first pair, comma seperated
+		-nr2     | --normalrepfq2 [path,..] : normal replicate fastq input - optional. second pair, comma seperated
 		-tr1     | --treatrepfq1 [path,..]  : *IP-Seq replicate fastq input - optional. single or first pair, comma seperated
 		-tr2     | --treatrepfq2 [path,..]  : *IP-Seq replicate fastq input - optional. second pair, comma seperated
 		-f       | --fragmentsize           : fragment size of sequenced mate pairs - default: 150
@@ -108,8 +109,8 @@ options::usage() {
 		-no-rrm  | --no-rrnafilter          : disables rRNA filter
 		-no-sege | --no-segemehl            : disables mapping by Segemehl
 		-no-star | --no-star                : disables mapping by STAR
-		-no-split| --no-split               : disable split read mapping - recommended for ChIP-Seq data
-		-no-stats| --no-statistics          : disables fastq and mapping statistics
+		-no-split| --no-split               : disable split read mapping
+		-no-stats| --no-statistics          : disables fastq preprocessing statistics
 
 		ALIGNMENT OPTIONS
 		-no-uniq | --no-uniqify             : disables extraction of properly paired and uniquely mapped reads
@@ -134,6 +135,7 @@ options::developer() {
 		trim  : trimming
 		cor   : raw read correction
 		rrm   : rRNA filtering
+		stats : proprocessing statistics
 		sege  : Segemehl mapping
 		star  : STAR mapping
 		uniq  : extraction of properly paired and uniquely mapped reads
@@ -181,6 +183,7 @@ options::checkopt (){
 		-tr1 | --treatrepfq1) arg=true; rfq1=$2;;
 		-tr2 | --treatrepfq2) arg=true; rfq2=$2;;
 		-rx  | --regex) arg=true; REGEX=$2;;
+		-ip  | --iptype) arg=true; IPTYPE=$2;;
 		-c   | --comparisons) arg=true; mapfile -t -d ',' COMPARISONS <<< $2;;
 		-a   | --adapter) arg=true; mapfile -t -d ',' ADAPTER <<< $2;;
 		-d   | --distance) arg=true; DISTANCE=$2;;
@@ -194,7 +197,7 @@ options::checkopt (){
 	   	-resume | --resume-from)
 			arg=true
 			# don't Smd5, Sslice !
-			for s in qual clip trim cor rrm sege star uniq rep sort rmd idx stats macs gem quant tpm dea join clust go; do
+			for s in qual clip trim cor rrm stats sege star uniq rep sort rmd idx stats macs gem quant tpm dea join clust go; do
 				[[ "$2" == "$s" ]] && break
 				eval "S$s=true"
 			done
@@ -203,7 +206,7 @@ options::checkopt (){
 			arg=true
 			mapfile -d ',' -t <<< $2
 			for x in ${MAPFILE[@]}; do # do not quote!! "MAPFILE[@]" appends newline to last element
-				for s in md5 qual clip trim cor rrm sege star uniq rep sort slice rmd idx stats macs gem quant tpm dea join clust go; do
+				for s in md5 qual clip trim cor rrm stats sege star uniq rep sort slice rmd idx stats macs gem quant tpm dea join clust go; do
 					[[ "$x" == "$s" ]] && eval "S$s=true"
 				done
 			done
@@ -211,7 +214,7 @@ options::checkopt (){
 		-redo | --redo)
 			arg=true
 			# don't Smd5, Sslice !
-			for s in qual clip trim cor rrm sege star uniq rep sort rmd idx stats macs gem quant tpm dea join clust go; do
+			for s in qual clip trim cor rrm stats sege star uniq rep sort rmd idx stats macs gem quant tpm dea join clust go; do
 				[[ "$2" == "$s" ]] && continue
 				eval "S$s=true"
 			done

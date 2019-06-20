@@ -1,20 +1,19 @@
 #! /usr/bin/env bash
 # (c) Konstantin Riege
 
-pipeline::rippchen() {
+pipeline::_preprocess(){
 	source $INSDIR/conda/bin/activate py2
 
 	${Smd5:=false} || {
-		[[ ! -s $GENOME.md5.sh ]] && cp $INSDIR/bin/rippchen/lib/md5.sh $GENOME.md5.sh
+		[[ ! -s $GENOME.md5.sh ]] && cp $INSDIR/latest/bashbone/lib/md5.sh $GENOME.md5.sh
 		source $GENOME.md5.sh
 		thismd5genome=$(md5sum $GENOME | cut -d ' ' -f 1)
 		[[ "$md5genome" != "$thismd5genome" ]] && sed -i "s/md5genome=.*/md5genome=$thismd5genome/" $GENOME.md5.sh
 	}
-
-	declare -a mapper qualdirs
-	declare -A slicesinfo
 	
-	if [[ ! ${MAPPED[0]} ]]; then
+	if [[ ! $MAPPED ]]; then
+		declare -a qualdirs
+
 		{	qualdirs+=("$OUTDIR/qualities/raw") && \
 			preprocess::fastqc \
 				-S ${noqual:=false} \
@@ -137,13 +136,16 @@ pipeline::rippchen() {
 		mapper+=(custom)
 	fi
 
+	return 0
+}
+
+pipeline::dea() {
+	declare -a mapper coexpressions
+
+	pipeline::_preprocess || return 1
 	[[ ${#mapper[@]} -eq 0 ]] && return 0
 
-    {	[[ ! $tfq1 ]] || {
-			{	callpeak::mkreplicates
-			} || return 1
-		} && \
-		alignment::postprocess \
+	{	alignment::postprocess \
 			-S ${nouniq:=false} \
 			-s ${Suniq:=false} \
 			-j uniqify \
@@ -159,27 +161,6 @@ pipeline::rippchen() {
 			-p $TMPDIR \
 			-o $OUTDIR/mapped \
 			-r mapper && \
-		[[ ! $tfq1 ]] || {
-			{	alignment::slice \
-					-S false \
-					-s ${Sslice:=false} \
-					-t $THREADS \
-					-m $MEMORY \
-					-r mapper \
-					-c slicesinfo \
-					-p $TMPDIR && \
-				alignment::rmduplicates \
-					-S ${normd:=false} \
-					-s ${Srmd:=false} \
-					-t $THREADS \
-					-m $MEMORY \
-					-r mapper \
-					-c slicesinfo \
-					-x "$REGEX" \
-					-p $TMPDIR \
-					-o $OUTDIR/mapped
-			} || return 1
-		} && \
 		alignment::postprocess \
 			-S ${noidx:=false} \
 			-s ${Sidx:=false} \
@@ -208,13 +189,6 @@ pipeline::rippchen() {
 			-r mapper
 	} || return 1
 
-	if [[ $tfq1 ]]; then
-		{	callpeak::macs && \
-			callpeak::gem
-		} || return 1
-	fi
-
-	coexpressions=()
 	! $noquant && [[ $COMPARISONS ]] && {
 		 {	expression::deseq \
 				-S ${nodea:=false} \
@@ -238,7 +212,7 @@ pipeline::rippchen() {
 				-S ${noclust:=false} \
 				-s ${Sclust:=false} \
 				-t $THREADS \
-                -m $MEMORY \
+				-m $MEMORY \
 				-r mapper \
 				-c COMPARISONS \
 				-z coexpressions \
@@ -257,6 +231,64 @@ pipeline::rippchen() {
 				-i $OUTDIR/deseq
 		} || return 1
 	}
+
+	return 0
+}
+
+pipeline::callpeak() {
+	declare -a mapper
+
+	pipeline::_preprocess || return 1
+	[[ ${#mapper[@]} -eq 0 ]] && return 0
+
+	declare -A slicesinfo
+	
+    {	callpeak::mkreplicates && \
+		alignment::postprocess \
+			-S ${nouniq:=false} \
+			-s ${Suniq:=false} \
+			-j uniqify \
+			-t $THREADS \
+			-p $TMPDIR \
+			-o $OUTDIR/mapped \
+			-r mapper && \
+		alignment::postprocess \
+			-S ${nosort:=false} \
+			-s ${Ssort:=false} \
+			-j sort \
+			-t $THREADS \
+			-p $TMPDIR \
+			-o $OUTDIR/mapped \
+			-r mapper && \
+		alignment::slice \
+			-S false \
+			-s ${Sslice:=false} \
+			-t $THREADS \
+			-m $MEMORY \
+			-r mapper \
+			-c slicesinfo \
+			-p $TMPDIR && \
+		alignment::rmduplicates \
+			-S ${normd:=false} \
+			-s ${Srmd:=false} \
+			-t $THREADS \
+			-m $MEMORY \
+			-r mapper \
+			-c slicesinfo \
+			-x "$REGEX" \
+			-p $TMPDIR \
+			-o $OUTDIR/mapped && \
+		alignment::postprocess \
+			-S ${noidx:=false} \
+			-s ${Sidx:=false} \
+			-j index \
+			-t $THREADS \
+			-p $TMPDIR \
+			-o $OUTDIR/mapped \
+			-r mapper
+		callpeak::macs_$IPTYPE && \
+		callpeak::gem_$IPTYPE
+	} || return 1
 
 	return 0
 }

@@ -47,6 +47,7 @@ TMPDIR=$OUTDIR
 REGEX='\S+:(\d+):(\d+):(\d+)\s*.*'
 DISTANCE=5
 FRAGMENTSIZE=150
+IPTYPE='chip'
 # all idx of FASTQ1[.] are equal to MAPPER[.]
 nidx=() #normal idx 
 nridx=() #normal replicate idx 
@@ -90,7 +91,6 @@ else
 		fi
 	}
 fi
-[[ ! $tfq1 ]] && normd=true
 
 
 i=-1
@@ -130,8 +130,14 @@ unset IFS
 
 commander::print "rippchen started with command: $CMD" | tee $LOG || die "cannot access $LOG"
 progress::log -v $VERBOSITY -o $LOG
-pipeline::rippchen &>> $LOG || die
+
+if [[ $tfq1 ]]; then
+	[[ $IPTYPE == 'chip' ]] && nosplit=true || IPTYPE='rip'
+	pipeline::callpeak &>> $LOG || die
+else
+	normd=true
+	pipeline::dea &>> $LOG || die
+fi
 
 commander::print "success" | tee -a $LOG
-
 exit 0
