@@ -4,7 +4,7 @@ trap 'die' INT TERM
 trap 'kill -PIPE $(pstree -p $$ | grep -Eo "\([0-9]+\)" | grep -Eo "[0-9]+") &> /dev/null' EXIT
 
 die() {
-	unset cleanup
+	unset CLEANUP
 	echo -ne "\e[0;31m"
 	echo ":ERROR: $*" >&2
 	echo -ne "\e[m"
@@ -12,7 +12,7 @@ die() {
 }
 
 cleanup() {
-	if [[ $cleanup ]]; then
+	if [[ $CLEANUP ]]; then
 		local b e
 		for f in "${FASTQ1[@]}"; do
 			helper::basename -f "$f" -o b -e e
@@ -28,7 +28,7 @@ cleanup() {
 }
 
 [[ ! $OSTYPE =~ linux ]] && die "unsupported operating system"
-bash --version | head -1 | cut -d ' ' -f 4 | cut -d '.' -f 1-2 | awk '$0<4.4{exit 1}' || die "requieres bash version 4.4 or above"
+[[ ${BASH_VERSINFO[0]} -eq 4 && ${BASH_VERSINFO[1]} -ge 4 ]] || [[ ${BASH_VERSINFO[0]} -gt 4 ]] || die "requieres bash version 4.4 or above"
 [[ ! $RIPPCHEN ]] && die "cannot find installation. please run setup and/or do: export RIPPCHEN=/path/to/install/dir"
 INSDIR=$RIPPCHEN
 for f in {$INSDIR/latest/bashbone/lib/*.sh,$INSDIR/latest/rippchen/lib/*.sh}; do
@@ -40,7 +40,7 @@ CMD="$(basename $0) $*"
 THREADS=$(grep -cF processor /proc/cpuinfo)
 MAXMEMORY=$(grep -F -i memavailable /proc/meminfo | awk '{printf("%d",$2*0.9/1024)}')
 MEMORY=30000
-[[ MTHREADS=$[MAXMEMORY/MEMORY] -gt $THREADS ]] && MTHREADS=$THREADS
+[[ MTHREADS=$((MAXMEMORY/MEMORY)) -gt $THREADS ]] && MTHREADS=$THREADS
 VERBOSITY=0
 OUTDIR=$PWD/results
 TMPDIR=$OUTDIR

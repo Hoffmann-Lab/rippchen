@@ -46,13 +46,13 @@ options::usage() {
 		-g       | --genome [path]          : genome fasta input, without only preprocessing is performed
 		-gtf     | --gtf [path]             : annotation gtf input - optional, default: genome.fasta.gtf
 		-a       | --adapter [string,..]    : adapter sequence(s), comma seperated - optional
-		-o       | --out [path]             : output directory - default: $outdir
-		-l       | --log [path]             : output directory - default: $outdir/run.log
-		-tmp     | --tmp                    : temporary directory - default: $tmpdir/rippchen_tmp
-		-t       | --threads [value]        : threads - predicted default: $threads
+		-o       | --out [path]             : output directory - default: $OUTDIR
+		-l       | --log [path]             : output directory - default: $OUTDIR/run.log
+		-tmp     | --tmp                    : temporary directory - default: $TMPDIR/rippchen_tmp
+		-t       | --threads [value]        : threads - predicted default: $THREADS
 		-mem     | --memory [value]         : amout of memory for creating bam slices and processing them in parallel instances
-		                                      available: $maxmemory
-		                                      default: 30000 (allows for $mthreads instances)
+		                                      available: $MAXMEMORY
+		                                      default: 30000 (allows for $MTHREADS instances)
 		                                      NOTE: needs to be raised in case of GCThreads, HeapSize or OutOfMemory errors
 
 		PEAK CALLING OPTIONS
@@ -100,8 +100,6 @@ options::usage() {
 		-resume  | --resume-from [value]    : resume from a specific pipeline step - see -dev|--devel
 		-skip    | --skip [value,..]        : skip specific pipeline step(s) - see -dev|--devel, comma seperated
 		-redo    | --redo [value]           : just rerun a specific pipeline step - see -dev|--devel, comma seperated
-		-d       | --distance               : maximum read alignment edit distance in % - default: 5
-		-i       | --insertsize             : maximum allowed insert for aligning mate pairs - default: 200000
 		-no-qual | --no-qualityanalysis     : disables quality analysis
 		-no-clip | --no-clipping            : disables removal of adapter sequences if -a|--adapter is used
 		-no-trim | --no-trimming            : disables quality trimming
@@ -109,10 +107,12 @@ options::usage() {
 		-no-rrm  | --no-rrnafilter          : disables rRNA filter
 		-no-sege | --no-segemehl            : disables mapping by Segemehl
 		-no-star | --no-star                : disables mapping by STAR
-		-no-split| --no-split               : disable split read mapping
 		-no-stats| --no-statistics          : disables fastq preprocessing statistics
 
 		ALIGNMENT OPTIONS
+		-d       | --distance               : maximum read alignment edit distance in % - default: 5
+		-i       | --insertsize             : maximum allowed insert for aligning mate pairs - default: 200000
+		-no-split| --no-split               : disable split read mapping
 		-no-uniq | --no-uniqify             : disables extraction of properly paired and uniquely mapped reads
 		-no-sort | --no-sort                : disables sorting alignments
 
@@ -163,7 +163,7 @@ options::checkopt (){
 		-h   | --help) options::usage;;
 		-dev | --devel) options::developer;;
 
-		-r   | --remove) cleanup=true;;
+		-r   | --remove) CLEANUP=true;;
 		-v   | --verbosity) arg=true; VERBOSITY=$2;;
 		-t   | --threads) arg=true; THREADS=$2;;
 		-mem | --memory) arg=true; MEMORY=$2;;
@@ -184,8 +184,8 @@ options::checkopt (){
 		-tr2 | --treatrepfq2) arg=true; rfq2=$2;;
 		-rx  | --regex) arg=true; REGEX=$2;;
 		-ip  | --iptype) arg=true; IPTYPE=$2;;
-		-c   | --comparisons) arg=true; mapfile -t -d ',' COMPARISONS <<< $2;;
-		-a   | --adapter) arg=true; mapfile -t -d ',' ADAPTER <<< $2;;
+		-c   | --comparisons) arg=true; mapfile -t -d ',' COMPARISONS <<< $2; COMPARISONS[-1]="$(sed -r 's/\s*\n*$//' <<< "${COMPARISONS[-1]}")";;
+		-a   | --adapter) arg=true; mapfile -t -d ',' ADAPTER <<< $2; ADAPTER[-1]="$(sed -r 's/\s*\n*$//' <<< "${ADAPTER[-1]}")";;
 		-d   | --distance) arg=true; DISTANCE=$2;;
 		-f   | --fragmentsize) arg=true; FRAGMENTSIZE=$2;;
 		-i   | --insertsize) arg=true; INSERTSIZE=$2;;
@@ -197,7 +197,7 @@ options::checkopt (){
 	   	-resume | --resume-from)
 			arg=true
 			# don't Smd5, Sslice !
-			for s in qual clip trim cor rrm stats sege star uniq rep sort rmd idx stats macs gem quant tpm dea join clust go; do
+			for s in qual clip trim cor rrm stats sege star uniq rep sort rmd idx macs gem quant tpm dea join clust go; do
 				[[ "$2" == "$s" ]] && break
 				eval "S$s=true"
 			done
@@ -206,7 +206,7 @@ options::checkopt (){
 			arg=true
 			mapfile -d ',' -t <<< $2
 			for x in ${MAPFILE[@]}; do # do not quote!! "MAPFILE[@]" appends newline to last element
-				for s in md5 qual clip trim cor rrm stats sege star uniq rep sort slice rmd idx stats macs gem quant tpm dea join clust go; do
+				for s in md5 qual clip trim cor rrm stats sege star uniq rep sort slice rmd idx macs gem quant tpm dea join clust go; do
 					[[ "$x" == "$s" ]] && eval "S$s=true"
 				done
 			done
@@ -214,7 +214,7 @@ options::checkopt (){
 		-redo | --redo)
 			arg=true
 			# don't Smd5, Sslice !
-			for s in qual clip trim cor rrm stats sege star uniq rep sort rmd idx stats macs gem quant tpm dea join clust go; do
+			for s in qual clip trim cor rrm stats sege star uniq rep sort rmd idx macs gem quant tpm dea join clust go; do
 				[[ "$2" == "$s" ]] && continue
 				eval "S$s=true"
 			done

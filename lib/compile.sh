@@ -33,7 +33,7 @@ compile::rippchen() {
 
 	commander::print "installing rippchen"
 	{	mkdir -p $insdir/rippchen-$version && \
-		cp -r $(ls -d $SRC/!(bashbone|setup*)) $insdir/rippchen-$version && \
+		cp -r $SRC/!(bashbone|setup*) $insdir/rippchen-$version && \
 		mkdir -p $insdir/latest && \
 		ln -sfn $insdir/rippchen-$version $insdir/latest/rippchen
 	} || return 1
