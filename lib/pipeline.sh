@@ -252,12 +252,20 @@ pipeline::_slice(){
 
 pipeline::callpeak() {
 	declare -a mapper
+	declare -A slicesinfo
 
 	pipeline::_preprocess || return 1
 	[[ ${#mapper[@]} -eq 0 ]] && return 0
 
-	local sliced=false
-	declare -A slicesinfo
+	genome::mkdict \
+		-S ${nodict:=false} \
+		-s ${Sdict:=false} \
+		-5 ${Smd5:=false} \
+		-i $GENOME \
+		-p $TMPDIR \
+		-t $THREADS || return 1
+
+	local sliced=false	
 	
     {	alignment::postprocess \
 			-S ${nouniq:=false} \
