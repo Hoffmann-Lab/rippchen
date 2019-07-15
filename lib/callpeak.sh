@@ -8,7 +8,7 @@ callpeak::mkreplicates() { #for peak calling only
 	cmd1=()
 	cmd2=()
 	if [[ $ridx ]]; then # pool replicates: m[N1 N2 T1 T2 R1 R2] -> m[N1 N2 T1 T2 R1 R2 P1 P2]
-		for r in ${MAPPER[@]}; do
+		for r in ${mapper[@]}; do
 			declare -n m=$r
 			j=$[${#m[@]}-1]
 			mkdir -p $TMPDIR/$r
@@ -50,7 +50,7 @@ callpeak::mkreplicates() { #for peak calling only
 			ridx+=(${ridx[@]} ${ridx[@]})
 			pidx+=(${pidx[@]})
 			addindex=true
-			for r in ${MAPPER[@]}; do
+			for r in ${mapper[@]}; do
 				declare -n m=$r
 				j=$[${#m[@]}-1]
 				mkdir -p $TMPDIR/$r
@@ -74,13 +74,13 @@ callpeak::mkreplicates() { #for peak calling only
 		thr=1
 	else # make pseudo-replicates from pseudo-pool: # m[N1 N2 P1 P2] -> m[N1 N2 P1 P2 T1 R1 T2 R2]
 		instances=0
-		for r in ${MAPPER[@]}; do
+		for r in ${mapper[@]}; do
 			declare -n m=$r
 			instances=$[instances+${#m[@]}]
 		done
 		[[ thr=$[THREADS/instances] -eq 0 ]] && thr=1
 
-		for r in ${MAPPER[@]}; do
+		for r in ${mapper[@]}; do
 			declare -n m=$r
 			j=$[${#m[@]}-1]
 			mkdir -p $TMPDIR/$r
@@ -121,7 +121,7 @@ callpeak::macs_chip() {
 	cmd2=()
 	cmd3=()
 	cmd4=()
-	for r in ${MAPPER[@]}; do
+	for r in ${mapper[@]}; do
 		declare -n m=$r
 		odir=$OUTDIR/peaks/$r/macs
 		tmp=$TMPDIR/$r
@@ -144,12 +144,12 @@ callpeak::macs_chip() {
 			cmd0+=("samtools view -h ${m[${ridx[$i]}]} > ${m[${ridx[$i]}]}.sam\0")
 			cmd0+=("samtools view -h ${m[${nidx[$i]}]} > ${m[${nidx[$i]}]}.sam\0")
 
-			cmd1+=("macs2 callpeak -t ${m[${pidx[$i]}]}.sam -c ${m[${nidx[$i]}]}.sam -f SAM -g hs --OUTDIR $odir -n $on-vs-$op.model --tempdir $tmp -B --SPMR --keep-dup all -q 0.05 --verbose 1\0")
-			cmd1+=("macs2 callpeak -t ${m[${pidx[$i]}]}.sam -c ${m[${nidx[$i]}]}.sam -f SAM -g hs --OUTDIR $odir -n $on-vs-$op.nomodel --tempdir $tmp -B --SPMR --keep-dup all -q 0.05 --verbose 1 --nomodel --shift 0 --extsize $FRAGMENTSIZE\0")
-			cmd1+=("macs2 callpeak -t ${m[${tidx[$i]}]}.sam -c ${m[${nidx[$i]}]}.sam -f SAM -g hs --OUTDIR $odir -n $on-vs-$ot.model --tempdir $tmp -B --SPMR --keep-dup all -q 0.05 --verbose 1\0")
-			cmd1+=("macs2 callpeak -t ${m[${tidx[$i]}]}.sam -c ${m[${nidx[$i]}]}.sam -f SAM -g hs --OUTDIR $odir -n $on-vs-$ot.nomodel --tempdir $tmp -B --SPMR --keep-dup all -q 0.05 --verbose 1 --nomodel --shift -0 --extsize $FRAGMENTSIZE\0")
-			cmd1+=("macs2 callpeak -t ${m[${ridx[$i]}]}.sam -c ${m[${nidx[$i]}]}.sam -f SAM -g hs --OUTDIR $odir -n $on-vs-$or.model --tempdir $tmp -B --SPMR --keep-dup all -q 0.05 --verbose 1\0")
-			cmd1+=("macs2 callpeak -t ${m[${ridx[$i]}]}.sam -c ${m[${nidx[$i]}]}.sam -f SAM -g hs --OUTDIR $odir -n $on-vs-$or.nomodel --tempdir $tmp -B --SPMR --keep-dup all -q 0.05 --verbose 1 --nomodel --shift -0 --extsize $FRAGMENTSIZE\0")
+			cmd1+=("macs2 callpeak -t ${m[${pidx[$i]}]}.sam -c ${m[${nidx[$i]}]}.sam -f SAM -g hs --outdir $odir -n $on-vs-$op.model --tempdir $tmp -B --SPMR --keep-dup all -q 0.05 --verbose 1\0")
+			cmd1+=("macs2 callpeak -t ${m[${pidx[$i]}]}.sam -c ${m[${nidx[$i]}]}.sam -f SAM -g hs --outdir $odir -n $on-vs-$op.nomodel --tempdir $tmp -B --SPMR --keep-dup all -q 0.05 --verbose 1 --nomodel --shift 0 --extsize $FRAGMENTSIZE\0")
+			cmd1+=("macs2 callpeak -t ${m[${tidx[$i]}]}.sam -c ${m[${nidx[$i]}]}.sam -f SAM -g hs --outdir $odir -n $on-vs-$ot.model --tempdir $tmp -B --SPMR --keep-dup all -q 0.05 --verbose 1\0")
+			cmd1+=("macs2 callpeak -t ${m[${tidx[$i]}]}.sam -c ${m[${nidx[$i]}]}.sam -f SAM -g hs --outdir $odir -n $on-vs-$ot.nomodel --tempdir $tmp -B --SPMR --keep-dup all -q 0.05 --verbose 1 --nomodel --shift -0 --extsize $FRAGMENTSIZE\0")
+			cmd1+=("macs2 callpeak -t ${m[${ridx[$i]}]}.sam -c ${m[${nidx[$i]}]}.sam -f SAM -g hs --outdir $odir -n $on-vs-$or.model --tempdir $tmp -B --SPMR --keep-dup all -q 0.05 --verbose 1\0")
+			cmd1+=("macs2 callpeak -t ${m[${ridx[$i]}]}.sam -c ${m[${nidx[$i]}]}.sam -f SAM -g hs --outdir $odir -n $on-vs-$or.nomodel --tempdir $tmp -B --SPMR --keep-dup all -q 0.05 --verbose 1 --nomodel --shift -0 --extsize $FRAGMENTSIZE\0")
 
 			cmd2+=("bedtools merge -c 5,7,8,9 -o collapse -i <(sort -k1,1V -k2,2n -k3,3n $odir/$on-vs-$op.model_peaks.narrowPeak $odir/$on-vs-$op.nomodel_peaks.narrowPeak) | perl -M'List::Util qw(max)' -lane 'print join(\"\\\t\",@F[0..2],\"merged_peak_\".(++\$x),max(split/,/,\$F[3]),\".\",max(split/,/,\$F[4]),max(split/,/,\$F[5]),max(split/,/,\$F[6]),\"-1\")' > $odir/$on-vs-$op.merged_peaks.narrowPeak\0")
 			cmd2+=("bedtools merge -c 5,7,8,9 -o collapse -i <(sort -k1,1V -k2,2n -k3,3n $odir/$on-vs-$ot.model_peaks.narrowPeak $odir/$on-vs-$ot.nomodel_peaks.narrowPeak) | perl -M'List::Util qw(max)' -lane 'print join(\"\\\t\",@F[0..2],\"merged_peak_\".(++\$x),max(split/,/,\$F[3]),\".\",max(split/,/,\$F[4]),max(split/,/,\$F[5]),max(split/,/,\$F[6]),\"-1\")' > $odir/$on-vs-$ot.merged_peaks.narrowPeak\0")
@@ -199,7 +199,7 @@ callpeak::macs_rip() {
 	cmd2=()
 	cmd3=()
 	cmd4=()
-	for r in ${MAPPER[@]}; do
+	for r in ${mapper[@]}; do
 		declare -n m=$r
 		odir=$OUTDIR/peaks/$r/macs
 		tmp=$TMPDIR/$r
@@ -220,12 +220,12 @@ callpeak::macs_rip() {
 			cmd0+=("samtools view -h ${m[${nidx[$i]}]} > ${m[${nidx[$i]}]}.sam\0")
 
 			#--shift 30 semmed to work well but cannot be explained
-			cmd1+=("macs2 callpeak -t ${m[${pidx[$i]}]}.sam -c ${m[${nidx[$i]}]}.sam -f SAM -g hs --OUTDIR $odir -n $op.model --tempdir $tmp -B --SPMR --keep-dup all -q 0.05 --verbose 1 --mfold 3 500 --bw $FRAGMENTSIZE\0")
-			cmd1+=("macs2 callpeak -t ${m[${pidx[$i]}]}.sam -c ${m[${nidx[$i]}]}.sam -f SAM -g hs --OUTDIR $odir -n $op.nomodel --tempdir $tmp -B --SPMR --keep-dup all -q 0.05 --verbose 1 --nomodel --shift 0 --extsize $[FRAGMENTSIZE-0]\0")
-			cmd1+=("macs2 callpeak -t ${m[${tidx[$i]}]}.sam -c ${m[${nidx[$i]}]}.sam -f SAM -g hs --OUTDIR $odir -n $ot.model --tempdir $tmp -B --SPMR --keep-dup all -q 0.05 --verbose 1 --mfold 3 500 --bw $FRAGMENTSIZE\0")
-			cmd1+=("macs2 callpeak -t ${m[${tidx[$i]}]}.sam -c ${m[${nidx[$i]}]}.sam -f SAM -g hs --OUTDIR $odir -n $ot.nomodel --tempdir $tmp -B --SPMR --keep-dup all -q 0.05 --verbose 1 --nomodel --shift 0 --extsize $[FRAGMENTSIZE-0]\0")
-			cmd1+=("macs2 callpeak -t ${m[${ridx[$i]}]}.sam -c ${m[${nidx[$i]}]}.sam -f SAM -g hs --OUTDIR $odir -n $or.model --tempdir $tmp -B --SPMR --keep-dup all -q 0.05 --verbose 1 --mfold 3 500 --bw $FRAGMENTSIZE\0")
-			cmd1+=("macs2 callpeak -t ${m[${ridx[$i]}]}.sam -c ${m[${nidx[$i]}]}.sam -f SAM -g hs --OUTDIR $odir -n $or.nomodel --tempdir $tmp -B --SPMR --keep-dup all -q 0.05 --verbose 1 --nomodel --shift 0 --extsize $[FRAGMENTSIZE-0]\0")
+			cmd1+=("macs2 callpeak -t ${m[${pidx[$i]}]}.sam -c ${m[${nidx[$i]}]}.sam -f SAM -g hs --outdir $odir -n $op.model --tempdir $tmp -B --SPMR --keep-dup all -q 0.05 --verbose 1 --mfold 3 500 --bw $FRAGMENTSIZE\0")
+			cmd1+=("macs2 callpeak -t ${m[${pidx[$i]}]}.sam -c ${m[${nidx[$i]}]}.sam -f SAM -g hs --outdir $odir -n $op.nomodel --tempdir $tmp -B --SPMR --keep-dup all -q 0.05 --verbose 1 --nomodel --shift 0 --extsize $[FRAGMENTSIZE-0]\0")
+			cmd1+=("macs2 callpeak -t ${m[${tidx[$i]}]}.sam -c ${m[${nidx[$i]}]}.sam -f SAM -g hs --outdir $odir -n $ot.model --tempdir $tmp -B --SPMR --keep-dup all -q 0.05 --verbose 1 --mfold 3 500 --bw $FRAGMENTSIZE\0")
+			cmd1+=("macs2 callpeak -t ${m[${tidx[$i]}]}.sam -c ${m[${nidx[$i]}]}.sam -f SAM -g hs --outdir $odir -n $ot.nomodel --tempdir $tmp -B --SPMR --keep-dup all -q 0.05 --verbose 1 --nomodel --shift 0 --extsize $[FRAGMENTSIZE-0]\0")
+			cmd1+=("macs2 callpeak -t ${m[${ridx[$i]}]}.sam -c ${m[${nidx[$i]}]}.sam -f SAM -g hs --outdir $odir -n $or.model --tempdir $tmp -B --SPMR --keep-dup all -q 0.05 --verbose 1 --mfold 3 500 --bw $FRAGMENTSIZE\0")
+			cmd1+=("macs2 callpeak -t ${m[${ridx[$i]}]}.sam -c ${m[${nidx[$i]}]}.sam -f SAM -g hs --outdir $odir -n $or.nomodel --tempdir $tmp -B --SPMR --keep-dup all -q 0.05 --verbose 1 --nomodel --shift 0 --extsize $[FRAGMENTSIZE-0]\0")
 
 			cmd2+=("bedtools merge -c 5,7,8,9 -o collapse -i <(sort -k1,1V -k2,2n -k3,3n $odir/$op.model_peaks.narrowPeak $odir/$op.nomodel_peaks.narrowPeak) | perl -M'List::Util qw(max)' -lane 'print join(\"\\\t\",@F[0..2],\"merged_peak_\".(++\$x),max(split/,/,\$F[3]),\".\",max(split/,/,\$F[4]),max(split/,/,\$F[5]),max(split/,/,\$F[6]),\"-1\")' > $odir/$op.narrowPeak\0")
 			cmd2+=("bedtools merge -c 5,7,8,9 -o collapse -i <(sort -k1,1V -k2,2n -k3,3n $odir/$ot.model_peaks.narrowPeak $odir/$ot.nomodel_peaks.narrowPeak) | perl -M'List::Util qw(max)' -lane 'print join(\"\\\t\",@F[0..2],\"merged_peak_\".(++\$x),max(split/,/,\$F[3]),\".\",max(split/,/,\$F[4]),max(split/,/,\$F[5]),max(split/,/,\$F[6]),\"-1\")' > $odir/$ot.narrowPeak\0")
@@ -262,27 +262,23 @@ callpeak::gem_chip() {
 
 	if [[ ! $Sgem ]]; then
 		mkdir -p $TMPDIR/genome
-		for r in ${MAPPER[@]}; do
+		for r in ${mapper[@]}; do
 			declare -n m=$r
 			samtools view -H ${m[${pidx[0]}]} | sed -rn '/^@SQ/{s/.+\tSN:(\S+)\s+LN:(\S+).*/\1\t\2/p}' > $TMPDIR/genome/chr.info
 			break
 		done
-		perl -lane 'if($_=~/^>(\S+)/){close F; open F,">'$TMPDIR'/genome/$1.fa"; print F $_;}else{print F $_}; END{close F;}' $genome
+		perl -lane 'if($_=~/^>(\S+)/){close F; open F,">'$TMPDIR'/genome/$1.fa"; print F $_;}else{print F $_}; END{close F;}' $GENOME
 	fi
 
-	jmem=$memory
-	[[ $jmem -gt $mem ]] && jmem=$mem
-	jgct=$[(3+5*THREADS/8)/instances]
-    [[ $jgct -eq 0 ]] && jgct=1
-    jmgct=$[jgct/4]
-    [[ $jmgct -eq 0 ]] && jmgct=1
+	local instances=$((${#mapper[@]}*${#nidx[@]}*3)) ithreads jmem jgct jcgct
+	read -r instances ithreads jmem jgct jcgct < <(configure::jvm -i $instances -T $THREADS)
 
 	cmd1=()
 	cmd2=()
 	cmd3=()
-	for r in ${MAPPER[@]}; do
+	for r in ${mapper[@]}; do
 		declare -n m=$r
-		odir=$OUTDIR/peaks/$r/gem		
+		odir=$OUTDIR/peaks/$r/gem	
 		tmp=$TMPDIR/$r/gem
 		mkdir -p $tmp
 		pooldir=()
@@ -295,11 +291,12 @@ callpeak::gem_chip() {
 			ot=${ot%.*}
 			or=$(basename ${m[${ridx[$i]}]} | sed -r 's/\.(sorted|unique|rmdup)//g')
 			or=${or%.*}
+			mkdir -p $odir/$on-vs-$op $odir/$on-vs-$ot $odir/$on-vs-$or
 			
 			# --k_min 4 --k_max 13 and replace GPS_events to GEM_events
-			cmd1+=("gem -Xmx${jmem}m -XX:ParallelGCThreads=$jgct -XX:ConcGCThreads=$jmgct -Djava.io.TMPDIR=$TMPDIR --t $THREADS --genome $TMPDIR/genome --g $TMPDIR/genome/chr.info --out $odir/$on-vs-$op --expt ${m[${pidx[$i]}]} --ctrl ${m[${nidx[$i]}]} --f SAM --nrf --d $insdir/bin/gem/Read_Distribution_default.txt --s 2400000000 --q $(echo 0.05 | awk '{print -log($1)/log(10)}') --outNP && cp $odir/$on-vs-$op/$on-vs-$op.GPS_events.narrowPeak $odir/$on-vs-$op.narrowPeak\0")
-			cmd1+=("gem -Xmx${jmem}m -XX:ParallelGCThreads=$jgct -XX:ConcGCThreads=$jmgct -Djava.io.TMPDIR=$TMPDIR --t $THREADS --genome $TMPDIR/genome --g $TMPDIR/genome/chr.info --out $odir/$on-vs-$ot --expt ${m[${tidx[$i]}]} --ctrl ${m[${nidx[$i]}]} --f SAM --nrf --d $insdir/bin/gem/Read_Distribution_default.txt --s 2400000000 --q $(echo 0.05 | awk '{print -log($1)/log(10)}') --outNP && cp $odir/$on-vs-$ot/$on-vs-$ot.GPS_events.narrowPeak $odir/$on-vs-$ot.narrowPeak\0")
-			cmd1+=("gem -Xmx${jmem}m -XX:ParallelGCThreads=$jgct -XX:ConcGCThreads=$jmgct -Djava.io.TMPDIR=$TMPDIR --t $THREADS --genome $TMPDIR/genome --g $TMPDIR/genome/chr.info --out $odir/$on-vs-$or --expt ${m[${ridx[$i]}]} --ctrl ${m[${nidx[$i]}]} --f SAM --nrf --d $insdir/bin/gem/Read_Distribution_default.txt --s 2400000000 --q $(echo 0.05 | awk '{print -log($1)/log(10)}') --outNP && cp $odir/$on-vs-$or/$on-vs-$or.GPS_events.narrowPeak $odir/$on-vs-$or.narrowPeak\0")
+			cmd1+=("gem -Xmx${jmem}m -XX:ParallelGCThreads=$jgct -XX:ConcGCThreads=$jcgct -Djava.io.TMPDIR=$TMPDIR --t $THREADS --genome $TMPDIR/genome --g $TMPDIR/genome/chr.info --out $odir/$on-vs-$op --expt ${m[${pidx[$i]}]} --ctrl ${m[${nidx[$i]}]} --f SAM --nrf --d $INSDIR/latest/gem/Read_Distribution_default.txt --s 2400000000 --q $(echo 0.05 | awk '{print -log($1)/log(10)}') --outNP && cp $odir/$on-vs-$op/$on-vs-$op.GPS_events.narrowPeak $odir/$on-vs-$op.narrowPeak\0")
+			cmd1+=("gem -Xmx${jmem}m -XX:ParallelGCThreads=$jgct -XX:ConcGCThreads=$jcgct -Djava.io.TMPDIR=$TMPDIR --t $THREADS --genome $TMPDIR/genome --g $TMPDIR/genome/chr.info --out $odir/$on-vs-$ot --expt ${m[${tidx[$i]}]} --ctrl ${m[${nidx[$i]}]} --f SAM --nrf --d $INSDIR/latest/gem/Read_Distribution_default.txt --s 2400000000 --q $(echo 0.05 | awk '{print -log($1)/log(10)}') --outNP && cp $odir/$on-vs-$ot/$on-vs-$ot.GPS_events.narrowPeak $odir/$on-vs-$ot.narrowPeak\0")
+			cmd1+=("gem -Xmx${jmem}m -XX:ParallelGCThreads=$jgct -XX:ConcGCThreads=$jcgct -Djava.io.TMPDIR=$TMPDIR --t $THREADS --genome $TMPDIR/genome --g $TMPDIR/genome/chr.info --out $odir/$on-vs-$or --expt ${m[${ridx[$i]}]} --ctrl ${m[${nidx[$i]}]} --f SAM --nrf --d $INSDIR/latest/gem/Read_Distribution_default.txt --s 2400000000 --q $(echo 0.05 | awk '{print -log($1)/log(10)}') --outNP && cp $odir/$on-vs-$or/$on-vs-$or.GPS_events.narrowPeak $odir/$on-vs-$or.narrowPeak\0")
 
 			cmd2+=("idr --samples $odir/$on-vs-$ot.narrowPeak $odir/$on-vs-$or.narrowPeak --peak-list $odir/$on-vs-$op.narrowPeak --input-file-type narrowPeak --output-file $tmp/$on-vs-$op.idr --rank p.value --soft-idr-threshold 0.05 --plot --use-best-multisummit-IDR\0")
 
@@ -337,27 +334,23 @@ callpeak::gem_rip() {
 
 	if [[ ! $Sgem ]]; then
 		mkdir -p $TMPDIR/genome
-		for r in ${MAPPER[@]}; do
+		for r in ${mapper[@]}; do
 			declare -n m=$r
 			samtools view -H ${m[${pidx[0]}]} | sed -rn '/^@SQ/{s/.+\tSN:(\S+)\s+LN:(\S+).*/\1\t\2/p}' > $TMPDIR/genome/chr.info
 			break
 		done
-		perl -lane 'if($_=~/^>(\S+)/){close F; open F,">'$TMPDIR'/genome/$1.fa"; print F $_;}else{print F $_}; END{close F;}' $genome
+		perl -lane 'if($_=~/^>(\S+)/){close F; open F,">'$TMPDIR'/genome/$1.fa"; print F $_;}else{print F $_}; END{close F;}' $GENOME
 	fi
 
-	jmem=$memory
-	[[ $jmem -gt $mem ]] && jmem=$mem
-	jgct=$[(3+5*THREADS/8)/instances]
-    [[ $jgct -eq 0 ]] && jgct=1
-    jmgct=$[jgct/4]
-    [[ $jmgct -eq 0 ]] && jmgct=1
+	local instances=$((${#mapper[@]}*${#nidx[@]}*3)) ithreads jmem jgct jcgct
+	read -r instances ithreads jmem jgct jcgct < <(configure::jvm -i $instances -T $THREADS)
 
 	cmd1=()
 	cmd2=()
 	cmd3=()
-	for r in ${MAPPER[@]}; do
+	for r in ${mapper[@]}; do
 		declare -n m=$r
-		odir=$OUTDIR/peaks/$r/gem		
+		odir=$OUTDIR/peaks/$r/gem
 		tmp=$TMPDIR/$r/gem
 		for i in ${!nidx[@]}; do
 			op=$(basename ${m[${pidx[$i]}]})
@@ -366,12 +359,12 @@ callpeak::gem_rip() {
 			ot=${ot%.*}
 			or=$(basename ${m[${ridx[$i]}]})
 			or=${or%.*}
-			
 			mkdir -p $tmp $odir/$op $odir/$ot $odir/$or
+
 			# --k_min 4 --k_max 13 and replace GPS_events to GEM_events
-			cmd1+=("gem -Xmx${jmem}m -XX:ParallelGCThreads=$jgct -XX:ConcGCThreads=$jmgct -Djava.io.TMPDIR=$TMPDIR --t $THREADS --genome $TMPDIR/genome --g $TMPDIR/genome/chr.info --out $odir/$op --expt ${m[${pidx[$i]}]} --ctrl ${m[${nidx[$i]}]} --f SAM --nrf --d $RIPPCHEN/gem/Read_Distribution_default.txt --s 2400000000 --q $(echo 0.05 | awk '{print -log($1)/log(10)}') --outNP --smooth $[FRAGMENTSIZE/2] && cp $odir/$op/$op.GPS_events.narrowPeak $odir/$op.narrowPeak\0")
-			cmd1+=("gem -Xmx${jmem}m -XX:ParallelGCThreads=$jgct -XX:ConcGCThreads=$jmgct -Djava.io.TMPDIR=$TMPDIR --t $THREADS --genome $TMPDIR/genome --g $TMPDIR/genome/chr.info --out $odir/$ot --expt ${m[${tidx[$i]}]} --ctrl ${m[${nidx[$i]}]} --f SAM --nrf --d $RIPPCHEN/gem/Read_Distribution_default.txt --s 2400000000 --q $(echo 0.05 | awk '{print -log($1)/log(10)}') --outNP --smooth $[FRAGMENTSIZE/2] && cp $odir/$ot/$ot.GPS_events.narrowPeak $odir/$ot.narrowPeak\0")
-			cmd1+=("gem -Xmx${jmem}m -XX:ParallelGCThreads=$jgct -XX:ConcGCThreads=$jmgct -Djava.io.TMPDIR=$TMPDIR --t $THREADS --genome $TMPDIR/genome --g $TMPDIR/genome/chr.info --out $odir/$or --expt ${m[${ridx[$i]}]} --ctrl ${m[${nidx[$i]}]} --f SAM --nrf --d $RIPPCHEN/gem/Read_Distribution_default.txt --s 2400000000 --q $(echo 0.05 | awk '{print -log($1)/log(10)}') --outNP --smooth $[FRAGMENTSIZE/2] && cp $odir/$or/$or.GPS_events.narrowPeak $odir/$or.narrowPeak\0")
+			cmd1+=("gem -Xmx${jmem}m -XX:ParallelGCThreads=$jgct -XX:ConcGCThreads=$jcgct -Djava.io.TMPDIR=$TMPDIR --t $THREADS --genome $TMPDIR/genome --g $TMPDIR/genome/chr.info --out $odir/$op --expt ${m[${pidx[$i]}]} --ctrl ${m[${nidx[$i]}]} --f SAM --nrf --d $INSDIR/latest/gem/Read_Distribution_default.txt --s 2400000000 --q $(echo 0.05 | awk '{print -log($1)/log(10)}') --outNP --smooth $[FRAGMENTSIZE/2] && cp $odir/$op/$op.GPS_events.narrowPeak $odir/$op.narrowPeak\0")
+			cmd1+=("gem -Xmx${jmem}m -XX:ParallelGCThreads=$jgct -XX:ConcGCThreads=$jcgct -Djava.io.TMPDIR=$TMPDIR --t $THREADS --genome $TMPDIR/genome --g $TMPDIR/genome/chr.info --out $odir/$ot --expt ${m[${tidx[$i]}]} --ctrl ${m[${nidx[$i]}]} --f SAM --nrf --d $INSDIR/latest/gem/Read_Distribution_default.txt --s 2400000000 --q $(echo 0.05 | awk '{print -log($1)/log(10)}') --outNP --smooth $[FRAGMENTSIZE/2] && cp $odir/$ot/$ot.GPS_events.narrowPeak $odir/$ot.narrowPeak\0")
+			cmd1+=("gem -Xmx${jmem}m -XX:ParallelGCThreads=$jgct -XX:ConcGCThreads=$jcgct -Djava.io.TMPDIR=$TMPDIR --t $THREADS --genome $TMPDIR/genome --g $TMPDIR/genome/chr.info --out $odir/$or --expt ${m[${ridx[$i]}]} --ctrl ${m[${nidx[$i]}]} --f SAM --nrf --d $INSDIR/latest/gem/Read_Distribution_default.txt --s 2400000000 --q $(echo 0.05 | awk '{print -log($1)/log(10)}') --outNP --smooth $[FRAGMENTSIZE/2] && cp $odir/$or/$or.GPS_events.narrowPeak $odir/$or.narrowPeak\0")
 
 			cmd2+=("idr --samples $odir/$ot.narrowPeak $odir/$or.narrowPeak --peak-list $odir/$op.narrowPeak --input-file-type narrowPeak --output-file $tmp/$op.idr --rank p.value --soft-idr-threshold 0.05 --plot --use-best-multisummit-IDR\0")
 
@@ -414,7 +407,7 @@ ___template() {
 	cmd1=()
 	cmd2=()
 	cmd3=()
-	for r in ${MAPPER[@]}; do
+	for r in ${mapper[@]}; do
 		declare -n m=$r #not necessary here
 		mkdir -p $TMPDIR/$r
 		for i in ${!nidx[@]}; do

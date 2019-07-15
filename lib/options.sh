@@ -48,7 +48,7 @@ options::usage() {
 		-a       | --adapter [string,..]    : adapter sequence(s), comma seperated - optional
 		-o       | --out [path]             : output directory - default: $OUTDIR
 		-l       | --log [path]             : output directory - default: $OUTDIR/run.log
-		-tmp     | --tmp                    : temporary directory - default: $TMPDIR/rippchen_tmp
+		-tmp     | --tmp                    : temporary directory - default: $TMPDIR/tmp.XXXXXXXXXX.muvac
 		-t       | --threads [value]        : threads - predicted default: $THREADS
 		-mem     | --memory [value]         : amout of memory for creating bam slices and processing them in parallel instances
 		                                      available: $MAXMEMORY
@@ -115,6 +115,7 @@ options::usage() {
 		-no-split| --no-split               : disable split read mapping
 		-no-uniq | --no-uniqify             : disables extraction of properly paired and uniquely mapped reads
 		-no-sort | --no-sort                : disables sorting alignments
+		-no-idx  | --no-index               : disables indexing alignments
 
 		REFERENCES
 		(c) Konstantin Riege
@@ -141,7 +142,7 @@ options::developer() {
 		uniq  : extraction of properly paired and uniquely mapped reads
 		rep   : pooling/generating replicates
 		sort  : sorting and indexing of sam/bam files
-		slice : slicing bams during rmd for parallelization
+		slice : better dont touch! slicing of bams for parallelization, needs -prevtmp | --previoustmp [path]
 		rmd   : removing duplicates
 		idx   : intermediate and final bam indexing
 		stats : fastq preprocessing and mapping statistics
@@ -172,6 +173,7 @@ options::checkopt (){
 		-o   | --out) arg=true; OUTDIR=$2;;
 		-l   | --log) arg=true; LOG=$2;;
 		-tmp | --tmp) arg=true; TMPDIR=$2;;
+		-prevtmp | --previoustmp) arg=true; PREVIOUSTMPDIR=$2;;
 
 		-1   | --fq1 | -n1 | --normalfq1) arg=true; nfq1=$2;;
 		-2   | --fq2 | -n2 | --normalfq2) arg=true; nfq2=$2;;
@@ -230,6 +232,7 @@ options::checkopt (){
 		-no-star  | --no-star) nostar=true;;
 		-no-uniq  | --no-uniqify) nouniq=true;;
 		-no-sort  | --no-sort) nosort=true;;
+		-no-idx   | --no-index) noidx=true;;
 		-no-stats | --no-statistics) nostats=true;;
 		-no-rmd   | --no-removeduplicates) normd=true;;
 		-no-macs  | --no-macs) nomacs=true;;

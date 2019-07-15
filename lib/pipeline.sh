@@ -65,7 +65,8 @@ pipeline::_preprocess(){
 			} || return 1
 		}
 		${nocor:=false} || {
-			{	preprocess::rcorrector \
+			{	qualdirs+=("$OUTDIR/qualities/corrected") && \
+				preprocess::rcorrector \
 					-S ${nocor:=false} \
 					-s ${Scor:=false} \
 					-t $THREADS \
@@ -170,7 +171,6 @@ pipeline::dea() {
 			-o $OUTDIR/mapped \
 			-r mapper && \
 		quantify::featurecounts \
-			-l exon \
 			-S ${noquant:=false} \
 			-s ${Squant:=false} \
 			-t $THREADS \
@@ -235,16 +235,31 @@ pipeline::dea() {
 	return 0
 }
 
+pipeline::_slice(){
+	alignment::slice \
+		-S $sliced \
+		-s $(${Sslice:=false} && echo true || echo $1) \
+		-t $THREADS \
+		-m $MEMORY \
+		-r mapper \
+		-c slicesinfo \
+		-p $TMPDIR || return 1
+
+	$1 || sliced=true # i.e. if not skiptool: sliced=true and -S NOslice=true, else just by SKIPslices slicesinfo will be further updated
+
+	return 0
+}
+
 pipeline::callpeak() {
 	declare -a mapper
 
 	pipeline::_preprocess || return 1
 	[[ ${#mapper[@]} -eq 0 ]] && return 0
 
+	local sliced=false
 	declare -A slicesinfo
 	
-    {	callpeak::mkreplicates && \
-		alignment::postprocess \
+    {	alignment::postprocess \
 			-S ${nouniq:=false} \
 			-s ${Suniq:=false} \
 			-j uniqify \
@@ -252,6 +267,7 @@ pipeline::callpeak() {
 			-p $TMPDIR \
 			-o $OUTDIR/mapped \
 			-r mapper && \
+		callpeak::mkreplicates && \
 		alignment::postprocess \
 			-S ${nosort:=false} \
 			-s ${Ssort:=false} \
@@ -260,14 +276,15 @@ pipeline::callpeak() {
 			-p $TMPDIR \
 			-o $OUTDIR/mapped \
 			-r mapper && \
-		alignment::slice \
-			-S false \
-			-s ${Sslice:=false} \
-			-t $THREADS \
-			-m $MEMORY \
-			-r mapper \
-			-c slicesinfo \
-			-p $TMPDIR && \
+		# alignment::postprocess \ <- applied by alignment::slice anyways
+		# 	-S ${noidx:=false} \
+		# 	-s ${Sidx:=false} \
+		# 	-j index \
+		# 	-t $THREADS \
+		# 	-p $TMPDIR \
+		# 	-o $OUTDIR/mapped \
+		# 	-r mapper
+		pipeline::_slice $($sliced || ${Srmd:=false} || ${normd:=false} && echo true || echo false) && \
 		alignment::rmduplicates \
 			-S ${normd:=false} \
 			-s ${Srmd:=false} \

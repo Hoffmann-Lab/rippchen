@@ -1,7 +1,8 @@
 #! /usr/bin/env bash
 # (c) Konstantin Riege
 trap 'die' INT TERM
-trap 'kill -PIPE $(pstree -p $$ | grep -Eo "\([0-9]+\)" | grep -Eo "[0-9]+") &> /dev/null' EXIT
+trap 'sleep 1; kill -PIPE $(pstree -p $$ | grep -Eo "\([0-9]+\)" | grep -Eo "[0-9]+") &> /dev/null' EXIT
+shopt -s extglob
 
 die() {
 	unset CLEANUP
@@ -60,11 +61,19 @@ MAPPED=()
 
 options::parse "$@" || die "parameterization issue"
 
-TMPDIR=$TMPDIR/rippchen_tmp
 mkdir -p $OUTDIR || die "cannot access $OUTDIR"
-mkdir -p $TMPDIR || die "cannot access $TMPDIR"
 OUTDIR=$(readlink -e $OUTDIR)
-TMPDIR=$(readlink -e $TMPDIR)
+if [[ $PREVIOUSTMPDIR ]]; then
+	TMPDIR=$PREVIOUSTMPDIR
+	mkdir -p $TMPDIR || die "cannot access $TMPDIR"
+	TMPDIR=$(readlink -e $TMPDIR)
+else
+	Sslice=false
+	TMPDIR=$(readlink -e $TMPDIR)
+	TMPDIR=$(mktemp -p $TMPDIR -d --suffix=.rippchen) || die "cannot access $TMPDIR"
+fi
+
+
 [[ ! $LOG ]] && LOG=$OUTDIR/run.log
 [[ MTHREADS=$[MAXMEMORY/MEMORY] -gt $THREADS ]] && MTHREADS=$THREADS
 [[ $MTHREADS -eq 0 ]] && die "too less memory available ($MAXMEMORY)"
@@ -128,16 +137,17 @@ done
 unset IFS
 
 
-commander::print "rippchen started with command: $CMD" | tee $LOG || die "cannot access $LOG"
+commander::print "rippchen started with command: $CMD" > $LOG || die "cannot access $LOG"
+commander::print "temporary files go to: $TMPDIR" >> $LOG
 progress::log -v $VERBOSITY -o $LOG
 
 if [[ $tfq1 ]]; then
 	[[ $IPTYPE == 'chip' ]] && nosplit=true || IPTYPE='rip'
-	pipeline::callpeak &>> $LOG || die
+	pipeline::callpeak >> $LOG 2> >(tee -a $LOG >&2) || die
 else
 	normd=true
-	pipeline::dea &>> $LOG || die
+	pipeline::dea >> $LOG 2> >(tee -a $LOG >&2) || die
 fi
 
-commander::print "success" | tee -a $LOG
+commander::print "success" >> $LOG
 exit 0

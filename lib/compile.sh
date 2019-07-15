@@ -32,7 +32,8 @@ compile::rippchen() {
 	source $SRC/lib/version.sh
 
 	commander::print "installing rippchen"
-	{	mkdir -p $insdir/rippchen-$version && \
+	{	rm -rf $insdir/rippchen-$version && \
+		mkdir -p $insdir/rippchen-$version && \
 		cp -r $SRC/!(bashbone|setup*) $insdir/rippchen-$version && \
 		mkdir -p $insdir/latest && \
 		ln -sfn $insdir/rippchen-$version $insdir/latest/rippchen
@@ -45,6 +46,9 @@ compile::upgrade(){
 	local insdir threads
 	compile::_parse -r insdir -s threads "$@" || return 1
 
-	compile::rippchen -i "$insdir" -t $threads || return 1
+	{	compile::rippchen -i "$insdir" -t $threads && \
+		compile::bashbone -i "$insdir" -t $threads
+	} || return 1
+	
 	return 0
 }
