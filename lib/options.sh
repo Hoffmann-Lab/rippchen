@@ -99,7 +99,7 @@ options::usage() {
 		GENERAL OPTIONS
 		-resume  | --resume-from [value]    : resume from a specific pipeline step - see -dev|--devel
 		-skip    | --skip [value,..]        : skip specific pipeline step(s) - see -dev|--devel, comma seperated
-		-redo    | --redo [value]           : just rerun a specific pipeline step - see -dev|--devel, comma seperated
+		-redo    | --redo [value,..]        : just rerun specific pipeline step(s) - see -dev|--devel, comma seperated
 		-no-qual | --no-qualityanalysis     : disables quality analysis
 		-no-clip | --no-clipping            : disables removal of adapter sequences if -a|--adapter is used
 		-no-trim | --no-trimming            : disables quality trimming
@@ -217,8 +217,13 @@ options::checkopt (){
 			arg=true
 			# don't Smd5, Sslice !
 			for s in qual clip trim cor rrm stats sege star uniq rep sort rmd idx macs gem quant tpm dea join clust go; do
-				[[ "$2" == "$s" ]] && continue
 				eval "S$s=true"
+			done
+			mapfile -d ',' -t <<< $2
+			for x in ${MAPFILE[@]}; do # do not quote!! "MAPFILE[@]" appends newline to last element
+				for s in qual clip trim cor rrm stats sege star uniq rep sort rmd idx macs gem quant tpm dea join clust go; do
+					[[ "$x" == "$s" ]] && eval "S$s=false"
+				done
 			done
 		;;
 

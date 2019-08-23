@@ -65,7 +65,7 @@ pipeline::_preprocess(){
 			} || return 1
 		}
 		${nocor:=false} || {
-			{	qualdirs+=("$OUTDIR/qualities/corrected") && \
+			{	# qualdirs+=("$OUTDIR/qualities/corrected") && \ no difference to trimmed in qcstats 
 				preprocess::rcorrector \
 					-S ${nocor:=false} \
 					-s ${Scor:=false} \
@@ -129,7 +129,8 @@ pipeline::_preprocess(){
 					-p ${nosplitreads:=false} \
 					-g $GENOME \
 					-x $GENOME.segemehl.idx \
-					-r mapper
+					-r mapper && \
+				alignment::add4stats -r mapper
 			} || return 1
 		}
 	else
@@ -154,6 +155,7 @@ pipeline::dea() {
 			-p $TMPDIR \
 			-o $OUTDIR/mapped \
 			-r mapper && \
+		alignment::add4stats -r mapper && \
 		alignment::postprocess \
 			-S ${nosort:=false} \
 			-s ${Ssort:=false} \
@@ -170,6 +172,12 @@ pipeline::dea() {
 			-p $TMPDIR \
 			-o $OUTDIR/mapped \
 			-r mapper && \
+		alignment::bamstats \
+			-S ${nostats:=false} \
+			-s ${Sstats:=false} \
+			-r mapper \
+			-t $THREADS \
+			-o $OUTDIR/stats && \
 		quantify::featurecounts \
 			-S ${noquant:=false} \
 			-s ${Squant:=false} \
@@ -275,6 +283,7 @@ pipeline::callpeak() {
 			-p $TMPDIR \
 			-o $OUTDIR/mapped \
 			-r mapper && \
+		alignment::add4stats -r mapper && \
 		callpeak::mkreplicates && \
 		alignment::postprocess \
 			-S ${nosort:=false} \
@@ -303,6 +312,7 @@ pipeline::callpeak() {
 			-x "$REGEX" \
 			-p $TMPDIR \
 			-o $OUTDIR/mapped && \
+		alignment::add4stats -r mapper && \
 		alignment::postprocess \
 			-S ${noidx:=false} \
 			-s ${Sidx:=false} \
@@ -310,7 +320,13 @@ pipeline::callpeak() {
 			-t $THREADS \
 			-p $TMPDIR \
 			-o $OUTDIR/mapped \
-			-r mapper
+			-r mapper && \
+		alignment::bamstats \
+			-S ${nostats:=false} \
+			-s ${Sstats:=false} \
+			-r mapper \
+			-t $THREADS \
+			-o $OUTDIR/stats && \
 		callpeak::macs_$IPTYPE && \
 		callpeak::gem_$IPTYPE
 	} || return 1
