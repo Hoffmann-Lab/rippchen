@@ -138,7 +138,7 @@ done
 unset IFS
 
 
-commander::print "rippchen started with command: $CMD" > $LOG || die "cannot access $LOG"
+commander::print "rippchen v$version started with command: $CMD" > $LOG || die "cannot access $LOG"
 commander::print "temporary files go to: $TMPDIR" >> $LOG
 progress::log -v $VERBOSITY -o $LOG
 
