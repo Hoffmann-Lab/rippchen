@@ -203,6 +203,7 @@ pipeline::dea() {
 				-s ${Sdea:=false} \
 				-t $THREADS \
 				-r mapper \
+				-g $GTF \
 				-c COMPARISONS \
 				-i $OUTDIR/counted \
 				-o $OUTDIR/deseq && \
