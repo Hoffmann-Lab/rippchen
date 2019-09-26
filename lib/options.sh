@@ -45,7 +45,8 @@ options::usage() {
 		                                      2 - get full output
 		-g       | --genome [path]          : genome fasta input, without only preprocessing is performed
 		-gtf     | --gtf [path]             : annotation gtf input - optional, default: genome.fasta.gtf
-		-a       | --adapter [string,..]    : adapter sequence(s), comma seperated - optional
+		-a1      | --adapter1 [string,..]   : adapter sequence(s) - optional. single or first pair, comma seperated
+		-a2      | --adapter2 [string,..]   : adapter sequence(s) - optional. second pair, comma seperated
 		-o       | --out [path]             : output directory - default: $OUTDIR
 		-l       | --log [path]             : output directory - default: $OUTDIR/run.log
 		-tmp     | --tmp                    : temporary directory - default: $TMPDIR/tmp.XXXXXXXXXX.muvac
@@ -132,8 +133,8 @@ options::developer() {
 		DEVELOPER OPTIONS
 		md5   : check for md5sums and if necessary trigger genome indexing
 		qual  : quality analysis
-		clip  : adapter clipping
 		trim  : trimming
+		clip  : adapter clipping
 		cor   : raw read correction
 		rrm   : rRNA filtering
 		stats : proprocessing statistics
@@ -187,7 +188,8 @@ options::checkopt (){
 		-rx  | --regex) arg=true; REGEX=$2;;
 		-ip  | --iptype) arg=true; IPTYPE=$2;;
 		-c   | --comparisons) arg=true; mapfile -t -d ',' COMPARISONS <<< $2; COMPARISONS[-1]="$(sed -r 's/\s*\n*$//' <<< "${COMPARISONS[-1]}")";;
-		-a   | --adapter) arg=true; mapfile -t -d ',' ADAPTER <<< $2; ADAPTER[-1]="$(sed -r 's/\s*\n*$//' <<< "${ADAPTER[-1]}")";;
+		-a1  | --adapter1) arg=true; mapfile -t -d ',' ADAPTER1 <<< $2; ADAPTER1[-1]="$(sed -r 's/\s*\n*$//' <<< "${ADAPTER1[-1]}")";;
+		-a2  | --adapter2) arg=true; mapfile -t -d ',' ADAPTER2 <<< $2; ADAPTER2[-1]="$(sed -r 's/\s*\n*$//' <<< "${ADAPTER2[-1]}")";;
 		-d   | --distance) arg=true; DISTANCE=$2;;
 		-f   | --fragmentsize) arg=true; FRAGMENTSIZE=$2;;
 		-i   | --insertsize) arg=true; INSERTSIZE=$2;;
@@ -199,7 +201,7 @@ options::checkopt (){
 	   	-resume | --resume-from)
 			arg=true
 			# don't Smd5, Sslice !
-			for s in qual clip trim cor rrm stats sege star uniq rep sort rmd idx macs gem quant tpm dea join clust go; do
+			for s in qual trim clip cor rrm stats sege star uniq rep sort rmd idx macs gem quant tpm dea join clust go; do
 				[[ "$2" == "$s" ]] && break
 				eval "S$s=true"
 			done
@@ -208,7 +210,7 @@ options::checkopt (){
 			arg=true
 			mapfile -d ',' -t <<< $2
 			for x in ${MAPFILE[@]}; do # do not quote!! "MAPFILE[@]" appends newline to last element
-				for s in md5 qual clip trim cor rrm stats sege star uniq rep sort slice rmd idx macs gem quant tpm dea join clust go; do
+				for s in md5 qual trim clip cor rrm stats sege star uniq rep sort slice rmd idx macs gem quant tpm dea join clust go; do
 					[[ "$x" == "$s" ]] && eval "S$s=true"
 				done
 			done
@@ -216,12 +218,12 @@ options::checkopt (){
 		-redo | --redo)
 			arg=true
 			# don't Smd5, Sslice !
-			for s in qual clip trim cor rrm stats sege star uniq rep sort rmd idx macs gem quant tpm dea join clust go; do
+			for s in qual trim clip cor rrm stats sege star uniq rep sort rmd idx macs gem quant tpm dea join clust go; do
 				eval "S$s=true"
 			done
 			mapfile -d ',' -t <<< $2
 			for x in ${MAPFILE[@]}; do # do not quote!! "MAPFILE[@]" appends newline to last element
-				for s in qual clip trim cor rrm stats sege star uniq rep sort rmd idx macs gem quant tpm dea join clust go; do
+				for s in qual trim clip cor rrm stats sege star uniq rep sort rmd idx macs gem quant tpm dea join clust go; do
 					[[ "$x" == "$s" ]] && eval "S$s=false"
 				done
 			done
