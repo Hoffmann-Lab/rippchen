@@ -3,6 +3,7 @@
 trap 'die' INT TERM
 trap 'sleep 1; kill -PIPE $(pstree -p $$ | grep -Eo "\([0-9]+\)" | grep -Eo "[0-9]+") &> /dev/null' EXIT
 shopt -s extglob
+shopt -s expand_aliases
 
 die() {
 	unset CLEANUP
@@ -28,14 +29,12 @@ cleanup() {
 	fi
 }
 
-[[ ! $OSTYPE =~ linux ]] && die "unsupported operating system"
-[[ ${BASH_VERSINFO[0]} -eq 4 && ${BASH_VERSINFO[1]} -ge 4 ]] || [[ ${BASH_VERSINFO[0]} -gt 4 ]] || die "requieres bash version 4.4 or above"
 [[ ! $RIPPCHEN ]] && die "cannot find installation. please run setup and/or do: export RIPPCHEN=/path/to/install/dir"
 INSDIR=$RIPPCHEN
-for f in {$INSDIR/latest/bashbone/lib/*.sh,$INSDIR/latest/rippchen/lib/*.sh}; do
+source $INSDIR/latest/bashbone/activate.sh || die "install directory cannot be found"
+for f in $INSDIR/latest/rippchen/lib/*.sh; do
 	source $f
 done
-configure::environment -i $INSDIR
 
 CMD="$(basename $0) $*"
 THREADS=$(grep -cF processor /proc/cpuinfo)
