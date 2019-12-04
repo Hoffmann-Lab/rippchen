@@ -138,14 +138,13 @@ unset IFS
 
 
 commander::print "rippchen v$version started with command: $CMD" > $LOG || die "cannot access $LOG"
-commander::print "temporary files go to: $HOST:$TMPDIR" >> $LOG
+commander::print "temporary files go to: $HOSTNAME:$TMPDIR" >> $LOG
 progress::log -v $VERBOSITY -o $LOG
 
 if [[ $tfq1 ]]; then
 	[[ $IPTYPE == 'chip' ]] && nosplit=true || IPTYPE='rip'
 	pipeline::callpeak >> $LOG 2> >(tee -a $LOG >&2) || die
 else
-	normd=true
 	pipeline::dea >> $LOG 2> >(tee -a $LOG >&2) || die
 fi
 

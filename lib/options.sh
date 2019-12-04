@@ -78,6 +78,7 @@ options::usage() {
 		-2       | --fq2 [path,..]          : fastq input - optional. second pair, comma seperated
 		-m       | --mapped [path,..]       : SAM/BAM input - comma seperated (replaces -1 and -2)
 		                                      NOTE: alignment postprocessing steps can be disabled (see ALIGNMENT OPTIONS)
+		-rmd     | --removeduplicates       : enable removing duplicates - not recommended
 		-c       | --comparisons [path,..]  : experiments info file(s) for pairwise comparisons (according to column two)
 		                                      - triggers differential gene expression analysis
 		                                      - requires -gtf|--gtf (see BASIC OPTIONS)
@@ -108,7 +109,7 @@ options::usage() {
 		-no-rrm  | --no-rrnafilter          : disables rRNA filter
 		-no-sege | --no-segemehl            : disables mapping by Segemehl
 		-no-star | --no-star                : disables mapping by STAR
-		-no-stats| --no-statistics          : disables fastq preprocessing statistics
+		-no-stats| --no-statistics          : disables fastq preprocessing and mapping statistics
 
 		ALIGNMENT OPTIONS
 		-d       | --distance               : maximum read alignment edit distance in % - default: 5
@@ -132,12 +133,11 @@ options::developer() {
 
 		DEVELOPER OPTIONS
 		md5   : check for md5sums and if necessary trigger genome indexing
-		qual  : quality analysis
+		qual  : quality analysis for input and trim, clip, cor, rrm
 		trim  : trimming
 		clip  : adapter clipping
 		cor   : raw read correction
 		rrm   : rRNA filtering
-		stats : proprocessing statistics
 		sege  : Segemehl mapping
 		star  : STAR mapping
 		uniq  : extraction of properly paired and uniquely mapped reads
@@ -201,7 +201,7 @@ options::checkopt (){
 	   	-resume | --resume-from)
 			arg=true
 			# don't Smd5, Sslice !
-			for s in qual trim clip cor rrm stats sege star uniq rep sort rmd idx macs gem quant tpm dea join clust go; do
+			for s in qual trim clip cor rrm sege star uniq rep sort rmd idx stats macs gem quant tpm dea join clust go; do
 				[[ "$2" == "$s" ]] && break
 				eval "S$s=true"
 			done
@@ -210,7 +210,7 @@ options::checkopt (){
 			arg=true
 			mapfile -d ',' -t <<< $2
 			for x in ${MAPFILE[@]}; do # do not quote!! "MAPFILE[@]" appends newline to last element
-				for s in md5 qual trim clip cor rrm stats sege star uniq rep sort slice rmd idx macs gem quant tpm dea join clust go; do
+				for s in md5 qual trim clip cor rrm sege star uniq rep sort slice rmd idx stats macs gem quant tpm dea join clust go; do
 					[[ "$x" == "$s" ]] && eval "S$s=true"
 				done
 			done
@@ -218,12 +218,12 @@ options::checkopt (){
 		-redo | --redo)
 			arg=true
 			# don't Smd5, Sslice !
-			for s in qual trim clip cor rrm stats sege star uniq rep sort rmd idx macs gem quant tpm dea join clust go; do
+			for s in qual trim clip cor rrm sege star uniq rep sort rmd idx stats macs gem quant tpm dea join clust go; do
 				eval "S$s=true"
 			done
 			mapfile -d ',' -t <<< $2
 			for x in ${MAPFILE[@]}; do # do not quote!! "MAPFILE[@]" appends newline to last element
-				for s in qual trim clip cor rrm stats sege star uniq rep sort rmd idx macs gem quant tpm dea join clust go; do
+				for s in qual trim clip cor rrm sege star uniq rep sort rmd idx stats macs gem quant tpm dea join clust go; do
 					[[ "$x" == "$s" ]] && eval "S$s=false"
 				done
 			done
@@ -242,6 +242,7 @@ options::checkopt (){
 		-no-idx   | --no-index) noidx=true;;
 		-no-stats | --no-statistics) nostats=true;;
 		-no-rmd   | --no-removeduplicates) normd=true;;
+		-rmd      | --removeduplicates) normd=false;;
 		-no-macs  | --no-macs) nomacs=true;;
 		-no-gem   | --no-gem) nogem=true;;
 		-no-quant | --no-quantification) noquant=true; nodea=true; noclust=true; nogo=true;;

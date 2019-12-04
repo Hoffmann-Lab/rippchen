@@ -144,9 +144,20 @@ pipeline::_preprocess(){
 
 pipeline::dea() {
 	declare -a mapper coexpressions
+	declare -A slicesinfo
 
 	pipeline::_preprocess || return 1
 	[[ ${#mapper[@]} -eq 0 ]] && return 0
+
+	genome::mkdict \
+		-S ${nodict:=false} \
+		-s ${Sdict:=false} \
+		-5 ${Smd5:=false} \
+		-i $GENOME \
+		-p $TMPDIR \
+		-t $THREADS || return 1
+
+	local sliced=false
 
 	{	alignment::postprocess \
 			-S ${nouniq:=false} \
@@ -165,6 +176,18 @@ pipeline::dea() {
 			-p $TMPDIR \
 			-o $OUTDIR/mapped \
 			-r mapper && \
+		pipeline::_slice $($sliced || ${Srmd:=false} || ${normd:=false} && echo true || echo false) && \
+		alignment::rmduplicates \
+			-S ${normd:=true} \
+			-s ${Srmd:=false} \
+			-t $THREADS \
+			-m $MEMORY \
+			-r mapper \
+			-c slicesinfo \
+			-x "$REGEX" \
+			-p $TMPDIR \
+			-o $OUTDIR/mapped && \
+		alignment::add4stats -r mapper && \
 		alignment::postprocess \
 			-S ${noidx:=false} \
 			-s ${Sidx:=false} \
@@ -275,7 +298,7 @@ pipeline::callpeak() {
 		-p $TMPDIR \
 		-t $THREADS || return 1
 
-	local sliced=false	
+	local sliced=false
 	
     {	alignment::postprocess \
 			-S ${nouniq:=false} \
@@ -295,14 +318,6 @@ pipeline::callpeak() {
 			-p $TMPDIR \
 			-o $OUTDIR/mapped \
 			-r mapper && \
-		# alignment::postprocess \ <- applied by alignment::slice anyways
-		# 	-S ${noidx:=false} \
-		# 	-s ${Sidx:=false} \
-		# 	-j index \
-		# 	-t $THREADS \
-		# 	-p $TMPDIR \
-		# 	-o $OUTDIR/mapped \
-		# 	-r mapper
 		pipeline::_slice $($sliced || ${Srmd:=false} || ${normd:=false} && echo true || echo false) && \
 		alignment::rmduplicates \
 			-S ${normd:=false} \
