@@ -68,7 +68,7 @@ options::usage() {
 		-tr2     | --treatrepfq2 [path,..]  : *IP-Seq replicate fastq input - optional. second pair, comma seperated
 		-f       | --fragmentsize           : fragment size of sequenced mate pairs - default: 150
 		-rx      | --regex                  : regex of read name identifier with grouped tile information - default: ^\S+:(\d+):(\d+):(\d+)\s*.*
-		                                      NOTE: necessary for sucessfully duplicates removal
+		                                      NOTE: necessary for sucessful deduplication, if unavailable set to 'null'
 		-no-rmd  | --no-removeduplicates    : disables removing duplicates - not recommended
 		-no-macs | --no-macs                : disables peak calling by macs
 		-no-gem  | --no-gem                 : disables peak calling by gem

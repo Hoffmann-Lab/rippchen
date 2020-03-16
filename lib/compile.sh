@@ -9,7 +9,6 @@ compile::all(){
 		compile::bashbone -i "$insdir" -t $threads && \
 		compile::conda -i "$insdir" -t $threads && \
 		compile::java -i "$insdir" -t $threads && \
-		compile::perlmodules -i "$insdir" -t $threads && \
 		compile::sortmerna -i "$insdir" -t $threads && \
 		compile::segemehl -i "$insdir" -t $threads && \
 		compile::dexseq -i "$insdir" -t $threads && \
