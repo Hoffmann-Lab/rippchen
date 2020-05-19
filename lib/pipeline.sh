@@ -173,20 +173,26 @@ pipeline::dea() {
 			-t $THREADS \
 			-p $TMPDIR \
 			-o $OUTDIR/mapped \
-			-r mapper && \
-		pipeline::_slice $($sliced || ${Srmd:=false} || ${normd:=false} && echo true || echo false) && \
-		alignment::rmduplicates \
-			-S ${normd:=true} \
-			-s ${Srmd:=false} \
-			-t $THREADS \
-			-m $MEMORY \
-			-r mapper \
-			-c slicesinfo \
-			-x "$REGEX" \
-			-p $TMPDIR \
-			-o $OUTDIR/mapped && \
-		alignment::add4stats -r mapper && \
-		alignment::postprocess \
+			-r mapper
+	} || return 1
+
+	${normd:=true} || {
+		{	pipeline::_slice $($sliced || ${Srmd:=false} || ${normd:=false} && echo true || echo false) && \
+			alignment::rmduplicates \
+				-S ${normd:=true} \
+				-s ${Srmd:=false} \
+				-t $THREADS \
+				-m $MEMORY \
+				-r mapper \
+				-c slicesinfo \
+				-x "$REGEX" \
+				-p $TMPDIR \
+				-o $OUTDIR/mapped && \
+			alignment::add4stats -r mapper
+		} || return 1
+	}
+			
+	{	alignment::postprocess \
 			-S ${noidx:=false} \
 			-s ${Sidx:=false} \
 			-j index \
@@ -315,20 +321,26 @@ pipeline::callpeak() {
 			-t $THREADS \
 			-p $TMPDIR \
 			-o $OUTDIR/mapped \
-			-r mapper && \
-		pipeline::_slice $($sliced || ${Srmd:=false} || ${normd:=false} && echo true || echo false) && \
-		alignment::rmduplicates \
-			-S ${normd:=false} \
-			-s ${Srmd:=false} \
-			-t $THREADS \
-			-m $MEMORY \
-			-r mapper \
-			-c slicesinfo \
-			-x "$REGEX" \
-			-p $TMPDIR \
-			-o $OUTDIR/mapped && \
-		alignment::add4stats -r mapper && \
-		alignment::postprocess \
+			-r mapper
+	} || return 1
+
+	${normd:=false} || {
+		{	pipeline::_slice $($sliced || ${Srmd:=false} || ${normd:=false} && echo true || echo false) && \
+			alignment::rmduplicates \
+				-S ${normd:=false} \
+				-s ${Srmd:=false} \
+				-t $THREADS \
+				-m $MEMORY \
+				-r mapper \
+				-c slicesinfo \
+				-x "$REGEX" \
+				-p $TMPDIR \
+				-o $OUTDIR/mapped && \
+			alignment::add4stats -r mapper
+		} || return 1
+	}
+
+	{	alignment::postprocess \
 			-S ${noidx:=false} \
 			-s ${Sidx:=false} \
 			-j index \
