@@ -200,13 +200,17 @@ options::checkopt (){
 
 	   	-resume | --resume-from)
 			arg=true
+			local enable=false
 			# don't Smd5, Sslice !
 			for s in qual trim clip cor rrm sege star uniq rep sort rmd idx stats macs gem quant tpm dea join clust go; do
-				[[ "$2" == "$s" ]] && break
-				eval "S$s=true"
+				eval "\${S$s:=true}" # unless S$s already set to false by -redo, do skip
+				$enable || [[ "$2" == "$s" ]] && {
+					enable=true
+					eval "S$s=false"
+				}
 			done
 		;;
-	    -skip   | --skip) 
+	    -skip | --skip)
 			arg=true
 			mapfile -d ',' -t <<< $2
 			for x in ${MAPFILE[@]}; do # do not quote!! "MAPFILE[@]" appends newline to last element
@@ -219,7 +223,7 @@ options::checkopt (){
 			arg=true
 			# don't Smd5, Sslice !
 			for s in qual trim clip cor rrm sege star uniq rep sort rmd idx stats macs gem quant tpm dea join clust go; do
-				eval "S$s=true"
+				eval "\${S$s:=true}" # unless S$s alredy set to false by -resume, do skip
 			done
 			mapfile -d ',' -t <<< $2
 			for x in ${MAPFILE[@]}; do # do not quote!! "MAPFILE[@]" appends newline to last element
