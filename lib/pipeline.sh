@@ -144,7 +144,7 @@ pipeline::_preprocess(){
 					-i ${INSERTSIZE:=200000} \
 					-p ${nosplitreads:=false} \
 					-g $GENOME \
-					-f $GTF \
+					-f "$GTF" \
 					-x $GENOME-staridx \
 					-r mapper
 			} || return 1
