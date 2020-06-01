@@ -128,8 +128,25 @@ pipeline::_preprocess(){
 					-p ${nosplitreads:=false} \
 					-g $GENOME \
 					-x $GENOME.segemehl.idx \
-					-r mapper && \
-				alignment::add4stats -r mapper
+					-r mapper
+			} || return 1
+		}
+		${nostar:=false} || {
+			{	alignment::star \
+					-S ${nostar:=false} \
+					-s ${Sstar:=false} \
+					-5 ${Smd5:=false} \
+					-1 FASTQ1 \
+					-2 FASTQ2 \
+					-o $OUTDIR/mapped \
+					-t $THREADS \
+					-a $((100-DISTANCE)) \
+					-i ${INSERTSIZE:=200000} \
+					-p ${nosplitreads:=false} \
+					-g $GENOME \
+					-f $GTF \
+					-x $GENOME-staridx \
+					-r mapper
 			} || return 1
 		}
 	else
@@ -137,6 +154,8 @@ pipeline::_preprocess(){
 		mapper+=(custom)
 	fi
 
+	alignment::add4stats -r mapper
+	
 	return 0
 }
 
