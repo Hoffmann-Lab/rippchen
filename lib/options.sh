@@ -49,7 +49,7 @@ options::usage() {
 		-a2      | --adapter2 [string,..]   : adapter sequence(s) - optional. second pair, comma seperated
 		-o       | --out [path]             : output directory - default: $OUTDIR
 		-l       | --log [path]             : output directory - default: $OUTDIR/run.log
-		-tmp     | --tmp                    : temporary directory - default: $TMPDIR/tmp.XXXXXXXXXX.muvac
+		-tmp     | --tmp                    : temporary directory - default: $TMPDIR/tmp.XXXXXXXXXX.rippchen
 		-t       | --threads [value]        : threads - predicted default: $THREADS
 		-mem     | --memory [value]         : amout of memory for creating bam slices and processing them in parallel instances
 		                                      available: $MAXMEMORY
