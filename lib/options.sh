@@ -79,13 +79,13 @@ options::usage() {
 		-m       | --mapped [path,..]       : SAM/BAM input - comma seperated (replaces -1 and -2)
 		                                      NOTE: alignment postprocessing steps can be disabled (see ALIGNMENT OPTIONS)
 		-rmd     | --removeduplicates       : enable removing duplicates - not recommended
-		-c       | --comparisons [path,..]  : experiments info file(s) for pairwise comparisons (according to column two)
+		-c       | --comparisons [path,..]  : experiments info file(s) for all pairwise comparisons (according to main condition of column two)
 		                                      - triggers differential gene expression analysis
 		                                      - requires -gtf|--gtf (see BASIC OPTIONS)
-		                                      - format: 4 or 5 tab-seperated columns (5 in case of paired analysis)
-		                                        common_basename   experiment   [single-end|paired-end]   Nreplicate   pairs
+		                                      - format: 4 or more tab-seperated columns
+		                                        common_basename   condition   [single-end|paired-end]   Nreplicate   [factor1   factor2   ..]
 		                                      - fastq files needs to have unique basenames up to the first '.' in column 1
-		                                      - example for input A1.R1.fq, A1.R2.fq, A2.fq, B.R1.fq, B.R2.fq, C.fq:
+		                                      - example for input A1.R1.fq, A1.R2.fq, A2.fq, B.R1.fq, B.R2.fq, C.fq
 		                                        A1   experimentA   paired-end   N1   patient1
 		                                        A2   experimentA   single-end   N2   patient2
 		                                        B    experimentB   paired-end   N1   patient1
