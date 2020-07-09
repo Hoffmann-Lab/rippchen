@@ -210,7 +210,21 @@ pipeline::dea() {
 			alignment::add4stats -r mapper
 		} || return 1
 	}
-			
+
+	${nocmo:=true} || {
+		{	pipeline::_slice $($sliced || ${Scmo:=false} || ${nocmo:=false} && echo true || echo false) && \
+			alignment::clipmateoverlaps \
+				-S ${nocmo:=false} \
+				-s ${Scmo:=false} \
+				-t $THREADS \
+				-m $MEMORY \
+				-r mapper \
+				-c slicesinfo \
+				-o $OUTDIR/mapped && \
+			alignment::add4stats -r mapper
+		} || return 1
+	}
+
 	{	alignment::postprocess \
 			-S ${noidx:=false} \
 			-s ${Sidx:=false} \
@@ -228,6 +242,7 @@ pipeline::dea() {
 		quantify::featurecounts \
 			-S ${noquant:=false} \
 			-s ${Squant:=false} \
+			-5 ${Smd5:=false} \
 			-t $THREADS \
 			-p $TMPDIR \
 			-g $GTF \
@@ -245,7 +260,19 @@ pipeline::dea() {
 	} || return 1
 
 	! $noquant && [[ $COMPARISONS ]] && {
-		 {	expression::deseq \
+		 {	expression::diego \
+				-S ${nodsj:=false} \
+				-s ${Sdsj:=false} \
+				-5 ${Smd5:=false} \
+				-t $THREADS \
+				-r mapper \
+				-g $GTF \
+				-c COMPARISONS \
+				-i $OUTDIR/counted \
+				-j $OUTDIR/mapped \
+				-p $TMPDIR \
+				-o $OUTDIR/diego && \
+		 	expression::deseq \
 				-S ${nodea:=false} \
 				-s ${Sdea:=false} \
 				-t $THREADS \
@@ -354,6 +381,20 @@ pipeline::callpeak() {
 				-c slicesinfo \
 				-x "$REGEX" \
 				-p $TMPDIR \
+				-o $OUTDIR/mapped && \
+			alignment::add4stats -r mapper
+		} || return 1
+	}
+
+	${nocmo:=true} || {
+		{	pipeline::_slice $($sliced || ${Scmo:=false} || ${nocmo:=false} && echo true || echo false) && \
+			alignment::clipmateoverlaps \
+				-S ${nocmo:=false} \
+				-s ${Scmo:=false} \
+				-t $THREADS \
+				-m $MEMORY \
+				-r mapper \
+				-c slicesinfo \
 				-o $OUTDIR/mapped && \
 			alignment::add4stats -r mapper
 		} || return 1

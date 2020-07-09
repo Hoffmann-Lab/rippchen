@@ -144,3 +144,119 @@ $RIPPCHEN/latest/rippchen/rippchen.sh -v 2 -n1 ctr.fastq -t1 ip.N1.fastq -g geno
 -no-gem  : disables peak calling by gem
 -skip [[qual|trim|cor|rrm|uniq|sort|rmd],...]
 -resume [qual|trim|cor|rrm|uniq|sort|rmd]
+
+#####################################
+
+
+..um meine Pipeline auf einem bcl Server zu nutzen musst du folgendes machen
+
+export RIPPCHEN=/misc/paras/data/programs/rippchen
+$RIPPCHEN/latest/rippchen/rippchen.sh -h
+
+Es empfiehlt sich, da ja cutadapt, bzw pigz mit den glibc pthreads so seine probleme hat eine alternative lib zu nutzen
+LD_PRELOAD=/lib64/noelision/libpthread.so.0 $RIPPCHEN/latest/rippchen/rippchen.sh [...]
+
+
+hier eine List schon indexierter genome fuer star und segemehl zur Verwendung mit rippchen
+/misc/paras/data/genomes/GRCh38.p12/GRCh38.p12.fa
+/misc/paras/data/genomes/GRCh37.p13/GRCh37.p13.fa
+/misc/paras/data/genomes/GRCm38.p6/GRCm38.p6.fa
+
+falls du andere Genome nutzen willst, wird der Index vor dem mappen automatisch erzeugt. Bitte beachte, dass du dann aber keine parallelen rippchen Instanzen laufen lässt.
+
+zur Not kannst du die Indizes einfach so erstellen
+echo -e '@1\nAAAAAAAAAAAAAAAAAAAA\n+\n44444444444444444444' > dummy.fastq
+$RIPPCHEN/latest/rippchen/rippchen.sh -v 2 -t 1 -1 dummy.fastq -g <genome> -o <dummydir> -no-qual -no-clip -no-trim -no-cor -no-rrm -no-stats -no-star -no-sort -no-uniq -no-idx
+$RIPPCHEN/latest/rippchen/rippchen.sh -v 2 -t 1 -1 dummy.fastq -g <genome> -o <dummydir> -no-qual -no-clip -no-trim -no-cor -no-rrm -no-stats -no-sege -no-sort -no-uniq -no-idx
+
+wie du siehts, hat rippchen eigentlich nur opt-out parameter, wie z.b. das Deaktivieren der preprocessing und mapping statistiken (-no-stats), daher hier ein paar usecases
+
+preprocessing ohne mapping (1) - default mit mapping mittels star UND segemehl, daher -no-sege -no-star
+$RIPPCHEN/latest/rippchen/rippchen.sh -v 2 -t 56 -g <fasta> -gtf <gtf> -o <outdir> -l <logfile> -tmp </ssd/tmp/steve> -1 <fastq> [-2 <fastq>] -no-sege -no-star 
+
+preprocessing ohne mapping (2) - default mit rcorrector (sequencing error correction) und sortmerna (rRNA depletion) aktiv, daher -no-cor UND -no-rrm
+$RIPPCHEN/latest/rippchen/rippchen.sh -v 2 -t 56 -g <fasta> -gtf <gtf> -o <outdir> -l <logfile> -tmp </ssd/tmp/steve> -1 <fastq> [-2 <fastq>] -no-cor -no-rrm -no-sege -no-star 
+
+preprocessing mit mapping
+$RIPPCHEN/latest/rippchen/rippchen.sh -v 2 -t 56 -g <fasta> -gtf <gtf> -o <outdir> -l <logfile> -tmp </ssd/tmp/steve> -1 <fastq> [-2 <fastq>] <-no-cor|-no-rrm|-no-sege|-no-star>
+
+preprocessing mit adapter sequenz(en) zum clippen via cutadapt
+$RIPPCHEN/latest/rippchen/rippchen.sh [...] -a1 <ACGT,...> [-a2 <ACGT,...>]
+
+
+bei mehreren inputs, kannst du rippchen so nutzen:
+$RIPPCHEN/latest/rippchen/rippchen.sh [...] -1 <fastq,fastq,...> [-2 <fastq,fastq,...>]
+
+falls du mehrere inputs via paralleler rippchen instanzen abarbeiten willst, solltest du die preprocessing und mapping statistik ausschalten und danach fuer alle inputs zusammen rechnen lassen
+
+$RIPPCHEN/latest/rippchen/rippchen.sh [...] -1 <fastq> [-2 <fastq>] -no-stats
+$RIPPCHEN/latest/rippchen/rippchen.sh [...] -1 <fastq> [-2 <fastq>] -no-stats
+$RIPPCHEN/latest/rippchen/rippchen.sh [...] -1 <fastq,fastq> [-2 <fastq,fastq>] -redo stats
+
+das ganze via sge
+
+
+fyi: Bei der sge kannst du nodes definieren oder ausschliessen.
+
+qsub [...] -l 'h=bcl102|bcl103'
+qsub [...] -l 'h=!bcl102&!bcl103'
+
+Ausserdem hab ich das parallele sge environment 'threads' angelegt, mit dem nodes nach definierter Auslastung belegt werden.
+
+qsub [...] -pe threads $threads
+
+
+mein Vorschlag fuer dich waere daher
+
+
+shopt -s extglob
+genome=/misc/paras/data/genomes/GRCh38.p12/GRCh38.p12.fa
+gtf=/misc/paras/data/genomes/GRCh38.p12/GRCh38.p12.fa.gtf
+outdir=/misc/paras/data/<path>/results
+hosts="-l 'h=!bcl109'"
+threads=56
+
+
+fuer single-end daten
+
+for i in /scratch/bcl103/data/<path>/*.fastq.gz; do
+sh=$(basename $i .fastq.gz)
+cat <<- EOF > $sh.sh
+#!/usr/bin/env bash
+export RIPPCHEN=/misc/paras/data/programs/rippchen
+\$RIPPCHEN/latest/rippchen/rippchen.sh -v 2 -t $threads -1 $i -g $genome -gtf $gtf -o results -l results/$sh.log -tmp /ssd/tmp/rippchenrun -no-cor -no-rrm -no-stats -no-sege -no-quant
+EOF
+echo "rm -f $sh.+(log|err) && qsub -pe threads $threads $hosts -S /bin/bash -e $sh.err -o $sh.log -V -cwd $sh.sh"
+done
+
+bzw fuer paired-end daten
+
+for i in /scratch/bcl103/data/<path>/*R1.fastq.gz; do
+j=${i/R1/R2}
+sh=$(basename $i .R1.fastq.gz)
+cat <<- EOF > $sh.sh
+#!/usr/bin/env bash
+export RIPPCHEN=/misc/paras/data/programs/rippchen
+\$RIPPCHEN/latest/rippchen/rippchen.sh -v 2 -t $threads -1 $i -2 $j -g $genome -gtf $gtf -o results -l results/$sh.log -tmp /ssd/tmp/rippchenrun -no-cor -no-rrm -no-stats -no-sege -no-quant
+EOF
+echo "rm -f $sh.+(log|err) && qsub -pe threads $threads $hosts -S /bin/bash -e $sh.err -o $sh.log -V -cwd $sh.sh"
+done
+
+
+wenn du clippen musst geht das auch in der sge und du brauchst immer die sequenz(en) - wie bei Cutadapt der -a/-A Parameter
+
+du solltest dann aber unbedingt LD_PRELOAD voranstellen
+
+LD_PRELOAD=/lib64/noelision/libpthread.so.0 $RIPPCHEN/latest/rippchen/rippchen.sh [...]
+
+hier z.b. der Illumina universal adapter
+
+-a1 AGATCGGAAGAG -a2 AGATCGGAAGAG
+
+die lange Version, die im hg38 Genom uniq ist (die kurze ist 6x drin) kann ich allerdings nicht empfehlen - die funktioniert einfach nicht gut
+
+-a1 AGATCGGAAGAGCACACGTCTGAACTCCAGTCA -a2 AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT
+
+Weitere adapter Sequenzen findest du hier:
+
+https://github.com/timflutre/trimmomatic/tree/master/adapters

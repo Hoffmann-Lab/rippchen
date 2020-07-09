@@ -21,19 +21,22 @@ options::usage() {
 	cat <<- EOF
 		DESCRIPTION
 		RIPPCHEN are tasty!
-		acquire a taste for peak calling from *IP-Seq experiments or for differential gene expression- and ontology analysis from RNA-Seq data
+		acquire a taste for peak calling from *IP-Seq experiments or for differential expression- and ontology analysis from RNA-Seq data
 
 		VERSION
 		$version
 
-		SYNOPSIS DGE ANALYSIS
-		$(basename $0) -1 ctr1.fq,ctr2.fq,treat1.fq,treat2.fq -g genome.fa -c info
+		SYNOPSIS PREPROCESSING
+		$(basename $0) -1 ctr1.fq,ctr2.fq,treat1.fq,treat2.fq -g genome.fa -no-quant
+
+		SYNOPSIS DIFFERENTIAL EXPRESSION ANALYSIS
+		$(basename $0) -1 ctr1.fq,ctr2.fq,treat1.fq,treat2.fq -g genome.fa -c cmp.txt
 
 		SYNOPSIS PEAK CALLING
 		$(basename $0) -1 ctrA.fq,ctrB.fq -t1 treatA1.fq,treatB1.fq -r1 treatA2.fq,treatB2.fq -g genome.fa
 
-		SYNOPSIS PEAK CALLING AND DGE ANALYSIS
-		$(basename $0) -1 ctrA.fq,ctrB.fq -t1 treatA1.fq,treatB1.fq -r1 treatA2.fq,treatB2.fq -g genome.fa -c info
+		SYNOPSIS PEAK CALLING AND DIFFERENTIAL EXPRESSION ANALYSIS
+		$(basename $0) -1 ctrA.fq,ctrB.fq -t1 treatA1.fq,treatB1.fq -r1 treatA2.fq,treatB2.fq -g genome.fa -c cmp.txt
 
 		BASIC OPTIONS
 		-h       | --help                   : prints this message
@@ -55,6 +58,32 @@ options::usage() {
 		                                      available: $MAXMEMORY
 		                                      default: 30000 (allows for $MTHREADS instances)
 		                                      NOTE: needs to be raised in case of GCThreads, HeapSize or OutOfMemory errors
+		-resume  | --resume-from [value]    : resume from a specific pipeline step - see -dev|--devel
+		-skip    | --skip [value,..]        : skip specific pipeline step(s) - see -dev|--devel, comma seperated
+		-redo    | --redo [value,..]        : just rerun specific pipeline step(s) - see -dev|--devel, comma seperated
+		-no-qual | --no-qualityanalysis     : disables read quality analysis
+		-no-clip | --no-clipping            : disables removal of adapter sequences if -a|--adapter is used
+		-no-trim | --no-trimming            : disables quality trimming
+		-no-cor  | --no-correction          : disables majority based raw read error correction
+		-no-rrm  | --no-rrnafilter          : disables rRNA filter
+		-no-sege | --no-segemehl            : disables mapping by Segemehl
+		-no-star | --no-star                : disables mapping by STAR
+		-no-stats| --no-statistics          : disables fastq preprocessing and mapping statistics
+
+		ALIGNMENT OPTIONS
+		-d       | --distance               : maximum read alignment edit distance in % - default: 5
+		-i       | --insertsize             : maximum allowed insert for aligning mate pairs - default: 200000
+		-no-split| --no-split               : disable split read mapping
+		-no-uniq | --no-uniqify             : disables extraction of properly paired and uniquely mapped reads
+		-no-sort | --no-sort                : disables sorting alignments
+		-no-idx  | --no-index               : disables indexing alignments
+		-cmo     | --clipmateoverlaps       : enable read clipping in case of an overlap with its mate
+
+		QUANTIFICATION OPTIONS
+		-ql      | --quantifylevel          : switch to other feature type for quantification - default: exon
+		                                      NOTE: quantifying using a different feature will break differential expression analysis
+		-qt      | --quantifytag            : switch to other feature tag for quantification - default: gene_id
+		-no-quant| --no-quantification      : disables per feature read quantification plus downstream analyses
 
 		PEAK CALLING OPTIONS
 		-ip      | --iptype [chip|rip]      : type of *IP-Seq experiment - default: chip
@@ -73,51 +102,37 @@ options::usage() {
 		-no-macs | --no-macs                : disables peak calling by macs
 		-no-gem  | --no-gem                 : disables peak calling by gem
 
-		DIFF GENE EXPR ANALYSIS OPTIONS
+		DIFFERENTIAL EXPRESSION ANALYSIS OPTIONS
 		-1       | --fq1 [path,..]          : fastq input - single or first pair, comma seperated
 		-2       | --fq2 [path,..]          : fastq input - optional. second pair, comma seperated
 		-m       | --mapped [path,..]       : SAM/BAM input - comma seperated (replaces -1 and -2)
 		                                      NOTE: alignment postprocessing steps can be disabled (see ALIGNMENT OPTIONS)
 		-rmd     | --removeduplicates       : enable removing duplicates - not recommended
-		-c       | --comparisons [path,..]  : experiments info file(s) for all pairwise comparisons (according to main condition of column two)
-		                                      - triggers differential gene expression analysis
-		                                      - requires -gtf|--gtf (see BASIC OPTIONS)
-		                                      - format: 4 or more tab-seperated columns
-		                                        common_basename   condition   [single-end|paired-end]   Nreplicate   [factor1   factor2   ..]
-		                                      - fastq files needs to have unique basenames up to the first '.' in column 1
-		                                      - example for input A1.R1.fq, A1.R2.fq, A2.fq, B.R1.fq, B.R2.fq, C.fq
-		                                        A1   experimentA   paired-end   N1   patient1
-		                                        A2   experimentA   single-end   N2   patient2
-		                                        B    experimentB   paired-end   N1   patient1
-		                                        C    experimentC   single-end   N1   patient2
-		-ql      | --quantifylevel          : switch to other feature type for quantification - default: exon
-		                                      NOTE: quantifying using a different feature will break differential gene expression analysis
-		-qt      | --quantifytag            : switch to other feature tag for quantification - default: gene_id
-		-no-quant| --no-quantification      : disables per feature read quantification plus downstream analyses
+		-c       | --comparisons [path,..]  : experiment info file(s) for pairwise analyses according to column condition (primary factor)
+		                                      format: 4 or more columns, seperated by tab or space(s)
+		                                        sample   condition   [single-end|paired-end]   replicate   [factor1   factor2   ..]
+		                                      NOTE: samples must match unique prefixes of input fastq basenames
+		                                      
+		                                      example1: for input wt1.R1.fq wt1.R2.fq wt2.fq trA_1.fq trA_2.fq trB.n1.fq trB.n2_1.fq trB.n2_2.fq
+		                                        wt1      wt   paired-end   N1   PE   female
+		                                        wt2      wt   single-end   N2   SE   male
+		                                        trA_1    A    single-end   N1   PE   female
+		                                        trA_2    A    single-end   N2   PE   male
+		                                        trB.n1   B    single-end   N1   SE   female
+		                                        trB.n2   B    paired-end   N2   PE   male
+		                                      output: wt_vs_A wt_vs_b A_vs_B (N=2 vs N=2 each)
+		                                      example2:
+		                                        wt1      wt   paired-end   N1   PE   wt   female
+		                                        wt2      wt   single-end   N2   SE   wt   male
+		                                        trA_1    tr   single-end   N1   PE   A    female
+		                                        trA_2    tr   single-end   N2   PE   A    male
+		                                        trB.n1   tr   single-end   N3   SE   B    female
+		                                        trB.n2   tr   paired-end   N4   PE   B    male
+		                                      output: wt_vs_tr (N=2 vs N=4)
+		-no-dsj  | --no-diffsplicejunctions : disables differential splice junction analysis
 		-no-dea  | --no-diffexanalysis      : disables differential feature expression analysis plus downstream analyses
-		-no-clust| --no-clustering          : disables feature co-expression clustering for samples defined via -c
-		-no-go   | --no-geneontology        : disables gene ontology enrichment analysis
-
-		GENERAL OPTIONS
-		-resume  | --resume-from [value]    : resume from a specific pipeline step - see -dev|--devel
-		-skip    | --skip [value,..]        : skip specific pipeline step(s) - see -dev|--devel, comma seperated
-		-redo    | --redo [value,..]        : just rerun specific pipeline step(s) - see -dev|--devel, comma seperated
-		-no-qual | --no-qualityanalysis     : disables quality analysis
-		-no-clip | --no-clipping            : disables removal of adapter sequences if -a|--adapter is used
-		-no-trim | --no-trimming            : disables quality trimming
-		-no-cor  | --no-correction          : disables majority based raw read error correction
-		-no-rrm  | --no-rrnafilter          : disables rRNA filter
-		-no-sege | --no-segemehl            : disables mapping by Segemehl
-		-no-star | --no-star                : disables mapping by STAR
-		-no-stats| --no-statistics          : disables fastq preprocessing and mapping statistics
-
-		ALIGNMENT OPTIONS
-		-d       | --distance               : maximum read alignment edit distance in % - default: 5
-		-i       | --insertsize             : maximum allowed insert for aligning mate pairs - default: 200000
-		-no-split| --no-split               : disable split read mapping
-		-no-uniq | --no-uniqify             : disables extraction of properly paired and uniquely mapped reads
-		-no-sort | --no-sort                : disables sorting alignments
-		-no-idx  | --no-index               : disables indexing alignments
+		-no-clust| --no-clustering          : disables downstream feature co-expression clustering
+		-no-go   | --no-geneontology        : disables downstream gene ontology enrichment analysis
 
 		REFERENCES
 		(c) Konstantin Riege
@@ -145,12 +160,14 @@ options::developer() {
 		sort  : sorting and indexing of sam/bam files
 		slice : better dont touch! slicing of bams for parallelization, needs -prevtmp | --previoustmp [path]
 		rmd   : removing duplicates
+		cmo   : clipping mate overlaps
 		idx   : intermediate and final bam indexing
 		stats : fastq preprocessing and mapping statistics
 		macs  : peak calling by macs
 		gem   : peak calling by gem
 		quant : read quantification
 		tpm   : TPM calculation
+		dsj   : differential splice junction analysis
 		dea   : pca and differential expression analysis
 		join  : counts joining
 		clust : coexpression clustering
@@ -202,7 +219,7 @@ options::checkopt (){
 			arg=true
 			local enable=false
 			# don't Smd5, Sslice !
-			for s in qual trim clip cor rrm sege star uniq rep sort rmd idx stats macs gem quant tpm dea join clust go; do
+			for s in qual trim clip cor rrm sege star uniq rep sort rmd cmo idx stats macs gem quant tpm dsj dea join clust go; do
 				eval "\${S$s:=true}" # unless S$s already set to false by -redo, do skip
 				$enable || [[ "$2" == "$s" ]] && {
 					enable=true
@@ -214,7 +231,7 @@ options::checkopt (){
 			arg=true
 			mapfile -d ',' -t <<< $2
 			for x in ${MAPFILE[@]}; do # do not quote!! "MAPFILE[@]" appends newline to last element
-				for s in md5 qual trim clip cor rrm sege star uniq rep sort slice rmd idx stats macs gem quant tpm dea join clust go; do
+				for s in md5 qual trim clip cor rrm sege star uniq rep sort slice rmd cmo idx stats macs gem quant tpm dsj dea join clust go; do
 					[[ "$x" == "$s" ]] && eval "S$s=true"
 				done
 			done
@@ -222,12 +239,12 @@ options::checkopt (){
 		-redo | --redo)
 			arg=true
 			# don't Smd5, Sslice !
-			for s in qual trim clip cor rrm sege star uniq rep sort rmd idx stats macs gem quant tpm dea join clust go; do
+			for s in qual trim clip cor rrm sege star uniq rep sort rmd cmo idx stats macs gem quant tpm dsj dea join clust go; do
 				eval "\${S$s:=true}" # unless S$s alredy set to false by -resume, do skip
 			done
 			mapfile -d ',' -t <<< $2
 			for x in ${MAPFILE[@]}; do # do not quote!! "MAPFILE[@]" appends newline to last element
-				for s in qual trim clip cor rrm sege star uniq rep sort rmd idx stats macs gem quant tpm dea join clust go; do
+				for s in qual trim clip cor rrm sege star uniq rep sort rmd cmo idx stats macs gem quant tpm dsj dea join clust go; do
 					[[ "$x" == "$s" ]] && eval "S$s=false"
 				done
 			done
@@ -247,9 +264,11 @@ options::checkopt (){
 		-no-stats | --no-statistics) nostats=true;;
 		-no-rmd   | --no-removeduplicates) normd=true;;
 		-rmd      | --removeduplicates) normd=false;;
+		-cmo      | --clipmateoverlaps) nocmo=false;;
 		-no-macs  | --no-macs) nomacs=true;;
 		-no-gem   | --no-gem) nogem=true;;
 		-no-quant | --no-quantification) noquant=true; nodea=true; noclust=true; nogo=true;;
+		-no-dea   | --no-diffsplicejunctions) nodsj=true;;
 		-no-dea   | --no-diffexanalysis) nodea=true;;
 		-no-clust | --no-clustering) noclust=true;;
 		-no-go    | --no-geneontology) nogo=true;;

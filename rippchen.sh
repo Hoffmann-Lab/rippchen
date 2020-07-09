@@ -141,6 +141,7 @@ commander::print "rippchen v$version started with command: $CMD" > $LOG || die "
 commander::print "temporary files go to: $HOSTNAME:$TMPDIR" >> $LOG
 progress::log -v $VERBOSITY -o $LOG
 
+[[ ! $nfq2 ]] && nocmo=true
 if [[ $tfq1 ]]; then
 	[[ $IPTYPE == 'chip' ]] && nosplit=true || IPTYPE='rip'
 	pipeline::callpeak >> $LOG 2> >(tee -a $LOG >&2) || die
