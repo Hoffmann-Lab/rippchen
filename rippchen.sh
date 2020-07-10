@@ -143,9 +143,9 @@ for f in $nmap; do
 done
 unset IFS
 
-echo > $LOG || die "cannot access $LOG"
+touch $LOG || die "cannot access $LOG"
 progress::log -v $VERBOSITY -o $LOG
-commander::print "rippchen $VERSION utilizing bashbone $BASHBONEVERSION started with command: $CMD" > $LOG 
+commander::print "rippchen $VERSION utilizing bashbone $BASHBONEVERSION started with command: $CMD" >> $LOG
 commander::print "temporary files go to: $HOSTNAME:$TMPDIR" >> $LOG
 
 ${Smd5:=false} || {
@@ -172,5 +172,3 @@ ${Smd5:=false} || {
 
 commander::print "success" >> $LOG
 exit 0
-
-
