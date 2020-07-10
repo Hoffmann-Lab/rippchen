@@ -2,15 +2,17 @@
 # (c) Konstantin Riege
 
 pipeline::index(){
-	{	alignment::segemehl \
+	{	unset NA1 NA2 && \
+		alignment::segemehl \
 			-S ${nosege:=false} \
 			-s true \
 			-t $THREADS \
 			-g $GENOME \
 			-x $GENOME.segemehl.idx \
 			-o $TMPDIR \
-			-r NA \
-			-1 NA && \
+			-r NA1 \
+			-1 NA2 && \
+		unset NA1 NA2 && \
 		alignment::star \
 			-S ${nostar:=false} \
 			-s true \
@@ -18,28 +20,30 @@ pipeline::index(){
 			-g $GENOME \
 			-x $GENOME-staridx \
 			-o $TMPDIR \
-			-r NA \
-			-1 NA && \
+			-r NA1 \
+			-1 NA2 && \
 		genome::mkdict \
 			-t $THREADS \
 			-i $GENOME \
 			-p $TMPDIR && \
+		unset NA1 NA2 && \
 		expression::diego \
 			-S ${nodsj:=false} \
 			-s true \
 			-t $THREADS \
-			-r NA \
+			-r NA1 \
 			-g $GTF \
-			-c NA \
+			-c NA2 \
 			-i $TMPDIR \
 			-j $TMPDIR \
 			-p $TMPDIR \
 			-o $TMPDIR && \
+		unset NA1 NA2 && \
 		quantify::featurecounts \
 			-S ${noquant:=false} \
 			-s true \
 			-t $THREADS \
-			-r NA \
+			-r NA1 \
 			-g $GTF \
 			-p $TMPDIR \
 			-o $TMPDIR
