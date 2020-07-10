@@ -1,22 +1,6 @@
 #! /usr/bin/env bash
 # (c) Konstantin Riege
 
-		# -dexnew  | --dexnewprepare [value]  : switch DEXSeq annotation file preparation method - default: 0
-		#                                       0 - use preparation script shipped with DEXSeq
-		#                                       1 - do not merge transcripts and if present in GTF info and use protein_coding biotype only
-		#                                       2 - see [1] and additionally if feature name matches UTR/utr, exclude them
-		# -no-iso  | --no-isoformanalysis     : disables differential isoform analysis by DEXSeq and annotation preparation
-		# -cf      | --clusterfilter [value]  : decide for a set of differntially expressed features to be clustered for co-expression - default: 0
-		#                                       0 - padj <= 0.05 in at least one comparison defined via -c
-		#                                       1 - padj <= 0.05 and a log2foldchange difference >= 0.5 in at least one comparison defined via -c
-		#                                       2 - if present in GTF info, use features of protein_coding biotype only
-		#                                       3 - discard features within the 30% percentile of lowest expression values
-		#                                       20 - 2 + 0
-		#                                       21 - 2 + 1
-		#                                       23 - 2 + 3
-		#                                       230 - 2 + 3 + 0
-		#                                       231 - 2 + 3 + 1
-
 options::usage() {
 	cat <<- EOF
 		DESCRIPTION
@@ -24,19 +8,20 @@ options::usage() {
 		acquire a taste for peak calling from *IP-Seq experiments or for differential expression- and ontology analysis from RNA-Seq data
 
 		VERSION
-		$version
+		$VERSION
+		utilizing bashbone $BASHBONEVERSION
 
 		SYNOPSIS PREPROCESSING
-		$(basename $0) -1 ctr1.fq,ctr2.fq,treat1.fq,treat2.fq -g genome.fa -no-quant
+		rippchen.sh -1 ctr1.fq,ctr2.fq,treat1.fq,treat2.fq -g genome.fa -no-quant
 
 		SYNOPSIS DIFFERENTIAL EXPRESSION ANALYSIS
-		$(basename $0) -1 ctr1.fq,ctr2.fq,treat1.fq,treat2.fq -g genome.fa -c cmp.txt
+		rippchen.sh -1 ctr1.fq,ctr2.fq,treat1.fq,treat2.fq -g genome.fa -c cmp.txt
 
 		SYNOPSIS PEAK CALLING
-		$(basename $0) -1 ctrA.fq,ctrB.fq -t1 treatA1.fq,treatB1.fq -r1 treatA2.fq,treatB2.fq -g genome.fa
+		rippchen.sh -1 ctrA.fq,ctrB.fq -t1 treatA1.fq,treatB1.fq -r1 treatA2.fq,treatB2.fq -g genome.fa
 
 		SYNOPSIS PEAK CALLING AND DIFFERENTIAL EXPRESSION ANALYSIS
-		$(basename $0) -1 ctrA.fq,ctrB.fq -t1 treatA1.fq,treatB1.fq -r1 treatA2.fq,treatB2.fq -g genome.fa -c cmp.txt
+		rippchen.sh -1 ctrA.fq,ctrB.fq -t1 treatA1.fq,treatB1.fq -r1 treatA2.fq,treatB2.fq -g genome.fa -c cmp.txt
 
 		BASIC OPTIONS
 		-h       | --help                   : prints this message
@@ -131,8 +116,15 @@ options::usage() {
 		                                      output: wt_vs_tr (N=2 vs N=4)
 		-no-dsj  | --no-diffsplicejunctions : disables differential splice junction analysis
 		-no-dea  | --no-diffexanalysis      : disables differential feature expression analysis plus downstream analyses
-		-no-clust| --no-clustering          : disables downstream feature co-expression clustering
-		-no-go   | --no-geneontology        : disables downstream gene ontology enrichment analysis
+		-no-go   | --no-geneontology        : disables gene ontology enrichment analyses for differentially expressed features and co-expression clusters
+		-no-clust| --no-clustering          : disables feature co-expression clustering
+		-cf      | --clusterfilter [value]  : decide for a set of differntially expressed features to be clustered for co-expression - default: 0
+		                                      0 - padj <= 0.05 in at least one comparison defined in experiment info file (see -c)
+		                                      1 - padj <= 0.05 and a log2foldchange difference >= 0.5 in at least one comparison
+		                                      2 - discard features within the 30% percentile of lowest expression values
+		                                      20 - 2 + 0
+		                                      21 - 2 + 1
+		
 
 		REFERENCES
 		(c) Konstantin Riege
@@ -212,8 +204,7 @@ options::checkopt (){
 		-i   | --insertsize) arg=true; INSERTSIZE=$2;;
 		-ql  | --quantifylevel) arg=true; QUANTIFYFLEVEL=$2;;
 		-qt  | --quantifytag) arg=true; QUANTIFYTAG=$2;;
-		#-cf  | --clusterfilter) arg=true; CLUSTERFILTER=$2;;
-		#-dexnew | --dexnewprepare) arg=true; DEXSEQNEW=$2;;
+		-cf  | --clusterfilter) arg=true; CLUSTERFILTER=$2;;
 
 	   	-resume | --resume-from)
 			arg=true
@@ -268,7 +259,7 @@ options::checkopt (){
 		-no-macs  | --no-macs) nomacs=true;;
 		-no-gem   | --no-gem) nogem=true;;
 		-no-quant | --no-quantification) noquant=true; nodea=true; noclust=true; nogo=true;;
-		-no-dea   | --no-diffsplicejunctions) nodsj=true;;
+		-no-dsj   | --no-diffsplicejunctions) nodsj=true;;
 		-no-dea   | --no-diffexanalysis) nodea=true;;
 		-no-clust | --no-clustering) noclust=true;;
 		-no-go    | --no-geneontology) nogo=true;;

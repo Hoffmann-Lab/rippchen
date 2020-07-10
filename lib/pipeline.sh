@@ -294,6 +294,7 @@ pipeline::dea() {
 			cluster::coexpression \
 				-S ${noclust:=false} \
 				-s ${Sclust:=false} \
+				-f ${CLUSTERFILTER:=0} \
 				-t $THREADS \
 				-m $MEMORY \
 				-r mapper \

@@ -30,11 +30,13 @@ cleanup() {
 }
 
 [[ ! $RIPPCHEN ]] && die "cannot find installation. please run setup and/or do: export RIPPCHEN=/path/to/install/dir"
-INSDIR=$RIPPCHEN
-source $INSDIR/latest/bashbone/activate.sh || die "install directory cannot be found"
-for f in $INSDIR/latest/rippchen/lib/*.sh; do
-	source $f
+INSDIR=$(dirname $(readlink -e $0))
+source $INSDIR/bashbone/activate.sh -i $RIPPCHEN -c true || die
+BASHBONEVERSION=$version
+for f in $INSDIR/lib/*.sh; do
+	source $f || die "unexpected error in source code - please contact developer"
 done
+VERSION=$version
 
 CMD="$(basename $0) $*"
 THREADS=$(grep -cF processor /proc/cpuinfo)
@@ -137,7 +139,7 @@ done
 unset IFS
 
 
-commander::print "rippchen v$version started with command: $CMD" > $LOG || die "cannot access $LOG"
+commander::print "rippchen $VERSION utilizing bashbone $BASHBONEVERSION started with command: $CMD" > $LOG || die "cannot access $LOG"
 commander::print "temporary files go to: $HOSTNAME:$TMPDIR" >> $LOG
 progress::log -v $VERBOSITY -o $LOG
 
