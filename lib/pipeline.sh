@@ -49,13 +49,6 @@ pipeline::index(){
 }
 
 pipeline::_preprocess(){
-	${Smd5:=false} || {
-		[[ ! -s $GENOME.md5.sh ]] && cp $INSDIR/latest/bashbone/lib/md5.sh $GENOME.md5.sh
-		source $GENOME.md5.sh
-		thismd5genome=$(md5sum $GENOME | cut -d ' ' -f 1)
-		[[ "$md5genome" != "$thismd5genome" ]] && sed -i "s/md5genome=.*/md5genome=$thismd5genome/" $GENOME.md5.sh
-	}
-	
 	if [[ ! $MAPPED ]]; then
 		declare -a qualdirs
 

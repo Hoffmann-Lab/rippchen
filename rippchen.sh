@@ -91,7 +91,7 @@ ${INDEX:=false} || {
 if [[ $GENOME ]]; then
 	readlink -e $GENOME | file -f - | grep -qF ASCII || die "genome file does not exists or is compressed $GENOME"
 else
-	${INDEX:=false} && die "genome file needed"
+	${INDEX:=false} && die "genome file missing"
 	commander::warn "proceeding without genome file"
 	Smd5=true
 	nosege=true
@@ -103,7 +103,7 @@ else
 	readlink -e $GENOME.gtf | file -f - | grep -qF ASCII && {
 		GTF=$GENOME.gtf
 	} || {
-		${INDEX:=false} && die "annotation file needed"
+		${INDEX:=false} && die "annotation file missing"
 		commander::warn "proceeding without gtf file"
 		noquant=true
 	}
@@ -147,6 +147,11 @@ unset IFS
 commander::print "rippchen $VERSION utilizing bashbone $BASHBONEVERSION started with command: $CMD" > $LOG || die "cannot access $LOG"
 commander::print "temporary files go to: $HOSTNAME:$TMPDIR" >> $LOG
 progress::log -v $VERBOSITY -o $LOG
+
+${Smd5:=false} || {
+	[[ ! -s $GENOME.md5.sh ]] && cp $(dirname $(readlink -e $0))/bashbone/lib/md5.sh $GENOME.md5.sh
+	source $GENOME.md5.sh
+}
 ${INDEX:=false} && {
 	pipeline::index >> $LOG 2> >(tee -a $LOG >&2) || die
 } || {
@@ -157,6 +162,15 @@ ${INDEX:=false} && {
 		pipeline::dea >> $LOG 2> >(tee -a $LOG >&2) || die
 	fi
 }
+${Smd5:=false} || {
+	commander::print "finally updating genome and annotation md5 sums" >> $LOG
+	thismd5genome=$(md5sum $GENOME | cut -d ' ' -f 1)
+	[[ "$md5genome" != "$thismd5genome" ]] && sed -i "s/md5genome=.*/md5genome=$thismd5genome/" $GENOME.md5.sh
+	thismd5gtf=$(md5sum $GTF | cut -d ' ' -f 1)
+	[[ "$md5gtf" != "$thismd5gtf" ]] && sed -i "s/md5gtf=.*/md5gtf=$thismd5gtf/" $GENOME.md5.sh
+}
 
 commander::print "success" >> $LOG
 exit 0
+
+
