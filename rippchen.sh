@@ -143,10 +143,10 @@ for f in $nmap; do
 done
 unset IFS
 
-
-commander::print "rippchen $VERSION utilizing bashbone $BASHBONEVERSION started with command: $CMD" > $LOG || die "cannot access $LOG"
-commander::print "temporary files go to: $HOSTNAME:$TMPDIR" >> $LOG
+echo > $LOG || die "cannot access $LOG"
 progress::log -v $VERBOSITY -o $LOG
+commander::print "rippchen $VERSION utilizing bashbone $BASHBONEVERSION started with command: $CMD" > $LOG 
+commander::print "temporary files go to: $HOSTNAME:$TMPDIR" >> $LOG
 
 ${Smd5:=false} || {
 	[[ ! -s $GENOME.md5.sh ]] && cp $(dirname $(readlink -e $0))/bashbone/lib/md5.sh $GENOME.md5.sh
