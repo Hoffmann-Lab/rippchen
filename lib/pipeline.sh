@@ -1,6 +1,53 @@
 #! /usr/bin/env bash
 # (c) Konstantin Riege
 
+pipeline::index(){
+	{	alignment::segemehl \
+			-S ${nosege:=false} \
+			-s true \
+			-t $THREADS \
+			-g $GENOME \
+			-x $GENOME.segemehl.idx \
+			-o $TMPDIR \
+			-r NA \
+			-1 NA && \
+		alignment::star \
+			-S ${nostar:=false} \
+			-s true \
+			-t $THREADS \
+			-g $GENOME \
+			-x $GENOME-staridx \
+			-o $TMPDIR \
+			-r NA \
+			-1 NA && \
+		genome::mkdict \
+			-t $THREADS \
+			-i $GENOME \
+			-p $TMPDIR && \
+		expression::diego \
+			-S ${nodsj:=false} \
+			-s true \
+			-t $THREADS \
+			-r NA \
+			-g $GTF \
+			-c NA \
+			-i $TMPDIR \
+			-j $TMPDIR \
+			-p $TMPDIR \
+			-o $TMPDIR && \
+		quantify::featurecounts \
+			-S ${noquant:=false} \
+			-s true \
+			-t $THREADS \
+			-r NA \
+			-g $GTF \
+			-p $TMPDIR \
+			-o $TMPDIR
+	} || return 1
+
+	return 0
+}
+
 pipeline::_preprocess(){
 	${Smd5:=false} || {
 		[[ ! -s $GENOME.md5.sh ]] && cp $INSDIR/latest/bashbone/lib/md5.sh $GENOME.md5.sh

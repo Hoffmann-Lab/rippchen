@@ -1,10 +1,32 @@
 ### ABOUT
 RIPPCHEN are tasty!
-acquire a taste for RNA-Seq based gene expression analysis and peak calling from *IP-Seq experiments
+acquire a taste for peak calling from *IP-Seq experiments or for differential expression- and ontology analysis from RNA-Seq data
 
-RIPPCHEN comprises
-1) a free implementation of ENCODE best practices for ChIP-Seq analysis
-2) gene expression analysis comprising differential analysis, principal component analysis, coexpression clustering and go enrichment
+RIPPCHEN provides
+0) a sophisticated infrastructure for task parallelization
+- a root less setup routine for all requirements and tools
+- comprehensive log files for full reproducibility and version tracking according to FAIR principles
+- a bash library (called bashbone) for modular pipeline design
+1) NGS data preprocessing
+- quality based trimming
+- adapter clipping
+- filter for rRNA reads
+- correction of sequencing errors
+- alignment by STAR or segemehl
+- alignment postprocessing: 
+  - extraction of uniquely mapped and properly paired alignments
+  - clipping of overlapping read mates
+  - removal of optical duplicates
+2) an implementation of ENCODE best practices for RIP-Seq and ChIP-Seq analysis comprising
+- peak calling
+- pseudo replicate or pool generation
+- idr computation
+3) gene expression analyses comprising
+- differential expression analysis
+- principal component analysis
+- coexpression clustering
+- differntial splice site analysis
+- go enrichment
 
 
 ### REFERENCES
@@ -14,7 +36,7 @@ RIPPCHEN comprises
 ### CONTACT
 konstantin{.}riege{a}uni{-}jena{.}de
 konstantin{a}bioinf{.}uni{-}leipzig{.}de
-konstantin{.}riege{a}leibniz{-}fli{.}de
+konstantin{.}riege{a}leibniz{-}fli{.}de (<- most recent)
 
 In case of troubles, don't hesitate to contact me
 
@@ -22,11 +44,11 @@ In case of troubles, don't hesitate to contact me
 ### REQUIREMENTS
 - Internet access
 - Linux
-- ~10GB disk space for all dependencies and tools going to be installed
+- ~15GB disk space
 
 
 ### INSTALLATION
-1) create a shell variable RIPPCHEN assigned to an installation directory
+1) create a shell variable RIPPCHEN assigned to the installation directory
 export RIPPCHEN=/path/to/install/dir
 3) store the RIPPCHEN variable permanently to ensure that RIPPCHEN can always find the required tools
 echo "export RIPPCHEN=$RIPPCHEN" >> ~/.bashrc
@@ -52,7 +74,7 @@ git checkout $(git describe --tags)
 
 ### LOGS and verbosity
 - a comprehensive log file 'run.log' file will be created in your output directory, unless defined otherwise
-- using the verbose option '-v' will additionally print full log to terminals stdout
+- using the verbose option will additionally print up to full logs to terminals stdout
 
 
 ### FIRST RUN INFO

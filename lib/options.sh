@@ -11,17 +11,20 @@ options::usage() {
 		$VERSION
 		utilizing bashbone $BASHBONEVERSION
 
+		SYNOPSIS INDEXING
+		rippchen.sh -x -g genome.fa -gtf genome.gtf
+
 		SYNOPSIS PREPROCESSING
 		rippchen.sh -1 ctr1.fq,ctr2.fq,treat1.fq,treat2.fq -g genome.fa -no-quant
 
 		SYNOPSIS DIFFERENTIAL EXPRESSION ANALYSIS
-		rippchen.sh -1 ctr1.fq,ctr2.fq,treat1.fq,treat2.fq -g genome.fa -c cmp.txt
+		rippchen.sh -1 ctr1.fq,ctr2.fq,treat1.fq,treat2.fq -g genome.fa -gtf genome.gtf -c cmp.txt
 
 		SYNOPSIS PEAK CALLING
 		rippchen.sh -1 ctrA.fq,ctrB.fq -t1 treatA1.fq,treatB1.fq -r1 treatA2.fq,treatB2.fq -g genome.fa
 
 		SYNOPSIS PEAK CALLING AND DIFFERENTIAL EXPRESSION ANALYSIS
-		rippchen.sh -1 ctrA.fq,ctrB.fq -t1 treatA1.fq,treatB1.fq -r1 treatA2.fq,treatB2.fq -g genome.fa -c cmp.txt
+		rippchen.sh -1 ctrA.fq,ctrB.fq -t1 treatA1.fq,treatB1.fq -r1 treatA2.fq,treatB2.fq -g genome.fa -gt genome.gtf -c cmp.txt
 
 		BASIC OPTIONS
 		-h       | --help                   : prints this message
@@ -31,6 +34,7 @@ options::usage() {
 		                                      0 - get simple status updates
 		                                      1 - get status updates and commands
 		                                      2 - get full output
+		-x       | --index                  : create all requiered indices if necessary and exit
 		-g       | --genome [path]          : genome fasta input, without only preprocessing is performed
 		-gtf     | --gtf [path]             : annotation gtf input - optional, default: genome.fasta.gtf
 		-a1      | --adapter1 [string,..]   : adapter sequence(s) - optional. single or first pair, comma seperated
@@ -62,7 +66,7 @@ options::usage() {
 		-no-uniq | --no-uniqify             : disables extraction of properly paired and uniquely mapped reads
 		-no-sort | --no-sort                : disables sorting alignments
 		-no-idx  | --no-index               : disables indexing alignments
-		-cmo     | --clipmateoverlaps       : enable read clipping in case of an overlap with its mate
+		-cmo     | --clipmateoverlaps       : enable clipping of read mate overlaps
 
 		QUANTIFICATION OPTIONS
 		-ql      | --quantifylevel          : switch to other feature type for quantification - default: exon
@@ -241,6 +245,7 @@ options::checkopt (){
 			done
 		;;
 
+		-x  | --index) INDEX=true;;
 		-no-qual  | --no-qualityanalysis) noqual=true;;
 		-no-clip  | --no-clipping) noclip=true;;
 		-no-trim  | --no-trimming) notrim=true;;

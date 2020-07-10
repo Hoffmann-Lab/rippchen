@@ -30,10 +30,10 @@ cleanup() {
 }
 
 [[ ! $RIPPCHEN ]] && die "cannot find installation. please run setup and/or do: export RIPPCHEN=/path/to/install/dir"
-INSDIR=$(dirname $(readlink -e $0))
-source $INSDIR/bashbone/activate.sh -i $RIPPCHEN -c true || die
+INSDIR=$RIPPCHEN
+source $(dirname $(readlink -e $0))/bashbone/activate.sh -i $RIPPCHEN -c true || die
 BASHBONEVERSION=$version
-for f in $INSDIR/lib/*.sh; do
+for f in $(dirname $(readlink -e $0))/lib/*.sh; do
 	source $f || die "unexpected error in source code - please contact developer"
 done
 VERSION=$version
@@ -79,10 +79,19 @@ fi
 [[ ! $LOG ]] && LOG=$OUTDIR/run.log
 [[ MTHREADS=$[MAXMEMORY/MEMORY] -gt $THREADS ]] && MTHREADS=$THREADS
 [[ $MTHREADS -eq 0 ]] && die "too less memory available ($MAXMEMORY)"
-[[ ! $nfq1 ]] && [[ ! $tfq1 ]] && [[ ! $nmap ]] && die "fastq file input missing - call "$(basename $0)" -h for help"
+${INDEX:=false} || {
+	[[ ! $nfq1 ]] && [[ ! $tfq1 ]] && [[ ! $nmap ]] && die "fastq file input missing"
+}
+[[ ! $nfq2 ]] && {
+	[[ "$nocomo" == "false" ]] && {
+		commander::warn "no second mate fastq file given - proceeding without mate overlap clipping"
+		nocmo=true
+	}
+}
 if [[ $GENOME ]]; then
 	readlink -e $GENOME | file -f - | grep -qF ASCII || die "genome file does not exists or is compressed $GENOME"
 else
+	${INDEX:=false} && die "genome file needed"
 	commander::warn "proceeding without genome file"
 	Smd5=true
 	nosege=true
@@ -94,12 +103,9 @@ else
 	readlink -e $GENOME.gtf | file -f - | grep -qF ASCII && {
 		GTF=$GENOME.gtf
 	} || {
-		if [[ ! $tfq1 ]]; then
-			commander::warn "proceeding without gtf file"
-			noquant=true
-		else
-			[[ $comp ]] && die "annotation file needed"
-		fi
+		${INDEX:=false} && die "annotation file needed"
+		commander::warn "proceeding without gtf file"
+		noquant=true
 	}
 fi
 
@@ -130,7 +136,6 @@ i=-1
 for f in {$nfq2,$nrfq2,$tfq2,$rfq2}; do
 	readlink -e $f &> /dev/null || die "second mate fastq file does not exists $f"
 	FASTQ2[((++i))]=$f
-	[[ $comp ]] && [[ $(basename ${FASTQ2[$i]} | cut -d '.' -f 1) != ${fqbaseprefix[$i]} ]] && die "'.'-separated basenames do not match"
 done
 for f in $nmap; do
 	readlink -e $f &> /dev/null || die "alignment file does not exists $f"
@@ -142,14 +147,16 @@ unset IFS
 commander::print "rippchen $VERSION utilizing bashbone $BASHBONEVERSION started with command: $CMD" > $LOG || die "cannot access $LOG"
 commander::print "temporary files go to: $HOSTNAME:$TMPDIR" >> $LOG
 progress::log -v $VERBOSITY -o $LOG
-
-[[ ! $nfq2 ]] && nocmo=true
-if [[ $tfq1 ]]; then
-	[[ $IPTYPE == 'chip' ]] && nosplit=true || IPTYPE='rip'
-	pipeline::callpeak >> $LOG 2> >(tee -a $LOG >&2) || die
-else
-	pipeline::dea >> $LOG 2> >(tee -a $LOG >&2) || die
-fi
+${INDEX:=false} && {
+	pipeline::index >> $LOG 2> >(tee -a $LOG >&2) || die
+} || {
+	if [[ $tfq1 ]]; then
+		[[ $IPTYPE == 'chip' ]] && nosplit=true || IPTYPE='rip'
+		pipeline::callpeak >> $LOG 2> >(tee -a $LOG >&2) || die
+	else
+		pipeline::dea >> $LOG 2> >(tee -a $LOG >&2) || die
+	fi
+}
 
 commander::print "success" >> $LOG
 exit 0
