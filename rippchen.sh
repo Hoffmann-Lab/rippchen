@@ -1,9 +1,7 @@
 #! /usr/bin/env bash
 # (c) Konstantin Riege
 trap 'die' INT TERM
-trap 'sleep 1; kill -PIPE $(pstree -p $$ | grep -Eo "\([0-9]+\)" | grep -Eo "[0-9]+") &> /dev/null' EXIT
-shopt -s extglob
-shopt -s expand_aliases
+trap 'cleanup; sleep 1; kill -PIPE $(pstree -p $$ | grep -Eo "\([0-9]+\)" | grep -Eo "[0-9]+") &> /dev/null' EXIT
 
 die() {
 	unset CLEANUP
@@ -14,7 +12,8 @@ die() {
 }
 
 cleanup() {
-	if [[ $CLEANUP ]]; then
+	${CLEANUP:=false} && {
+		commander::print "removing temporary files, directory itself will persist at $HOSTNAME:$TMPDIR"
 		local b e
 		for f in "${FASTQ1[@]}"; do
 			helper::basename -f "$f" -o b -e e
@@ -26,7 +25,7 @@ cleanup() {
 				find $OUTDIR -type f -name "$f*.*.gz" -exec bash -c '[[ -s {} ]] && rm -f $(dirname {})/$(basename {} .gz)' \;
 			fi
 		done
-	fi
+	}
 }
 
 [[ ! $RIPPCHEN ]] && die "cannot find installation. please run setup and/or do: export RIPPCHEN=/path/to/install/dir"
