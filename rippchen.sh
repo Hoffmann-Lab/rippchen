@@ -13,14 +13,14 @@ die() {
 
 cleanup() {
 	${CLEANUP:=false} && {
-		commander::print "removing temporary files, directory itself will persist at $HOSTNAME:$TMPDIR"
+		commander::print "removing temporary files. directory structure itself will persist at $HOSTNAME:$TMPDIR"
 		local b e
 		for f in "${FASTQ1[@]}"; do
 			helper::basename -f "$f" -o b -e e
 			f=$b
 			[[ -e $TMPDIR ]] && find $TMPDIR -type f -name "$f*" -exec rm -f {} \;
 			if [[ -e $OUTDIR ]]; then
-				find $OUTDIR -type f -name "$f*.all" -exec rm -f {} \;
+				find $OUTDIR -type d -name "*._STAR*" -exec rm -rf {} \;
 				find $OUTDIR -type f -name "$f*.sorted.bam" -exec bash -c '[[ -s {} ]] && rm -f $(dirname {})/$(basename {} .sorted.bam).bam' \;
 				find $OUTDIR -type f -name "$f*.*.gz" -exec bash -c '[[ -s {} ]] && rm -f $(dirname {})/$(basename {} .gz)' \;
 			fi
