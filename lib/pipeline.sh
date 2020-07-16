@@ -37,15 +37,6 @@ pipeline::index(){
 			-i $TMPDIR \
 			-j $TMPDIR \
 			-p $TMPDIR \
-			-o $TMPDIR && \
-		unset NA1 NA2 && \
-		quantify::featurecounts \
-			-S ${noquant:=false} \
-			-s true \
-			-t $THREADS \
-			-r NA1 \
-			-g $GTF \
-			-p $TMPDIR \
 			-o $TMPDIR
 	} || return 1
 
@@ -286,7 +277,6 @@ pipeline::dea() {
 		quantify::featurecounts \
 			-S ${noquant:=false} \
 			-s ${Squant:=false} \
-			-5 ${Smd5:=false} \
 			-t $THREADS \
 			-p $TMPDIR \
 			-g $GTF \

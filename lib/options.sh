@@ -51,8 +51,8 @@ options::usage() {
 		-skip    | --skip [value,..]        : skip specific pipeline step(s) - see -dev|--devel, comma seperated
 		-redo    | --redo [value,..]        : just rerun specific pipeline step(s) - see -dev|--devel, comma seperated
 		-no-qual | --no-qualityanalysis     : disables read quality analysis
-		-no-clip | --no-clipping            : disables removal of adapter sequences if -a|--adapter is used
 		-no-trim | --no-trimming            : disables quality trimming
+		-no-clip | --no-clipping            : disables removal of adapter sequences if -a|--adapter is used
 		-no-cor  | --no-correction          : disables majority based raw read error correction
 		-no-rrm  | --no-rrnafilter          : disables rRNA filter
 		-no-sege | --no-segemehl            : disables mapping by Segemehl

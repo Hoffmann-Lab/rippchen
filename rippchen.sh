@@ -4,7 +4,7 @@ trap 'die' INT TERM
 trap 'cleanup; sleep 1; kill -PIPE $(pstree -p $$ | grep -Eo "\([0-9]+\)" | grep -Eo "[0-9]+") &> /dev/null' EXIT
 
 die() {
-	unset CLEANUP
+	CLEANUP=false
 	echo -ne "\e[0;31m"
 	echo ":ERROR: $*" >&2
 	echo -ne "\e[m"
