@@ -43,6 +43,21 @@ pipeline::index(){
 	return 0
 }
 
+pipeline::_slice(){
+	alignment::slice \
+		-S $sliced \
+		-s $(${Sslice:=false} && echo true || echo $1) \
+		-t $THREADS \
+		-m $MEMORY \
+		-r mapper \
+		-c slicesinfo \
+		-p $TMPDIR || return 1
+
+	$1 || sliced=true # i.e. if not skiptool: sliced=true and -S NOslice=true, else just by SKIPslices slicesinfo will be further updated
+
+	return 0
+}
+
 pipeline::_preprocess(){
 	if [[ ! $MAPPED ]]; then
 		declare -a qualdirs
@@ -219,7 +234,7 @@ pipeline::dea() {
 			-p $TMPDIR \
 			-o $OUTDIR/mapped \
 			-r mapper && \
-		alignment::add4stats -r mapper && \
+		${nouniq:=false} || alignment::add4stats -r mapper && \
 		alignment::postprocess \
 			-S ${nosort:=false} \
 			-s ${Ssort:=false} \
@@ -353,21 +368,6 @@ pipeline::dea() {
 	return 0
 }
 
-pipeline::_slice(){
-	alignment::slice \
-		-S $sliced \
-		-s $(${Sslice:=false} && echo true || echo $1) \
-		-t $THREADS \
-		-m $MEMORY \
-		-r mapper \
-		-c slicesinfo \
-		-p $TMPDIR || return 1
-
-	$1 || sliced=true # i.e. if not skiptool: sliced=true and -S NOslice=true, else just by SKIPslices slicesinfo will be further updated
-
-	return 0
-}
-
 pipeline::callpeak() {
 	declare -a mapper
 	declare -A slicesinfo
@@ -393,8 +393,7 @@ pipeline::callpeak() {
 			-p $TMPDIR \
 			-o $OUTDIR/mapped \
 			-r mapper && \
-		alignment::add4stats -r mapper && \
-		callpeak::mkreplicates && \
+		${nouniq:=false} || alignment::add4stats -r mapper && \
 		alignment::postprocess \
 			-S ${nosort:=false} \
 			-s ${Ssort:=false} \
@@ -402,7 +401,19 @@ pipeline::callpeak() {
 			-t $THREADS \
 			-p $TMPDIR \
 			-o $OUTDIR/mapped \
-			-r mapper
+			-r mapper && \
+		callpeak::mkreplicates \
+			-S ${norep:=false} \
+			-s ${Srep:=false} \
+			-t $THREADS \
+			-o $OUTDIR/replicates \
+			-p $TMPDIR \
+			-r mapper \
+			-n nidx \
+			-m nridx \
+			-i tidx \
+			-j ridx \
+			-k pidx
 	} || return 1
 
 	${normd:=false} || {

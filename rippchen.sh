@@ -1,30 +1,50 @@
 #! /usr/bin/env bash
 # (c) Konstantin Riege
+trap '
+	cleanup $?
+	pids=($(pstree -p $$ | grep -Eo "\([0-9]+\)" | grep -Eo "[0-9]+" | tail -n +2))
+	{ kill -KILL "${pids[@]}" && wait "${pids[@]}"; } &> /dev/null
+	echo -e "\r "
+' EXIT
 trap 'die' INT TERM
-trap 'cleanup; sleep 1; echo -e "\r "; kill -PIPE $(pstree -p $$ | grep -Eo "\([0-9]+\)" | grep -Eo "[0-9]+") &> /dev/null' EXIT
+
+dierr(){
+	echo -ne "\e[0;31m"
+	echo -e "\r:ERROR: $*" >&2
+	echo -ne "\e[m"
+}
 
 die() {
-	CLEANUP=false
-	echo -ne "\e[0;31m"
-	echo ":ERROR: $*" >&2
-	echo -ne "\e[m"
+	dierr "$*"	
 	exit 1
 }
 
 cleanup() {
-	${CLEANUP:=false} && {
-		commander::print "removing temporary files. directory structure itself will persist at $HOSTNAME:$TMPDIR"
-		local b e
-		for f in "${FASTQ1[@]}"; do
-			helper::basename -f "$f" -o b -e e
-			f=$b
-			[[ -e $TMPDIR ]] && find $TMPDIR -type f -name "$f*" -exec rm -f {} \;
-			if [[ -e $OUTDIR ]]; then
-				find $OUTDIR -type d -name "*._STAR*" -exec rm -rf {} \;
-				find $OUTDIR -type f -name "$f*.sorted.bam" -exec bash -c '[[ -s {} ]] && rm -f $(dirname {})/$(basename {} .sorted.bam).bam' \;
-				find $OUTDIR -type f -name "$f*.*.gz" -exec bash -c '[[ -s {} ]] && rm -f $(dirname {})/$(basename {} .gz)' \;
-			fi
-		done
+	local b m=":INFO:"
+	[[ -e $TMPDIR ]] && {
+		[[ $1 -eq 0 ]] && echo -e "\r:INFO: cleanup in progress" || dierr "cleanup in progress"
+		find $TMPDIR -type f -name "cleanup.*" -exec rm -f {} \;
+		find $TMPDIR -type d -depth -name "cleanup.*" -exec rm -rf {} \;
+	}
+	[[ $1 -eq 0 ]] && ${CLEANUP:=false} && {
+		echo -e "\r:INFO: removing temporary directory and unnecessary files"
+		[[ -e $TMPDIR ]] && {
+			find $TMPDIR -type f -exec rm -f {} \;
+			find $TMPDIR -type d -depth -exec rm -rf {} \;
+			rm -rf $TMPDIR
+		}
+		[[ -e $OUTDIR ]] && {
+			for f in "${FASTQ1[@]}"; do
+				readlink -e "$f" | file -f - | grep -qE '(gzip|bzip)' && b=$(basename $f | rev | cut -d '.' -f 3- | rev) || b=$(basename $f | rev | cut -d '.' -f 2- | rev)
+				find $OUTDIR -type d -depth -name "$b*._STAR*" -exec rm -rf {} \;
+				find $OUTDIR -type f -name "$b*.sorted.bam" -exec bash -c '[[ -s {} ]] && rm -f $(dirname {})/$(basename {} .sorted.bam).bam' \;
+				find $OUTDIR -type f -name "$b*.*.gz" -exec bash -c '[[ -s {} ]] && rm -f $(dirname {})/$(basename {} .gz)' \;
+			done
+			for f in "${MAPPED[@]}"; do
+				b=$(basename $f | rev | cut -d '.' -f 2- | rev)
+				find $OUTDIR -type f -name "$b*.sorted.bam" -exec bash -c '[[ -s {} ]] && rm -f $(dirname {})/$(basename {} .sorted.bam).bam' \;
+			done
+		}
 	}
 }
 
@@ -71,7 +91,7 @@ else
 	Sslice=false
 	mkdir -p $TMPDIR || die "cannot access $TMPDIR"
 	TMPDIR=$(readlink -e $TMPDIR)
-	TMPDIR=$(mktemp -p $TMPDIR -d --suffix=.rippchen) || die "cannot access $TMPDIR"
+	TMPDIR=$(mktemp -d -p $TMPDIR rippchen.XXXXXXXXXX) || die "cannot access $TMPDIR"
 fi
 
 
@@ -109,37 +129,63 @@ else
 fi
 
 
-i=-1
 IFS=','
-for f in $nfq1; do
-	readlink -e $f &> /dev/null || die "single or first mate fastq file does not exists $f"
-	FASTQ1[((++i))]=$f
-	nidx+=($i)
-done
-for f in $nrfq1; do
-	readlink -e $f &> /dev/null || die "single or first mate replicate fastq file does not exists $f"
-	FASTQ1[((++i))]=$f
-	nridx+=($i)
-done
-for f in $tfq1; do
-	readlink -e $f &> /dev/null || die "single or first mate treatment fastq file does not exists $f"
-	FASTQ1[((++i))]=$f
-	[[ $rfq1 ]] && tidx+=($i) || pidx+=($i) #necessary for pooling, make pseudo-replicates respectively
-done
-for f in $rfq1; do
-	readlink -e $f &> /dev/null  || die "single or first mate treatment replicate fastq file does not exists $f"
-	FASTQ1[((++i))]=$f
-	ridx+=($i)
-done
 i=-1
-for f in {$nfq2,$nrfq2,$tfq2,$rfq2}; do
-	readlink -e $f &> /dev/null || die "second mate fastq file does not exists $f"
-	FASTQ2[((++i))]=$f
-done
-for f in $nmap; do
-	readlink -e $f &> /dev/null || die "alignment file does not exists $f"
-	MAPPED+=($f)
-done
+if [[ ! $nmap ]]; then
+	for f in $nfq1; do
+		readlink -e $f &> /dev/null || die "single or first mate fastq file does not exists $f"
+		FASTQ1[((++i))]=$f
+		nidx+=($i)
+	done
+	for f in $nrfq1; do
+		readlink -e $f &> /dev/null || die "single or first mate normal replicate fastq file does not exists $f"
+		FASTQ1[((++i))]=$f
+		nridx+=($i)
+	done
+	for f in $tfq1; do
+		readlink -e $f &> /dev/null || die "single or first mate treatment fastq file does not exists $f"
+		FASTQ1[((++i))]=$f
+		[[ $rfq1 ]] && tidx+=($i) || pidx+=($i) #necessary for pooling, make pseudo-replicates respectively
+	done
+	for f in $rfq1; do
+		readlink -e $f &> /dev/null  || die "single or first mate treatment replicate fastq file does not exists $f"
+		FASTQ1[((++i))]=$f
+		ridx+=($i)
+	done
+	i=-1
+	for f in {$nfq2,$nrfq2,$tfq2,$rfq2}; do
+		readlink -e $f &> /dev/null || die "second mate fastq file does not exists $f"
+		FASTQ2[((++i))]=$f
+	done
+	[[ $FASTQ2 ]] && [[ ${#FASTQ1[@]} -ne ${#FASTQ2[@]} ]] && die "unequal number of mate pairs"
+else
+	for f in $nmap; do
+		readlink -e $f &> /dev/null || die "alignment file does not exists $f"
+		MAPPED[((++i))]=$f
+		nidx+=($i)
+	done
+	for f in $nrmap; do
+		readlink -e $f &> /dev/null || die "normal replicate alignment file does not exists $f"
+		MAPPED[((++i))]=$f
+		nridx+=($i)
+	done
+	[[ $nridx ]] && [[ ${#nidx[@]} -ne ${#nridx[@]} ]] && die "unequal number of normal replicates"
+	for f in $tmap; do
+		readlink -e $f &> /dev/null || die "treatment alignment file does not exists $f"
+		MAPPED[((++i))]=$f
+		pidx+=($i)
+	done
+	for f in $rmap; do
+		readlink -e $f &> /dev/null || die "treatment replicate alignment file does not exists $f"
+		MAPPED[((++i))]=$f
+		ridx+=($i)
+	done
+	[[ $ridx ]] && {
+		tidx+=("${pidx[@]}")
+		pidx=()
+		[[ ${#ridx[@]} -ne ${#tidx[@]} ]] && die "unequal number of treatment replicates"
+	}
+fi
 unset IFS
 
 echo > $LOG || die "cannot access $LOG"

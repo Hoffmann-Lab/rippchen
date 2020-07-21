@@ -1,7 +1,7 @@
 #! /usr/bin/env bash
 # (c) Konstantin Riege
 
-callpeak::mkreplicates() { #for peak calling only
+callpeak::mkreplicates_old() { #for peak calling only
 	[[ $norepl ]] && return 0
 	[[ ${#ridx[@]} -gt 0 ]] && echo ":INFO: generating pools" || echo ":INFO: generating pseudo-replicates"
 

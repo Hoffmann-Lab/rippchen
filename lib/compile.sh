@@ -24,19 +24,19 @@ compile::all(){
 }
 
 compile::rippchen() {
-	local insdir threads
+	local insdir threads src=$(dirname $(readlink -e $0))
 	compile::_parse -r insdir -s threads "$@" || return 1
 
 	local version bashboneversion
-	source $SRC/bashbone/lib/version.sh
+	source $src/bashbone/lib/version.sh
 	bashboneversion=$version
-	source $SRC/lib/version.sh
+	source $src/lib/version.sh
 	shopt -s extglob
 
 	commander::print "installing rippchen"
 	{	rm -rf $insdir/rippchen-$version && \
 		mkdir -p $insdir/rippchen-$version && \
-		cp -r $SRC/!(bashbone|setup*) $insdir/rippchen-$version && \
+		cp -r $src/!(bashbone|setup*) $insdir/rippchen-$version && \
 		mkdir -p $insdir/latest && \
 		ln -sfn $insdir/rippchen-$version $insdir/latest/rippchen && \
 		ln -sfn $insdir/bashbone-$bashboneversion $insdir/rippchen-$version/bashbone

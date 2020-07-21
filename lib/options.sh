@@ -27,108 +27,112 @@ options::usage() {
 		rippchen.sh -1 ctrA.fq,ctrB.fq -t1 treatA1.fq,treatB1.fq -r1 treatA2.fq,treatB2.fq -g genome.fa -gt genome.gtf -c cmp.txt
 
 		BASIC OPTIONS
-		-h       | --help                   : prints this message
-		-dev     | --devel                  : prints extended pipeline options
-		-r       | --remove                 : clean up after successful termination
-		-v       | --verbosity [value]      : set level of verbosity - default: 0
-		                                      0 - get simple status updates
-		                                      1 - get status updates and commands
-		                                      2 - get full output
-		-x       | --index                  : create all requiered indices if necessary and exit
-		-g       | --genome [path]          : genome fasta input, without only preprocessing is performed
-		-gtf     | --gtf [path]             : annotation gtf input - optional, default: genome.fasta.gtf
-		-a1      | --adapter1 [string,..]   : adapter sequence(s) - optional. single or first pair, comma seperated
-		-a2      | --adapter2 [string,..]   : adapter sequence(s) - optional. second pair, comma seperated
-		-o       | --out [path]             : output directory - default: $OUTDIR
-		-l       | --log [path]             : output directory - default: $OUTDIR/run.log
-		-tmp     | --tmp                    : temporary directory - default: $TMPDIR/tmp.XXXXXXXXXX.rippchen
-		-t       | --threads [value]        : threads - predicted default: $THREADS
-		-mem     | --memory [value]         : amout of memory for creating bam slices and processing them in parallel instances
-		                                      available: $MAXMEMORY
-		                                      default: 30000 (allows for $MTHREADS instances)
-		                                      NOTE: needs to be raised in case of GCThreads, HeapSize or OutOfMemory errors
-		-resume  | --resume-from [value]    : resume from a specific pipeline step - see -dev|--devel
-		-skip    | --skip [value,..]        : skip specific pipeline step(s) - see -dev|--devel, comma seperated
-		-redo    | --redo [value,..]        : just rerun specific pipeline step(s) - see -dev|--devel, comma seperated
-		-no-qual | --no-qualityanalysis     : disables read quality analysis
-		-no-trim | --no-trimming            : disables quality trimming
-		-no-clip | --no-clipping            : disables removal of adapter sequences if -a|--adapter is used
-		-no-cor  | --no-correction          : disables majority based raw read error correction
-		-no-rrm  | --no-rrnafilter          : disables rRNA filter
-		-no-sege | --no-segemehl            : disables mapping by Segemehl
-		-no-star | --no-star                : disables mapping by STAR
-		-no-stats| --no-statistics          : disables fastq preprocessing and mapping statistics
+		-h       | --help                     : prints this message
+		-dev     | --devel                    : prints extended pipeline options
+		-r       | --remove                   : remove temporary and unnecessary files upon succesful termination
+		-v       | --verbosity [value]        : set level of verbosity - default: 0
+		                                        0 - get simple status updates
+		                                        1 - get status updates and commands
+		                                        2 - get full output
+		-x       | --index                    : create all requiered indices if necessary and exit
+		-g       | --genome [path]            : genome fasta input, without only preprocessing is performed
+		-gtf     | --gtf [path]               : annotation gtf input - optional, default: genome.fasta.gtf
+		-a1      | --adapter1 [string,..]     : adapter sequence(s) - optional. single or first pair, comma seperated
+		-a2      | --adapter2 [string,..]     : adapter sequence(s) - optional. second pair, comma seperated
+		-o       | --out [path]               : output directory - default: $OUTDIR
+		-l       | --log [path]               : output directory - default: $OUTDIR/run.log
+		-tmp     | --tmp                      : temporary directory - default: $TMPDIR/rippchen.XXXXXXXXXX
+		-t       | --threads [value]          : threads - predicted default: $THREADS
+		-mem     | --memory [value]           : amout of memory for creating bam slices and processing them in parallel instances
+		                                        available: $MAXMEMORY
+		                                        default: 30000 (allows for $MTHREADS instances)
+		                                        NOTE: needs to be raised in case of GCThreads, HeapSize or OutOfMemory errors
+		-resume  | --resume-from [value]      : resume from a specific pipeline step - see -dev|--devel
+		-skip    | --skip [value,..]          : skip specific pipeline step(s) - see -dev|--devel, comma seperated
+		-redo    | --redo [value,..]          : just rerun specific pipeline step(s) - see -dev|--devel, comma seperated
+		-no-qual | --no-qualityanalysis       : disables read quality analysis
+		-no-trim | --no-trimming              : disables quality trimming
+		-no-clip | --no-clipping              : disables removal of adapter sequences if -a|--adapter is used
+		-no-cor  | --no-correction            : disables majority based raw read error correction
+		-no-rrm  | --no-rrnafilter            : disables rRNA filter
+		-no-sege | --no-segemehl              : disables mapping by Segemehl
+		-no-star | --no-star                  : disables mapping by STAR
+		-no-stats| --no-statistics            : disables fastq preprocessing and mapping statistics
 
 		ALIGNMENT OPTIONS
-		-d       | --distance               : maximum read alignment edit distance in % - default: 5
-		-i       | --insertsize             : maximum allowed insert for aligning mate pairs - default: 200000
-		-no-split| --no-split               : disable split read mapping
-		-no-uniq | --no-uniqify             : disables extraction of properly paired and uniquely mapped reads
-		-no-sort | --no-sort                : disables sorting alignments
-		-no-idx  | --no-index               : disables indexing alignments
-		-cmo     | --clipmateoverlaps       : enable clipping of read mate overlaps
+		-d       | --distance                 : maximum read alignment edit distance in % - default: 5
+		-i       | --insertsize               : maximum allowed insert for aligning mate pairs - default: 200000
+		-no-split| --no-split                 : disable split read mapping
+		-no-uniq | --no-uniqify               : disables extraction of properly paired and uniquely mapped reads
+		-no-sort | --no-sort                  : disables sorting alignments
+		-no-idx  | --no-index                 : disables indexing alignments
+		-cmo     | --clipmateoverlaps         : enable clipping of read mate overlaps
 
 		QUANTIFICATION OPTIONS
-		-ql      | --quantifylevel          : switch to other feature type for quantification - default: exon
-		                                      NOTE: quantifying using a different feature will break differential expression analysis
-		-qt      | --quantifytag            : switch to other feature tag for quantification - default: gene_id
-		-no-quant| --no-quantification      : disables per feature read quantification plus downstream analyses
+		-ql      | --quantifylevel            : switch to other feature type for quantification - default: exon
+		                                        NOTE: quantifying using a different feature will break differential expression analysis
+		-qt      | --quantifytag              : switch to other feature tag for quantification - default: gene_id
+		-no-quant| --no-quantification        : disables per feature read quantification plus downstream analyses
 
 		PEAK CALLING OPTIONS
-		-ip      | --iptype [chip|rip]      : type of *IP-Seq experiment - default: chip
-		-n1      | --normalfq1 [path,..]    : normal fastq input - single or first pair, comma seperated
-		-n2      | --normalfq2 [path,..]    : normal fastq input - optional. second pair, comma seperated
-		-t1      | --treatmentfq1 [path,..] : *IP-Seq fastq input - single or first pair, comma seperated
-		-t2      | --treatmentfq2 [path,..] : *IP-Seq fastq input - optional. second pair, comma seperated
-		-nr1     | --normalrepfq1 [path,..] : normal replicate fastq input - optional. single or first pair, comma seperated
-		-nr2     | --normalrepfq2 [path,..] : normal replicate fastq input - optional. second pair, comma seperated
-		-tr1     | --treatrepfq1 [path,..]  : *IP-Seq replicate fastq input - optional. single or first pair, comma seperated
-		-tr2     | --treatrepfq2 [path,..]  : *IP-Seq replicate fastq input - optional. second pair, comma seperated
-		-f       | --fragmentsize           : fragment size of sequenced mate pairs - default: 150
-		-rx      | --regex                  : regex of read name identifier with grouped tile information - default: ^\S+:(\d+):(\d+):(\d+)\s*.*
-		                                      NOTE: necessary for sucessful deduplication, if unavailable set to 'null'
-		-no-rmd  | --no-removeduplicates    : disables removing duplicates - not recommended
-		-no-macs | --no-macs                : disables peak calling by macs
-		-no-gem  | --no-gem                 : disables peak calling by gem
+		-ip      | --iptype [chip|rip]        : type of *IP-Seq experiment - default: chip
+		-n1      | --normal-fq1 [path,..]     : normal fastq input - single or first pair, comma seperated
+		-n2      | --normal-fq2 [path,..]     : normal fastq input - optional. second pair, comma seperated
+		-nr1     | --normal-repfq1 [path,..]  : normal replicate fastq input - optional. single or first pair, comma seperated
+		-nr2     | --normal-repfq2 [path,..]  : normal replicate fastq input - optional. second pair, comma seperated
+		-t1      | --treat-fq1 [path,..]      : *IP-Seq fastq input - single or first pair, comma seperated
+		-t2      | --treat-fq2 [path,..]      : *IP-Seq fastq input - optional. second pair, comma seperated
+		-tr1     | --treat-repfq1 [path,..]   : *IP-Seq replicate fastq input - optional. single or first pair, comma seperated
+		-tr2     | --treat-repfq2 [path,..]   : *IP-Seq replicate fastq input - optional. second pair, comma seperated
+		-nm      | --normal-map) [path,..]    : normal SAM/BAM input - comma seperated (cannot be used with fastq input)
+		-nrm     | --normal-repmap) [path,..] : normal replicate SAM/BAM input - optional. comma seperated (cannot be used with fastq input)
+		-tm      | --treat-map) [path,..]     : *IP-Seq SAM/BAM input - comma seperated (cannot be used with fastq input)
+		-trm     | --treat-repmap) [path,..]  : *IP-Seq replicate SAM/BAM input - optional. comma seperated (cannot be used with fastq input)
+
+		-f       | --fragmentsize             : fragment size of sequenced mate pairs - default: 150
+		-rx      | --regex                    : regex of read name identifier with grouped tile information - default: ^\S+:(\d+):(\d+):(\d+)\s*.*
+		                                        NOTE: necessary for sucessful deduplication, if unavailable set to 'null'
+		-no-rmd  | --no-removeduplicates      : disables removing duplicates - not recommended
+		-no-macs | --no-macs                  : disables peak calling by macs
+		-no-gem  | --no-gem                   : disables peak calling by gem
 
 		DIFFERENTIAL EXPRESSION ANALYSIS OPTIONS
-		-1       | --fq1 [path,..]          : fastq input - single or first pair, comma seperated
-		-2       | --fq2 [path,..]          : fastq input - optional. second pair, comma seperated
-		-m       | --mapped [path,..]       : SAM/BAM input - comma seperated (replaces -1 and -2)
-		                                      NOTE: alignment postprocessing steps can be disabled (see ALIGNMENT OPTIONS)
-		-rmd     | --removeduplicates       : enable removing duplicates - not recommended
-		-c       | --comparisons [path,..]  : experiment info file(s) for pairwise analyses according to column condition (primary factor)
-		                                      format: 4 or more columns, seperated by tab or space(s)
-		                                        sample   condition   [single-end|paired-end]   replicate   [factor1   factor2   ..]
-		                                      NOTE: samples must match unique prefixes of input fastq basenames
-		                                      
-		                                      example1: for input wt1.R1.fq wt1.R2.fq wt2.fq trA_1.fq trA_2.fq trB.n1.fq trB.n2_1.fq trB.n2_2.fq
-		                                        wt1      wt   paired-end   N1   PE   female
-		                                        wt2      wt   single-end   N2   SE   male
-		                                        trA_1    A    single-end   N1   PE   female
-		                                        trA_2    A    single-end   N2   PE   male
-		                                        trB.n1   B    single-end   N1   SE   female
-		                                        trB.n2   B    paired-end   N2   PE   male
-		                                      output: wt_vs_A wt_vs_b A_vs_B (N=2 vs N=2 each)
-		                                      example2:
-		                                        wt1      wt   paired-end   N1   PE   wt   female
-		                                        wt2      wt   single-end   N2   SE   wt   male
-		                                        trA_1    tr   single-end   N1   PE   A    female
-		                                        trA_2    tr   single-end   N2   PE   A    male
-		                                        trB.n1   tr   single-end   N3   SE   B    female
-		                                        trB.n2   tr   paired-end   N4   PE   B    male
-		                                      output: wt_vs_tr (N=2 vs N=4)
-		-no-dsj  | --no-diffsplicejunctions : disables differential splice junction analysis
-		-no-dea  | --no-diffexanalysis      : disables differential feature expression analysis plus downstream analyses
-		-no-go   | --no-geneontology        : disables gene ontology enrichment analyses for differentially expressed features and co-expression clusters
-		-no-clust| --no-clustering          : disables feature co-expression clustering
-		-cf      | --clusterfilter [value]  : decide for a set of differntially expressed features to be clustered for co-expression - default: 0
-		                                      0 - padj <= 0.05 in at least one comparison defined in experiment info file (see -c)
-		                                      1 - padj <= 0.05 and a log2foldchange difference >= 0.5 in at least one comparison
-		                                      2 - discard features within the 30% percentile of lowest expression values
-		                                      20 - 2 + 0
-		                                      21 - 2 + 1
-		
+		-1       | --fq1 [path,..]            : fastq input - single or first pair, comma seperated
+		-2       | --fq2 [path,..]            : fastq input - optional. second pair, comma seperated
+		-m       | --mapped [path,..]         : SAM/BAM input - comma seperated (cannot be used with fastq input)
+		-rmd     | --removeduplicates         : enable removing duplicates - not recommended
+		-rx      | --regex                    : regex of read name identifier with grouped tile information - default: ^\S+:(\d+):(\d+):(\d+)\s*.*
+		                                        NOTE: necessary for sucessful deduplication, if unavailable set to 'null'
+		-c       | --comparisons [path,..]    : experiment info file(s) for pairwise analyses according to column condition (primary factor)
+		                                        format: 4 or more columns, seperated by tab or space(s)
+		                                          sample   condition   [single-end|paired-end]   replicate   [factor1   factor2   ..]
+		                                        NOTE: samples must match unique prefixes of input fastq or SAM/BAM basenames
+		                                        example1: for input wt1.R1.fq wt1.R2.fq wt2.fq trA_1.fq trA_2.fq trB.n1.fq trB.n2_1.fq trB.n2_2.fq
+		                                          wt1      wt   paired-end   N1   PE   female
+		                                          wt2      wt   single-end   N2   SE   male
+		                                          trA_1    A    single-end   N1   PE   female
+		                                          trA_2    A    single-end   N2   PE   male
+		                                          trB.n1   B    single-end   N1   SE   female
+		                                          trB.n2   B    paired-end   N2   PE   male
+		                                        output: wt_vs_A wt_vs_b A_vs_B (N=2 vs N=2 each)
+		                                        example2:
+		                                          wt1      wt   paired-end   N1   PE   wt   female
+		                                          wt2      wt   single-end   N2   SE   wt   male
+		                                          trA_1    tr   single-end   N1   PE   A    female
+		                                          trA_2    tr   single-end   N2   PE   A    male
+		                                          trB.n1   tr   single-end   N3   SE   B    female
+		                                          trB.n2   tr   paired-end   N4   PE   B    male
+		                                        output: wt_vs_tr (N=2 vs N=4)
+		-no-dsj  | --no-diffsplicejunctions   : disables differential splice junction analysis
+		-no-dea  | --no-diffexanalysis        : disables differential feature expression analysis plus downstream analyses
+		-no-go   | --no-geneontology          : disables gene ontology enrichment analyses for differentially expressed features and co-expression clusters
+		-no-clust| --no-clustering            : disables feature co-expression clustering
+		-cf      | --clusterfilter [value]    : decide for a set of differntially expressed features to be clustered for co-expression - default: 0
+		                                        0 - padj <= 0.05 in at least one comparison defined in experiment info file (see -c)
+		                                        1 - padj <= 0.05 and a log2foldchange difference >= 0.5 in at least one comparison
+		                                        2 - discard features within the 30% percentile of lowest expression values
+		                                        20 - 2 + 0
+		                                        21 - 2 + 1
 
 		REFERENCES
 		(c) Konstantin Riege
@@ -152,8 +156,8 @@ options::developer() {
 		sege  : Segemehl mapping
 		star  : STAR mapping
 		uniq  : extraction of properly paired and uniquely mapped reads
-		rep   : pooling/generating replicates
 		sort  : sorting and indexing of sam/bam files
+		rep   : pooling/generating replicates
 		slice : better dont touch! slicing of bams for parallelization, needs -prevtmp | --previoustmp [path]
 		rmd   : removing duplicates
 		cmo   : clipping mate overlaps
@@ -189,20 +193,25 @@ options::checkopt (){
 		-tmp | --tmp) arg=true; TMPDIR=$2;;
 		-prevtmp | --previoustmp) arg=true; PREVIOUSTMPDIR=$2;;
 
-		-1   | --fq1 | -n1 | --normalfq1) arg=true; nfq1=$2;;
-		-2   | --fq2 | -n2 | --normalfq2) arg=true; nfq2=$2;;
-		-m   | --mapped) arg=true; nmap=$2; noqual=true; notrim=true; nocor=true; norrm=true; nosege=true; nostar=true; notop=1; nobwa=true;;
-		-nr1 | --normalrepfq1) arg=true; nrfq1=$2;;
-		-nr2 | --normalrepfq2) arg=true; nrfq2=$2;;
-		-t1  | --treatmentfq1) arg=true; tfq1=$2;;
-		-t2  | --treatmentfq2) arg=true; tfq2=$2;;
-		-tr1 | --treatrepfq1) arg=true; rfq1=$2;;
-		-tr2 | --treatrepfq2) arg=true; rfq2=$2;;
+		-1   | --fq1 | -n1 | --normal-fq1) arg=true; nfq1=$2;;
+		-2   | --fq2 | -n2 | --normal-fq2) arg=true; nfq2=$2;;
+		-nr1 | --normal-repfq1) arg=true; nrfq1=$2;;
+		-nr2 | --normal-repfq2) arg=true; nrfq2=$2;;
+		-t1  | --treat-fq1) arg=true; tfq1=$2;;
+		-t2  | --treat-fq2) arg=true; tfq2=$2;;
+		-tr1 | --treat-repfq1) arg=true; rfq1=$2;;
+		-tr2 | --treat-repfq2) arg=true; rfq2=$2;;
+
+		-m   | --mapped | -nm | --normal-mapped) arg=true; nmap=$2; options::resume no uniq;;
+		-nrm | --normal-repmapped) arg=true; nrmap=$2;;
+		-tm  | --treat-mapped) arg=true; tmap=$2;;
+		-trm | --treat-repmapped) arg=true; rmap=$2;;
+
 		-rx  | --regex) arg=true; REGEX=$2;;
 		-ip  | --iptype) arg=true; IPTYPE=$2;;
-		-c   | --comparisons) arg=true; mapfile -t -d ',' COMPARISONS <<< $2; COMPARISONS[-1]="$(sed -r 's/\s*\n*$//' <<< "${COMPARISONS[-1]}")";;
-		-a1  | --adapter1) arg=true; mapfile -t -d ',' ADAPTER1 <<< $2; ADAPTER1[-1]="$(sed -r 's/\s*\n*$//' <<< "${ADAPTER1[-1]}")";;
-		-a2  | --adapter2) arg=true; mapfile -t -d ',' ADAPTER2 <<< $2; ADAPTER2[-1]="$(sed -r 's/\s*\n*$//' <<< "${ADAPTER2[-1]}")";;
+		-c   | --comparisons) arg=true; mapfile -t -d ',' COMPARISONS < <(printf '%s' "$2");;
+		-a1  | --adapter1) arg=true; mapfile -t -d ',' ADAPTER1 < <(printf '%s' "$2");;
+		-a2  | --adapter2) arg=true; mapfile -t -d ',' ADAPTER2 < <(printf '%s' "$2");;
 		-d   | --distance) arg=true; DISTANCE=$2;;
 		-f   | --fragmentsize) arg=true; FRAGMENTSIZE=$2;;
 		-i   | --insertsize) arg=true; INSERTSIZE=$2;;
@@ -210,40 +219,9 @@ options::checkopt (){
 		-qt  | --quantifytag) arg=true; QUANTIFYTAG=$2;;
 		-cf  | --clusterfilter) arg=true; CLUSTERFILTER=$2;;
 
-	   	-resume | --resume-from)
-			arg=true
-			local enable=false
-			# don't Smd5, Sslice !
-			for s in qual trim clip cor rrm sege star uniq rep sort rmd cmo idx stats macs gem quant tpm dsj dea join clust go; do
-				eval "\${S$s:=true}" # unless S$s already set to false by -redo, do skip
-				$enable || [[ "$2" == "$s" ]] && {
-					enable=true
-					eval "S$s=false"
-				}
-			done
-		;;
-	    -skip | --skip)
-			arg=true
-			mapfile -d ',' -t <<< $2
-			for x in ${MAPFILE[@]}; do # do not quote!! "MAPFILE[@]" appends newline to last element
-				for s in md5 qual trim clip cor rrm sege star uniq rep sort slice rmd cmo idx stats macs gem quant tpm dsj dea join clust go; do
-					[[ "$x" == "$s" ]] && eval "S$s=true"
-				done
-			done
-		;;
-		-redo | --redo)
-			arg=true
-			# don't Smd5, Sslice !
-			for s in qual trim clip cor rrm sege star uniq rep sort rmd cmo idx stats macs gem quant tpm dsj dea join clust go; do
-				eval "\${S$s:=true}" # unless S$s alredy set to false by -resume, do skip
-			done
-			mapfile -d ',' -t <<< $2
-			for x in ${MAPFILE[@]}; do # do not quote!! "MAPFILE[@]" appends newline to last element
-				for s in qual trim clip cor rrm sege star uniq rep sort rmd cmo idx stats macs gem quant tpm dsj dea join clust go; do
-					[[ "$x" == "$s" ]] && eval "S$s=false"
-				done
-			done
-		;;
+		-resume | --resume-from) arg=true; options::resume S "$2";;
+		-skip | --skip) arg=true; options::skip S "$2";;
+		-redo | --redo) arg=true; options::redo S "$2";;
 
 		-x  | --index) INDEX=true;;
 		-no-qual  | --no-qualityanalysis) noqual=true;;
@@ -281,4 +259,41 @@ options::checkopt (){
 		[[ $2 ]] && [[ ! "$2" =~ ^- ]] && commander::printerr "illegal argument $2 for option $1" && return 1
 		return 0
 	}
+}
+
+options::resume(){
+	local s enable=false
+	# don't Smd5, Sslice !
+	for s in qual trim clip cor rrm sege star uniq sort rep rmd cmo idx stats macs gem quant tpm dsj dea join clust go; do
+		eval "\${$1$s:=true}" # unless (no|S)$s already set to false by -redo, do skip
+		$enable || [[ "$2" == "$s" ]] && {
+			enable=true
+			eval "$1$s=false"
+		}
+	done
+}
+
+options::skip(){
+	local x s
+	declare -a mapdata
+	mapfile -t -d ',' mapdata < <(printf '%s' "$2")
+	for x in "${mapdata[@]}"; do
+		for s in md5 qual trim clip cor rrm sege star uniq sort rep slice rmd cmo idx stats macs gem quant tpm dsj dea join clust go; do
+			[[ "$x" == "$s" ]] && eval "$1$s=true"
+		done
+	done
+}
+
+options::redo(){
+	local x s
+	declare -a mapdata
+	mapfile -t -d ',' mapdata < <(printf '%s' "$2")
+	for s in qual trim clip cor rrm sege star uniq sort rep rmd cmo idx stats macs gem quant tpm dsj dea join clust go; do
+		eval "\${$1$s:=true}" # unless (no|S)$s alredy set to false by -resume, do skip
+	done
+	for x in "${mapdata[@]}"; do
+		for s in qual trim clip cor rrm sege star uniq sort rep rmd cmo idx stats macs gem quant tpm dsj dea join clust go; do
+			[[ "$x" == "$s" ]] && eval "$1$s=false"
+		done
+	done
 }
