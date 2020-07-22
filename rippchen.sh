@@ -195,11 +195,6 @@ ${Smd5:=false} || {
 ${INDEX:=false} && {
 	pipeline::index >> $LOG 2> >(tee -a $LOG >&2) || die
 } || {
-	# solve duplicate entries by reverting order of writeout: pipeline::callpeak >> $LOG 2> >(tee -a $LOG >&2) to pipeline::callpeak 2> >(tee -a $LOG >&2) >> $LOG
-	# slove sigpipe due to proken pipe by sigint by protecting tee's process with either trap '' INT or use tee -i to ignore termination signals
-	# script's trap is called in scope of pipeline::callpeak - i.e. using its file descriptors. to print trap messages as usual to fd 1 and 2 instead,
-	# either duplicate the main shell's original stdout and stderr for future use via exec 3>&1 4>&2 and do die(){ echo error } 1>&3 2>&4 or
-	# duplicate stderr and stdout of pipeline's function to alternative file descriptors. thus trap messages echoed in scope of the function goes to all file descriptors
 	exec 3>> $LOG
 	exec 4> >(tee -ai $LOG >&2)
 	if [[ $tfq1 || $tmap ]]; then
