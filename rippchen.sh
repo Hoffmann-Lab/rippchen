@@ -6,25 +6,19 @@ trap '
 	{ kill -KILL "${pids[@]}" && wait "${pids[@]}"; } &> /dev/null
 	echo -e "\r "
 ' EXIT
-trap 'die' INT TERM
+trap 'die "killed by sigint or sigterm"' INT TERM
 
-dierr(){
+die() {
 	echo -ne "\e[0;31m"
 	echo -e "\r:ERROR: $*" >&2
 	echo -ne "\e[m"
-}
-
-die() {
-	dierr "$*"	
 	exit 1
 }
 
 cleanup() {
-	local b m=":INFO:"
 	[[ -e $TMPDIR ]] && {
-		[[ $1 -eq 0 ]] && echo -e "\r:INFO: cleanup in progress" || dierr "cleanup in progress"
 		find $TMPDIR -type f -name "cleanup.*" -exec rm -f {} \;
-		find $TMPDIR -type d -depth -name "cleanup.*" -exec rm -rf {} \;
+		find $TMPDIR -depth -type d -name "cleanup.*" -exec rm -rf {} \;
 	}
 	[[ $1 -eq 0 ]] && ${CLEANUP:=false} && {
 		echo -e "\r:INFO: removing temporary directory and unnecessary files"
@@ -36,10 +30,11 @@ cleanup() {
 		[[ -e $OUTDIR ]] && {
 			for f in "${FASTQ1[@]}"; do
 				readlink -e "$f" | file -f - | grep -qE '(gzip|bzip)' && b=$(basename $f | rev | cut -d '.' -f 3- | rev) || b=$(basename $f | rev | cut -d '.' -f 2- | rev)
-				find $OUTDIR -type d -depth -name "$b*._STAR*" -exec rm -rf {} \;
+				find $OUTDIR -depth -type d -name "$b*._STAR*" -exec rm -rf {} \;
 				find $OUTDIR -type f -name "$b*.sorted.bam" -exec bash -c '[[ -s {} ]] && rm -f $(dirname {})/$(basename {} .sorted.bam).bam' \;
 				find $OUTDIR -type f -name "$b*.*.gz" -exec bash -c '[[ -s {} ]] && rm -f $(dirname {})/$(basename {} .gz)' \;
 			done
+			local b
 			for f in "${MAPPED[@]}"; do
 				b=$(basename $f | rev | cut -d '.' -f 2- | rev)
 				find $OUTDIR -type f -name "$b*.sorted.bam" -exec bash -c '[[ -s {} ]] && rm -f $(dirname {})/$(basename {} .sorted.bam).bam' \;
@@ -74,7 +69,7 @@ nidx=() #normal idx
 nridx=() #normal replicate idx 
 tidx=() #treatment idx
 ridx=() #treatment replicate idx
-pidx=() #pool (2x0.5) idx 
+pidx=() #pool (2x0.5 pseudoppol and 2x1 fullpool) idx 
 FASTQ1=()
 FASTQ2=()
 MAPPED=()
@@ -96,7 +91,7 @@ fi
 
 
 [[ ! $LOG ]] && LOG=$OUTDIR/run.log
-[[ MTHREADS=$[MAXMEMORY/MEMORY] -gt $THREADS ]] && MTHREADS=$THREADS
+[[ MTHREADS=$((MAXMEMORY/MEMORY)) -gt $THREADS ]] && MTHREADS=$THREADS
 [[ $MTHREADS -eq 0 ]] && die "too less memory available ($MAXMEMORY)"
 ${INDEX:=false} || {
 	[[ ! $nfq1 ]] && [[ ! $tfq1 ]] && [[ ! $nmap ]] && die "fastq file input missing"
@@ -200,12 +195,21 @@ ${Smd5:=false} || {
 ${INDEX:=false} && {
 	pipeline::index >> $LOG 2> >(tee -a $LOG >&2) || die
 } || {
-	if [[ $tfq1 ]]; then
+	# solve duplicate entries by reverting order of writeout: pipeline::callpeak >> $LOG 2> >(tee -a $LOG >&2) to pipeline::callpeak 2> >(tee -a $LOG >&2) >> $LOG
+	# slove sigpipe due to proken pipe by sigint by protecting tee's process with either trap '' INT or use tee -i to ignore termination signals
+	# script's trap is called in scope of pipeline::callpeak - i.e. using its file descriptors. to print trap messages as usual to fd 1 and 2 instead,
+	# either duplicate the main shell's original stdout and stderr for future use via exec 3>&1 4>&2 and do die(){ echo error } 1>&3 2>&4 or
+	# duplicate stderr and stdout of pipeline's function to alternative file descriptors. thus trap messages echoed in scope of the function goes to all file descriptors
+	exec 3>> $LOG
+	exec 4> >(tee -ai $LOG >&2)
+	if [[ $tfq1 || $tmap ]]; then
 		[[ $IPTYPE == 'chip' ]] && nosplit=true || IPTYPE='rip'
-		pipeline::callpeak >> $LOG 2> >(tee -a $LOG >&2) || die
+		pipeline::callpeak 2>&4 >&3 || die
 	else
-		pipeline::dea >> $LOG 2> >(tee -a $LOG >&2) || die
+		pipeline::dea 2>&4 >&3 || die
 	fi
+	exec 3>&-
+	exec 4>&-
 }
 ${Smd5:=false} || {
 	commander::print "finally updating genome and annotation md5 sums" >> $LOG
@@ -215,5 +219,5 @@ ${Smd5:=false} || {
 	[[ "$md5gtf" != "$thismd5gtf" ]] && sed -i "s/md5gtf=.*/md5gtf=$thismd5gtf/" $GENOME.md5.sh
 }
 
-commander::print "success" >> $LOG
+commander::print "success" | tee -ai $LOG
 exit 0

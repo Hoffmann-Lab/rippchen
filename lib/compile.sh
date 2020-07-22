@@ -24,7 +24,7 @@ compile::all(){
 }
 
 compile::rippchen() {
-	local insdir threads src=$(dirname $(readlink -e $0))
+	local insdir threads src=$(dirname $(dirname $(readlink -e ${BASH_SOURCE[0]})))
 	compile::_parse -r insdir -s threads "$@" || return 1
 
 	local version bashboneversion

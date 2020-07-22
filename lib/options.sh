@@ -47,9 +47,9 @@ options::usage() {
 		                                        available: $MAXMEMORY
 		                                        default: 30000 (allows for $MTHREADS instances)
 		                                        NOTE: needs to be raised in case of GCThreads, HeapSize or OutOfMemory errors
-		-resume  | --resume-from [value]      : resume from a specific pipeline step - see -dev|--devel
-		-skip    | --skip [value,..]          : skip specific pipeline step(s) - see -dev|--devel, comma seperated
-		-redo    | --redo [value,..]          : just rerun specific pipeline step(s) - see -dev|--devel, comma seperated
+		-resume  | --resume-from [string]     : resume from a specific pipeline step - see -dev|--devel
+		-skip    | --skip [string,..]         : skip specific pipeline step(s) - see -dev|--devel, comma seperated
+		-redo    | --redo [string,..]         : just rerun specific pipeline step(s) - see -dev|--devel, comma seperated
 		-no-qual | --no-qualityanalysis       : disables read quality analysis
 		-no-trim | --no-trimming              : disables quality trimming
 		-no-clip | --no-clipping              : disables removal of adapter sequences if -a|--adapter is used
@@ -84,13 +84,14 @@ options::usage() {
 		-t2      | --treat-fq2 [path,..]      : *IP-Seq fastq input - optional. second pair, comma seperated
 		-tr1     | --treat-repfq1 [path,..]   : *IP-Seq replicate fastq input - optional. single or first pair, comma seperated
 		-tr2     | --treat-repfq2 [path,..]   : *IP-Seq replicate fastq input - optional. second pair, comma seperated
-		-nm      | --normal-map) [path,..]    : normal SAM/BAM input - comma seperated (cannot be used with fastq input)
-		-nrm     | --normal-repmap) [path,..] : normal replicate SAM/BAM input - optional. comma seperated (cannot be used with fastq input)
-		-tm      | --treat-map) [path,..]     : *IP-Seq SAM/BAM input - comma seperated (cannot be used with fastq input)
-		-trm     | --treat-repmap) [path,..]  : *IP-Seq replicate SAM/BAM input - optional. comma seperated (cannot be used with fastq input)
+		-nm      | --normal-map [path,..]     : normal SAM/BAM input - comma seperated (cannot be used with fastq input)
+		-nrm     | --normal-repmap [path,..]  : normal replicate SAM/BAM input - optional. comma seperated (cannot be used with fastq input)
+		-tm      | --treat-map [path,..]      : *IP-Seq SAM/BAM input - comma seperated (cannot be used with fastq input)
+		-trm     | --treat-repmap [path,..]   : *IP-Seq replicate SAM/BAM input - optional. comma seperated (cannot be used with fastq input)
+		-mn      | --mapper-name [string]     : name to use for output subdirectories in case of SAM/BAM input - optional. default: custom
 
-		-f       | --fragmentsize             : fragment size of sequenced mate pairs - default: 150
-		-rx      | --regex                    : regex of read name identifier with grouped tile information - default: ^\S+:(\d+):(\d+):(\d+)\s*.*
+		-f       | --fragmentsize [value]     : fragment size of sequenced mate pairs - default: 150
+		-rx      | --regex [string]           : regex of read name identifier with grouped tile information - default: ^\S+:(\d+):(\d+):(\d+)\s*.*
 		                                        NOTE: necessary for sucessful deduplication, if unavailable set to 'null'
 		-no-rmd  | --no-removeduplicates      : disables removing duplicates - not recommended
 		-no-macs | --no-macs                  : disables peak calling by macs
@@ -100,8 +101,9 @@ options::usage() {
 		-1       | --fq1 [path,..]            : fastq input - single or first pair, comma seperated
 		-2       | --fq2 [path,..]            : fastq input - optional. second pair, comma seperated
 		-m       | --mapped [path,..]         : SAM/BAM input - comma seperated (cannot be used with fastq input)
+		-mn      | --mapper-name [string]     : name to use for output subdirectories in case of SAM/BAM input - optional. default: custom
 		-rmd     | --removeduplicates         : enable removing duplicates - not recommended
-		-rx      | --regex                    : regex of read name identifier with grouped tile information - default: ^\S+:(\d+):(\d+):(\d+)\s*.*
+		-rx      | --regex [string]           : regex of read name identifier with grouped tile information - default: ^\S+:(\d+):(\d+):(\d+)\s*.*
 		                                        NOTE: necessary for sucessful deduplication, if unavailable set to 'null'
 		-c       | --comparisons [path,..]    : experiment info file(s) for pairwise analyses according to column condition (primary factor)
 		                                        format: 4 or more columns, seperated by tab or space(s)
@@ -206,6 +208,7 @@ options::checkopt (){
 		-nrm | --normal-repmapped) arg=true; nrmap=$2;;
 		-tm  | --treat-mapped) arg=true; tmap=$2;;
 		-trm | --treat-repmapped) arg=true; rmap=$2;;
+		-mn  | --mapper-name) arg=true; MAPNAME=$2;;
 
 		-rx  | --regex) arg=true; REGEX=$2;;
 		-ip  | --iptype) arg=true; IPTYPE=$2;;

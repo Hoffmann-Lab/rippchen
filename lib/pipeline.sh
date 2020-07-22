@@ -200,8 +200,10 @@ pipeline::_preprocess(){
 			} || return 1
 		}
 	else
-		custom=("${MAPPED[@]}")
-		mapper+=(custom)
+		declare -g -a ${MAPNAME:=custom}
+		declare -n _MAPNAME_rippchen=$MAPNAME
+		_MAPNAME_rippchen=("${MAPPED[@]}")
+		mapper+=($MAPNAME)
 	fi
 
 	alignment::add4stats -r mapper
@@ -406,7 +408,7 @@ pipeline::callpeak() {
 			-S ${norep:=false} \
 			-s ${Srep:=false} \
 			-t $THREADS \
-			-o $OUTDIR/replicates \
+			-o $OUTDIR/mapped \
 			-p $TMPDIR \
 			-r mapper \
 			-n nidx \
@@ -459,9 +461,9 @@ pipeline::callpeak() {
 			-s ${Sstats:=false} \
 			-r mapper \
 			-t $THREADS \
-			-o $OUTDIR/stats && \
-		callpeak::macs_$IPTYPE && \
-		callpeak::gem_$IPTYPE
+			-o $OUTDIR/stats
+#		callpeak::macs_$IPTYPE && \
+#		callpeak::gem_$IPTYPE
 	} || return 1
 
 	return 0
