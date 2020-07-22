@@ -2,6 +2,7 @@
 # (c) Konstantin Riege
 trap '
 	cleanup $?
+	sleep 1
 	pids=($(pstree -p $$ | grep -Eo "\([0-9]+\)" | grep -Eo "[0-9]+" | tail -n +2))
 	{ kill -KILL "${pids[@]}" && wait "${pids[@]}"; } &> /dev/null
 	echo -e "\r "
@@ -214,5 +215,5 @@ ${Smd5:=false} || {
 	[[ "$md5gtf" != "$thismd5gtf" ]] && sed -i "s/md5gtf=.*/md5gtf=$thismd5gtf/" $GENOME.md5.sh
 }
 
-commander::print "success" | tee -ai $LOG
+commander::print "success" >> $LOG
 exit 0
