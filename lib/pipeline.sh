@@ -404,7 +404,7 @@ pipeline::callpeak() {
 			-p $TMPDIR \
 			-o $OUTDIR/mapped \
 			-r mapper && \
-		callpeak::mkreplicates \
+		alignment::mkreplicates \
 			-S ${norep:=false} \
 			-s ${Srep:=false} \
 			-t $THREADS \

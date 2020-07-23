@@ -10,7 +10,7 @@ trap '
 trap 'die "killed by sigint or sigterm"' INT TERM
 
 die() {
-	echo -e "\r:ERROR: $*" >&2
+	echo ":ERROR: $*" >&2
 	exit 1
 }
 
@@ -20,7 +20,7 @@ cleanup() {
 		find $TMPDIR -depth -type d -name "cleanup.*" -exec rm -rf {} \;
 	}
 	[[ $1 -eq 0 ]] && ${CLEANUP:=false} && {
-		echo -e "\r:INFO: removing temporary directory and unnecessary files"
+		echo ":INFO: removing temporary directory and unnecessary files"
 		[[ -e $TMPDIR ]] && {
 			find $TMPDIR -type f -exec rm -f {} \;
 			find $TMPDIR -type d -depth -exec rm -rf {} \;
@@ -36,6 +36,7 @@ cleanup() {
 			local b
 			for f in "${MAPPED[@]}"; do
 				b=$(basename $f | rev | cut -d '.' -f 2- | rev)
+				find $OUTDIR -depth -type d -name "$b*._STAR*" -exec rm -rf {} \;
 				find $OUTDIR -type f -name "$b*.sorted.bam" -exec bash -c '[[ -s {} ]] && rm -f $(dirname {})/$(basename {} .sorted.bam).bam' \;
 			done
 		}
