@@ -248,7 +248,7 @@ pipeline::dea() {
 	} || return 1
 
 	${normd:=true} || {
-		{	pipeline::_slice $($sliced || ${Srmd:=false} || ${normd:=false} && echo true || echo false) && \
+		{	pipeline::_slice $($sliced || ${Srmd:=false} || ${normd:=true} && echo true || echo false) && \
 			alignment::rmduplicates \
 				-S ${normd:=true} \
 				-s ${Srmd:=false} \
@@ -264,9 +264,9 @@ pipeline::dea() {
 	}
 
 	${nocmo:=true} || {
-		{	pipeline::_slice $($sliced || ${Scmo:=false} || ${nocmo:=false} && echo true || echo false) && \
+		{	pipeline::_slice $($sliced || ${Scmo:=false} || ${nocmo:=true} && echo true || echo false) && \
 			alignment::clipmateoverlaps \
-				-S ${nocmo:=false} \
+				-S ${nocmo:=true} \
 				-s ${Scmo:=false} \
 				-t $THREADS \
 				-m $MEMORY \
@@ -435,9 +435,9 @@ pipeline::callpeak() {
 	}
 
 	${nocmo:=true} || {
-		{	pipeline::_slice $($sliced || ${Scmo:=false} || ${nocmo:=false} && echo true || echo false) && \
+		{	pipeline::_slice $($sliced || ${Scmo:=false} || ${nocmo:=true} && echo true || echo false) && \
 			alignment::clipmateoverlaps \
-				-S ${nocmo:=false} \
+				-S ${nocmo:=true} \
 				-s ${Scmo:=false} \
 				-t $THREADS \
 				-m $MEMORY \

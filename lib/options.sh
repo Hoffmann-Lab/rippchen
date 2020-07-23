@@ -204,7 +204,7 @@ options::checkopt (){
 		-tr1 | --treat-repfq1) arg=true; rfq1=$2;;
 		-tr2 | --treat-repfq2) arg=true; rfq2=$2;;
 
-		-m   | --mapped | -nm | --normal-mapped) arg=true; nmap=$2; options::resume no uniq;;
+		-m   | --mapped | -nm | --normal-mapped) arg=true; nmap=$2;;
 		-nrm | --normal-repmapped) arg=true; nrmap=$2;;
 		-tm  | --treat-mapped) arg=true; tmap=$2;;
 		-trm | --treat-repmapped) arg=true; rmap=$2;;
@@ -222,9 +222,9 @@ options::checkopt (){
 		-qt  | --quantifytag) arg=true; QUANTIFYTAG=$2;;
 		-cf  | --clusterfilter) arg=true; CLUSTERFILTER=$2;;
 
-		-resume | --resume-from) arg=true; options::resume S "$2";;
-		-skip | --skip) arg=true; options::skip S "$2";;
-		-redo | --redo) arg=true; options::redo S "$2";;
+		-resume | --resume-from) arg=true; options::resume "$2";;
+		-skip | --skip) arg=true; options::skip "$2";;
+		-redo | --redo) arg=true; options::redo "$2";;
 
 		-x  | --index) INDEX=true;;
 		-no-qual  | --no-qualityanalysis) noqual=true;;
@@ -268,10 +268,10 @@ options::resume(){
 	local s enable=false
 	# don't Smd5, Sslice !
 	for s in qual trim clip cor rrm sege star uniq sort rep rmd cmo idx stats macs gem quant tpm dsj dea join clust go; do
-		eval "\${$1$s:=true}" # unless (no|S)$s already set to false by -redo, do skip
-		$enable || [[ "$2" == "$s" ]] && {
+		eval "\${S$s:=true}" # unless S$s already set to false by -redo, do skip
+		$enable || [[ "$1" == "$s" ]] && {
 			enable=true
-			eval "$1$s=false"
+			eval "S$s=false"
 		}
 	done
 }
@@ -279,10 +279,10 @@ options::resume(){
 options::skip(){
 	local x s
 	declare -a mapdata
-	mapfile -t -d ',' mapdata < <(printf '%s' "$2")
+	mapfile -t -d ',' mapdata < <(printf '%s' "$1")
 	for x in "${mapdata[@]}"; do
 		for s in md5 qual trim clip cor rrm sege star uniq sort rep slice rmd cmo idx stats macs gem quant tpm dsj dea join clust go; do
-			[[ "$x" == "$s" ]] && eval "$1$s=true"
+			[[ "$x" == "$s" ]] && eval "S$s=true"
 		done
 	done
 }
@@ -290,13 +290,13 @@ options::skip(){
 options::redo(){
 	local x s
 	declare -a mapdata
-	mapfile -t -d ',' mapdata < <(printf '%s' "$2")
+	mapfile -t -d ',' mapdata < <(printf '%s' "$1")
 	for s in qual trim clip cor rrm sege star uniq sort rep rmd cmo idx stats macs gem quant tpm dsj dea join clust go; do
-		eval "\${$1$s:=true}" # unless (no|S)$s alredy set to false by -resume, do skip
+		eval "\${S$s:=true}" # unless (no|S)$s alredy set to false by -resume, do skip
 	done
 	for x in "${mapdata[@]}"; do
 		for s in qual trim clip cor rrm sege star uniq sort rep rmd cmo idx stats macs gem quant tpm dsj dea join clust go; do
-			[[ "$x" == "$s" ]] && eval "$1$s=false"
+			[[ "$x" == "$s" ]] && eval "S$s=false"
 		done
 	done
 }

@@ -5,14 +5,12 @@ trap '
 	sleep 1
 	pids=($(pstree -p $$ | grep -Eo "\([0-9]+\)" | grep -Eo "[0-9]+" | tail -n +2))
 	{ kill -KILL "${pids[@]}" && wait "${pids[@]}"; } &> /dev/null
-	echo -e "\r "
+	printf "\r"
 ' EXIT
 trap 'die "killed by sigint or sigterm"' INT TERM
 
 die() {
-	echo -ne "\e[0;31m"
 	echo -e "\r:ERROR: $*" >&2
-	echo -ne "\e[m"
 	exit 1
 }
 
@@ -184,7 +182,7 @@ else
 fi
 unset IFS
 
-echo > $LOG || die "cannot access $LOG"
+printf '' > $LOG || die "cannot access $LOG"
 progress::log -v $VERBOSITY -o $LOG
 commander::print "rippchen $VERSION utilizing bashbone $BASHBONEVERSION started with command: $CMD" >> $LOG
 commander::print "temporary files go to: $HOSTNAME:$TMPDIR" >> $LOG
@@ -196,16 +194,12 @@ ${Smd5:=false} || {
 ${INDEX:=false} && {
 	pipeline::index >> $LOG 2> >(tee -a $LOG >&2) || die
 } || {
-	exec 3>> $LOG
-	exec 4> >(tee -ai $LOG >&2)
 	if [[ $tfq1 || $tmap ]]; then
 		[[ $IPTYPE == 'chip' ]] && nosplit=true || IPTYPE='rip'
-		pipeline::callpeak 2>&4 >&3 || die
+		pipeline::callpeak 2> >(tee -ai $LOG >&2) >> $LOG || die
 	else
-		pipeline::dea 2>&4 >&3 || die
+		pipeline::dea 2> >(tee -ai $LOG >&2) >> $LOG || die
 	fi
-	exec 3>&-
-	exec 4>&-
 }
 ${Smd5:=false} || {
 	commander::print "finally updating genome and annotation md5 sums" >> $LOG
