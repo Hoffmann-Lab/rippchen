@@ -118,10 +118,12 @@ compile::gem() {
 	commander::print "installing gem"
 	{	source $insdir/conda/bin/activate py2 && \
 		url='https://groups.csail.mit.edu/cgs/gem/download/gem.v3.4.tar.gz' && \
+		version=$(basename $url | sed -E 's/.+v([0-9]+.+).tar.gz/\1/')
 		wget -q $url -O $insdir/gem.tar.gz && \
 		tar -xzf $insdir/gem.tar.gz -C $insdir && \
+		mv $insdir/gem $insdir/gem-$version
 		rm $insdir/gem.tar.gz && \
-		cd $insdir/gem && \
+		cd $insdir/gem-$version && \
 		mkdir -p bin && \
 		wget -q -O bin/Read_Distribution_default.txt https://groups.csail.mit.edu/cgs/gem/download/Read_Distribution_default.txt && \
 		wget -q -O bin/Read_Distribution_CLIP.txt https://groups.csail.mit.edu/cgs/gem/download/Read_Distribution_CLIP.txt && \
