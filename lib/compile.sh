@@ -118,7 +118,7 @@ compile::gem() {
 	commander::print "installing gem"
 	{	source $insdir/conda/bin/activate py2 && \
 		url='https://groups.csail.mit.edu/cgs/gem/download/gem.v3.4.tar.gz' && \
-		version=$(basename $url | sed -E 's/.+v([0-9]+.+).tar.gz/\1/')
+		version=$(basename $url | sed -E 's/.+v([0-9]+.+).tar.gz/\1/') && \
 		wget -q $url -O $insdir/gem.tar.gz && \
 		tar -xzf $insdir/gem.tar.gz -C $insdir && \
 		mv $insdir/gem $insdir/gem-$version
