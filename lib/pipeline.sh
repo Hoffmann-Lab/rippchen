@@ -68,6 +68,7 @@ pipeline::_preprocess(){
 				-s ${Squal:=false} \
 				-t $THREADS \
 				-o $OUTDIR/qualities/raw \
+				-p $TMPDIR \
 				-1 FASTQ1 \
 				-2 FASTQ2
 		} || return 1
@@ -87,6 +88,7 @@ pipeline::_preprocess(){
 					-s ${Squal:=false} \
 					-t $THREADS \
 					-o $OUTDIR/qualities/trimmed \
+					-p $TMPDIR \
 					-1 FASTQ1 \
 					-2 FASTQ2
 			} || return 1
@@ -108,6 +110,7 @@ pipeline::_preprocess(){
 						-s ${Squal:=false} \
 						-t $THREADS \
 						-o $OUTDIR/qualities/clipped \
+						-p $TMPDIR \
 						-1 FASTQ1 \
 						-2 FASTQ2
 				} || return 1
@@ -128,6 +131,7 @@ pipeline::_preprocess(){
 					-s ${Squal:=false} \
 					-t $THREADS \
 					-o $OUTDIR/qualities/corrected \
+					-p $TMPDIR \
 					-1 FASTQ1 \
 					-2 FASTQ2
 			} || return 1
@@ -149,6 +153,7 @@ pipeline::_preprocess(){
 					-s ${Squal:=false} \
 					-t $THREADS \
 					-o $OUTDIR/qualities/rrnafiltered \
+					-p $TMPDIR \
 					-1 FASTQ1 \
 					-2 FASTQ2
 			} || return 1
@@ -371,7 +376,7 @@ pipeline::dea() {
 }
 
 pipeline::callpeak() {
-	declare -a mapper
+	declare -a mapper caller
 	declare -A slicesinfo
 
 	pipeline::_preprocess || return 1
@@ -461,9 +466,39 @@ pipeline::callpeak() {
 			-s ${Sstats:=false} \
 			-r mapper \
 			-t $THREADS \
-			-o $OUTDIR/stats
-#		callpeak::macs_$IPTYPE && \
-#		callpeak::gem_$IPTYPE
+			-o $OUTDIR/stats && \
+		callpeak::macs \
+			-S ${nomacs:=false} \
+			-s ${Smacs:=false} \
+			-q ${RIPSEQ:=false} \
+			-f $FRAGMENTSIZE \
+			-g $GENOME \
+			-n nidx \
+			-m nridx \
+			-i tidx \
+			-j ridx \
+			-k pidx \
+			-r mapper \
+			-c caller \
+			-t $THREADS \
+			-p $TMPDIR \
+			-o $OUTDIR/peaks && \
+		callpeak::gem \
+			-S ${nogem:=false} \
+			-s ${Sgem:=false} \
+			-q ${RIPSEQ:=false} \
+			-f $FRAGMENTSIZE \
+			-g $GENOME \
+			-n nidx \
+			-m nridx \
+			-i tidx \
+			-j ridx \
+			-k pidx \
+			-r mapper \
+			-c caller \
+			-t $THREADS \
+			-p $TMPDIR \
+			-o $OUTDIR/peaks
 	} || return 1
 
 	return 0

@@ -21,7 +21,7 @@ alignment::mkreplicates() {
 		return 0
 	}
 
-	local OPTIND arg mandatory skip=false skipmd5=false threads
+	local OPTIND arg mandatory skip=false skipmd5=false threads outdir tmpdir
 	declare -n _mapper_mkreplicates _nidx_mkreplicates _nridx_mkreplicates _tidx_mkreplicates _ridx_mkreplicates _pidx_mkreplicates
 	while getopts 'S:s:t:r:n:m:i:j:k:o:p:' arg; do
 		case $arg in
@@ -34,14 +34,14 @@ alignment::mkreplicates() {
 			i) ((mandatory++)); _tidx_mkreplicates=$OPTARG;;
 			j) ((mandatory++)); _ridx_mkreplicates=$OPTARG;;
 			k) ((mandatory++)); _pidx_mkreplicates=$OPTARG;;
-			o) ((mandatory++)); outdir="$OPTARG";;
-			p) ((mandatory++)); tmpdir="$OPTARG";;
+			o) ((mandatory++)); outdir="$OPTARG"; mkdir -p "$outdir" || return 1;;
+			p) ((mandatory++)); tmpdir="$OPTARG"; mkdir -p "$tmpdir" || return 1;;
 			*) _usage; return 1;;
 		esac
 	done
 	[[ $mandatory -lt 8 ]] && _usage && return 1
 
-	local m i odir tdir o tmp nf nrf tf rf pf addindex=true ithreads1 ithreads2 instances1=1 instances2=1
+	local m i odir o tmp nf nrf tf rf pf addindex=true ithreads1 ithreads2 instances1=1 instances2=1
 	declare -a cmd1 cmd2 cmd3 tdirs
 	if [[ $_ridx_mkreplicates ]]; then
 		commander::print "generating pseudo-pools"
@@ -62,21 +62,21 @@ alignment::mkreplicates() {
 		for m in "${_mapper_mkreplicates[@]}"; do
 			declare -n _bams_mkreplicates=$m
 			odir=$outdir/$m
-			tdir=$tmpdir/$m
-			mkdir -p $odir $tdir
+			mkdir -p "$odir"
+			tdirs+=("$(mktemp -d -p "$tmpdir" cleanup.XXXXXXXXXX.mkreplicates)")
 			for i in "${!_nidx_mkreplicates[@]}"; do
 				tf=${_bams_mkreplicates[${_tidx_mkreplicates[$i]}]}
 				rf=${_bams_mkreplicates[${_ridx_mkreplicates[$i]}]}
 				o=$odir/$(echo -e "$(basename $tf)\t$(basename $rf)" | sed -E 's/(.+)\t(.+)\1/-\2.pseudopool.bam/')
 
 				commander::makecmd -a cmd1 -s '|' -c {COMMANDER[0]}<<- CMD
-					samtools view -@ $ithreads1 -b -s 0.5 $tf > $tdir/$(basename $tf)
+					samtools view -@ $ithreads1 -b -s 0.5 $tf > "${tdirs[-1]}/$(basename "$tf")"
 				CMD
 				commander::makecmd -a cmd1 -s '|' -c {COMMANDER[0]}<<- CMD
-					samtools view -@ $ithreads1 -b -s 0.5 $rf > $tdir/$(basename $rf)
+					samtools view -@ $ithreads1 -b -s 0.5 $rf > "${tdirs[-1]}/$(basename "$rf")"
 				CMD
 				commander::makecmd -a cmd2 -s '|' -c {COMMANDER[0]}<<- CMD
-					samtools merge -f -@ $ithreads2 $o $tdir/$(basename $tf) $tdir/$(basename $rf)
+					samtools merge -f -@ $ithreads2 "$o" "${tdirs[-1]}/$(basename "$tf")" "${tdirs[-1]}/$(basename "$rf")"
 				CMD
 
 				_bams_mkreplicates+=("$o")
@@ -87,6 +87,7 @@ alignment::mkreplicates() {
 		if [[ $_nridx_mkreplicates ]]; then
 			# create fully pooled bams and extend _nidx_mkreplicates by indices for n/nr/nfp based peak calling
 			# PP : pseudopool (2x0.5) , FP: fullpool (2x1)
+			#                                           1  2   3   4  5  6  7  8  9   10   11  12   13  14
 			# m[N1 N2 NR1 NR2 T1 T2 R1 R2 PP1 PP2] -> m[N1 N2 NR1 NR2 T1 T2 R1 R2 PP1 PP2 NFP1 FP1 NFP2 FP2]
 			# n   1 2   3 4   11 13
 			# nr  3 4
@@ -147,13 +148,12 @@ alignment::mkreplicates() {
 		for m in "${_mapper_mkreplicates[@]}"; do
 			declare -n _bams_mkreplicates=$m
 			odir=$outdir/$m
-			tdir=$tmpdir/$m
 			mkdir -p $odir $tdir
 
 			for i in "${!_nidx_mkreplicates[@]}"; do
 				pf=${_bams_mkreplicates[${_pidx_mkreplicates[$i]}]}
 				o=$odir/$(basename ${pf%.*}.pseudorep)
-				tdirs+=("$(mktemp -d -p "$tdir" cleanup.XXXXXXXXXX)")
+				tdirs+=("$(mktemp -d -p "$tmpdir" cleanup.XXXXXXXXXX.mkreplicates)")
 
 				commander::makecmd -a cmd1 -s '|' -c {COMMANDER[0]}<<- CMD {COMMANDER[1]}<<- CMD {COMMANDER[2]}<<- CMD
 					samtools collate

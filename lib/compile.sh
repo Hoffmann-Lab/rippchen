@@ -9,6 +9,7 @@ compile::all(){
 		compile::rippchen -i "$insdir" -t $threads && \
 		compile::conda -i "$insdir" -t $threads && \
 		compile::java -i "$insdir" -t $threads && \
+		compile::trimmomatic -i "$insdir" -t $threads && \
 		compile::sortmerna -i "$insdir" -t $threads && \
 		compile::segemehl -i "$insdir" -t $threads && \
 		compile::knapsack -i "$insdir" -t $threads && \
@@ -84,11 +85,11 @@ compile::conda() {
 			perl perl-threaded perl-db-file perl-dbi perl-app-cpanminus perl-list-moreutils perl-try-tiny perl-set-intervaltree perl-uri \
 			numpy scipy pysam cython matplotlib \
 			datamash \
-			fastqc trimmomatic rcorrector \
+			fastqc rcorrector \
 			star star-fusion bwa hisat2 macs2 \
-			samtools picard bamutil \
+			samtools picard bamutil ucsc-facount khmer \
 		chmod 755 $insdir/conda/envs/py2/bin/run_rcorrector.pl && \
-		conda list -n py2 -f "fastqc|trimmomatic|rcorrector|star|star-fusion|bwa|hisat2|macs2|samtols|picard" | grep -v '^#' > $insdir/condatools.txt && \
+		conda list -n py2 -f "fastqc|rcorrector|star|star-fusion|bwa|hisat2|macs2|samtols|picard|bamutil|ucsc-facount|khmer" | grep -v '^#' > $insdir/condatools.txt && \
 
 		conda install -n py3 -y --override-channels -c iuc -c conda-forge -c bioconda -c main -c defaults -c r -c anaconda \
 			gcc_linux-64 readline make automake xz zlib bzip2 pigz pbzip2 ncurses htslib ghostscript \
@@ -116,14 +117,15 @@ compile::gem() {
 
 	commander::print "installing gem"
 	{	source $insdir/conda/bin/activate py2 && \
-		url='https://groups.csail.mit.edu/cgs/gem/download/gem.v3.2.tar.gz' && \
+		url='https://groups.csail.mit.edu/cgs/gem/download/gem.v3.4.tar.gz' && \
 		wget -q $url -O $insdir/gem.tar.gz && \
 		tar -xzf $insdir/gem.tar.gz -C $insdir && \
 		rm $insdir/gem.tar.gz && \
 		cd $insdir/gem && \
 		mkdir -p bin && \
-		cp Read_Distribution_default.txt bin && \
-		compile::_javawrapper $PWD/bin/gem $PWD/gem.jar && \
+		wget -q -O bin/Read_Distribution_default.txt https://groups.csail.mit.edu/cgs/gem/download/Read_Distribution_default.txt && \
+		wget -q -O bin/Read_Distribution_CLIP.txt https://groups.csail.mit.edu/cgs/gem/download/Read_Distribution_CLIP.txt && \
+		compile::_javawrapper bin/gem $(readlink -e gem.jar) $insdir/latest/java/java && \
 		mkdir -p $insdir/latest && \
 		ln -sfn $PWD/bin $insdir/latest/gem
 	} || return 1
@@ -163,7 +165,7 @@ compile::m6aviewer() {
 		mkdir -p $insdir/m6aViewer/bin && \
 		wget -q $url -O $insdir/m6aViewer/m6aViewer_1_6_1.jar && \
 		cd $insdir/m6aViewer && \
-		compile::_javawrapper $PWD/bin/m6aViewer $PWD/m6aViewer_1_6_1.jar && \
+		compile::_javawrapper $PWD/bin/m6aViewer $(readlink -e m6aViewer_1_6_1.jar) $insdir/latest/java/java && \
 		mkdir -p $insdir/latest && \
 		ln -sfn $PWD/bin $insdir/latest/m6aViewer
 	} || return 1

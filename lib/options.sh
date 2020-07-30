@@ -75,7 +75,7 @@ options::usage() {
 		-no-quant| --no-quantification        : disables per feature read quantification plus downstream analyses
 
 		PEAK CALLING OPTIONS
-		-ip      | --iptype [chip|rip]        : type of *IP-Seq experiment - default: chip
+		-rip     | --rna-ip                   : switch type of *IP-Seq experiment to RNA based *IP-Seq (e.g. meRIP, m6A, CLIP)
 		-n1      | --normal-fq1 [path,..]     : normal fastq input - single or first pair, comma seperated
 		-n2      | --normal-fq2 [path,..]     : normal fastq input - optional. second pair, comma seperated
 		-nr1     | --normal-repfq1 [path,..]  : normal replicate fastq input - optional. single or first pair, comma seperated
@@ -211,7 +211,7 @@ options::checkopt (){
 		-mn  | --mapper-name) arg=true; MAPNAME=$2;;
 
 		-rx  | --regex) arg=true; REGEX=$2;;
-		-ip  | --iptype) arg=true; IPTYPE=$2;;
+		-rip | --rna-ip) RIPSEQ=true;;
 		-c   | --comparisons) arg=true; mapfile -t -d ',' COMPARISONS < <(printf '%s' "$2");;
 		-a1  | --adapter1) arg=true; mapfile -t -d ',' ADAPTER1 < <(printf '%s' "$2");;
 		-a2  | --adapter2) arg=true; mapfile -t -d ',' ADAPTER2 < <(printf '%s' "$2");;
