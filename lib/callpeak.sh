@@ -152,7 +152,7 @@ callpeak::macs() {
 			toidr=()
 			for f in $tf $rf $pf; do
 				tdirs+=("$(mktemp -d -p "$tmpdir" cleanup.XXXXXXXXXX.macs)")
-				o=$odir/$(echo -e "$(basename $nf)\t$(basename $f)" | sed -E 's/(.+)\t(.+)\1/-\2/')
+				o=$(echo -e "$(basename $nf)\t$(basename $f)" | sed -E 's/(.+)\t(.+)\1/-\2/')
 
 				$ripseq && params2='--mfold 3 500'
 				commander::makecmd -a cmd1 -s '|' -c {COMMANDER[0]}<<- CMD
@@ -347,9 +347,9 @@ callpeak::gem() {
 				close F;
 				open F,">$t/$1.fa" or die $!;
 			}
-			print F $_:
+			print F $_;
 			END{
-				close F
+				close F;
 			}
 		'
 	CMD

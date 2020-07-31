@@ -7,7 +7,7 @@ trap '
 	{ kill -KILL "${pids[@]}" && wait "${pids[@]}"; } &> /dev/null
 	printf "\r"
 ' EXIT
-trap 'die "killed by sigint or sigterm"' INT TERM
+trap 'die "killed"' INT TERM
 
 die() {
 	echo ":ERROR: $*" >&2
@@ -196,7 +196,7 @@ ${INDEX:=false} && {
 	pipeline::index >> $LOG 2> >(tee -a $LOG >&2) || die
 } || {
 	if [[ $tfq1 || $tmap ]]; then
-		[[ $IPTYPE == 'chip' ]] && nosplit=true || IPTYPE='rip'
+		${RIPSEQ:=false} || nosplit=true
 		pipeline::callpeak 2> >(tee -ai $LOG >&2) >> $LOG || die
 	else
 		pipeline::dea 2> >(tee -ai $LOG >&2) >> $LOG || die
