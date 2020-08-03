@@ -45,13 +45,9 @@ cleanup() {
 
 [[ ! $RIPPCHEN ]] && die "cannot find installation. please run setup and/or do: export RIPPCHEN=/path/to/install/dir"
 INSDIR=$RIPPCHEN
-source $(dirname $(readlink -e $0))/bashbone/activate.sh -i $RIPPCHEN -c true || die
-BASHBONEVERSION=$version
-for f in $(dirname $(readlink -e $0))/lib/*.sh; do
-	source $f || die "unexpected error in source code - please contact developer"
-done
+# sources bashbone and defines BASHBONEVERSION variable
+source $(dirname $(readlink -e $0))/activate.sh || die
 VERSION=$version
-
 CMD="$(basename $0) $*"
 THREADS=$(grep -cF processor /proc/cpuinfo)
 MAXMEMORY=$(grep -F -i memavailable /proc/meminfo | awk '{printf("%d",$2*0.9/1024)}')

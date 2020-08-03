@@ -1,21 +1,6 @@
 #! /usr/bin/env bash
 # (c) Konstantin Riege
 
-# narrowpeak format:
-# (sequence-)tag means read
-# cutting ends are mate pairs
-# narrowpeak file format
-# 1 chrom - Name of the chromosome (or contig, scaffold, etc.).
-# 2 chromStart - The starting position of the feature in the chromosome or scaffold. The first base in a chromosome is numbered 0.
-# 3 chromEnd - The ending position of the feature in the chromosome or scaffold. The chromEnd base is not included in the display of the feature. For example, the first 100 bases of a chromosome are defined aschromStart=0, chromEnd=100, and span the bases numbered 0-99.
-# 4 name - Name given to a region (preferably unique). Use '.' if no name is assigned.
-# 5 score - Indicates how dark the peak will be displayed in the browser (0-1000). If all scores were '0' when the data were submitted to the DCC, the DCC assigned scores 1-1000 based on signal value. Ideally the average signalValue per base spread is between 100-1000.
-# 6 strand - +/- to denote strand or orientation (whenever applicable). Use '.' if no orientation is assigned.
-# 7 signalValue - Measurement of overall (usually, average) enrichment for the region.
-# 8 pValue - Measurement of statistical significance (-log10). Use -1 if no pValue is assigned.
-# 9 qValue - Measurement of statistical significance using false discovery rate (-log10). Use -1 if no qValue is assigned.
-# 10 peak - Point-source called for this peak; 0-based offset from chromStart. Use -1 if no point-source called.
-
 callpeak::_idr() {
 	local funcname=${FUNCNAME[0]}
 	_usage() {
@@ -120,24 +105,24 @@ callpeak::macs() {
 	[[ $mandatory -lt 11 ]] && _usage && return 1
 
 	commander::print "peak calling macs"
-
-	local m i f o odir nf nrf tf rf x pff nff genomesize params=' -f BAM' params2
+	commander::print "preparing genome"
 
 	# get effective genome size
 	# if multimapped reads: genome minus Ns , else genome minus Ns minus repetetive Elements
 	declare -n _bams_macs=${_mapper_macs[0]}
-	nf=${_bams_macs[${_nidx_macs[$i]}]}
+	local genomesize nf=${_bams_macs[${_nidx_macs[0]}]}
 	if [[ $(samtools view -F 4 "$nf" | head -10000 | cat <(samtools view -H "$nf") - | samtools view -c -f 256) -gt 0 ]]; then
 		genomesize=$(faCount $genome | tail -1 | awk '{print $3+$4+$5+$6}')
 	else
 		genomesize=$(unique-kmers.py -k 100 $genome 2>&1 | tail -1 | awk '{print $NF}')
 	fi
 
-	declare -a cmd1 tdirs toidr
+	local m i f o odir nf nrf tf rf x pff nff params params2
+	declare -a cmd1 cmd2 cmd3 cmd4 tdirs toidr
 	for m in "${_mapper_macs[@]}"; do
 		declare -n _bams_macs=$m
 		odir=$outdir/$m/macs
-		mkdir -p "$odir"
+
 		for i in "${!_nidx_macs[@]}"; do
 			nf=${_bams_macs[${_nidx_macs[$i]}]}
 			tf=${_bams_macs[${_tidx_macs[$i]}]}
@@ -145,22 +130,23 @@ callpeak::macs() {
 			pf=${_bams_macs[${_pidx_macs[$i]}]}
 
 			# infer SE or PE
-			[[ $(samtools view -F 4 "$nf" | head -10000 | cat <(samtools view -H "$nf") - | samtools view -c -f 1) -gt 0 ]] && params=' -f BAMPE'
-			# maybe convert bam to sam and use -f SAM to avoid random errors in MACS2.IO.Parser.BAMParser
-			# check newer versions for fix - still failes as of Jan 2019 v2.1.2 
+			params='-f BAM'
+			[[ $(samtools view -F 4 "$nf" | head -10000 | cat <(samtools view -H "$nf") - | samtools view -c -f 1) -gt 0 ]] && params='-f BAMPE'
 
 			toidr=()
 			for f in $tf $rf $pf; do
 				tdirs+=("$(mktemp -d -p "$tmpdir" cleanup.XXXXXXXXXX.macs)")
 				o=$(echo -e "$(basename $nf)\t$(basename $f)" | sed -E 's/(.+)\t(.+)\1/-\2/')
+				mkdir -p "$odir/$o"
 
 				$ripseq && params2='--mfold 3 500'
 				commander::makecmd -a cmd1 -s '|' -c {COMMANDER[0]}<<- CMD
 					macs2 callpeak
+					$params
 					-t "$f"
 					-c "$nf"
 					-g $genomesize
-					--outdir "$odir"
+					--outdir "$odir/$o"
 					-n "$o.model"
 					--tempdir "${tdirs[-1]}"
 					-B
@@ -169,17 +155,17 @@ callpeak::macs() {
 					-q 0.05
 					--verbose 1
 					--bw $fragmentsize
-					$params
 					$params2
 				CMD
 
 				$ripseq && params2="--shift $((-1*fragmentsize/2))" || params2="--shift 0"
 				commander::makecmd -a cmd1 -s '|' -c {COMMANDER[0]}<<- CMD
 					macs2 callpeak
+					$params
 					-t "$f"
 					-c "$nf"
 					-g $genomesize
-					--outdir "$odir"
+					--outdir "$odir/$o"
 					-n "$o.nomodel"
 					--tempdir "${tdirs[-1]}"
 					-B
@@ -188,24 +174,23 @@ callpeak::macs() {
 					-q 0.05
 					--verbose 1
 					--nomodel
-					--extsize $fragmentsize
-					$params
 					$params2
+					--extsize $fragmentsize
 				CMD
-				commander::makecmd -a cmd2 -s '|' -o "$odir/$o.merged_peaks.narrowPeak" -c {COMMANDER[0]}<<- CMD {COMMANDER[1]}<<- 'CMD'
+
+				commander::makecmd -a cmd2 -s '|' -o "$odir/$o.narrowPeak" -c {COMMANDER[0]}<<- CMD {COMMANDER[1]}<<- 'CMD'
 					bedtools merge
 					-c 5,7,8,9
 					-o collapse
-					-i <(sort -k1,1 -k2,2n -k3,3n "$odir/$o.model_peaks.narrowPeak" "$odir/$o.nomodel_peaks.narrowPeak")
+					-i <(sort -k1,1 -k2,2n -k3,3n "$odir/$o/$o.model_peaks.narrowPeak" "$odir/$o/$o.nomodel_peaks.narrowPeak")
 				CMD
 					perl -M'List::Util qw(max)' -lane '
 						print join "\t", (@F[0..2],"merged_peak_".(++$x),max(split/,/,$F[3]),".",max(split/,/,$F[4]),max(split/,/,$F[5]),max(split/,/,$F[6]),"-1")
 					'
 				CMD
-				_macs+=("$odir/$o.model_peaks.narrowPeak")
-				_macs+=("$odir/$o.nomodel_peaks.narrowPeak")
-				_macs+=("$odir/$o.merged_peaks.narrowPeak")
-				toidr+=("$odir/$o.merged_peaks.narrowPeak")
+
+				_macs+=("$odir/$o.narrowPeak")
+				toidr+=("$odir/$o.narrowPeak")
 			done
 
 			callpeak::_idr \
@@ -233,9 +218,9 @@ callpeak::macs() {
 			pff=${_bams_macs[$x]}
 			nff=${_bams_macs[$((--x))]} # 11
 
-			toidr=( $odir/$(echo -e "$(basename $nf)\t$(basename $pf)" | sed -E 's/(.+)\t(.+)\1/-\2.merged_peaks.narrowPeak/') )
-			toidr+=( $odir/$(echo -e "$(basename $nrf)\t$(basename $pf)" | sed -E 's/(.+)\t(.+)\1/-\2.merged_peaks.narrowPeak/') )
-			toidr+=( $odir/$(echo -e "$(basename $nff)\t$(basename $pff)" | sed -E 's/(.+)\t(.+)\1/-\2.merged_peaks.narrowPeak/') )
+			toidr=( $odir/$(echo -e "$(basename $nf)\t$(basename $pf)" | sed -E 's/(.+)\t(.+)\1/-\2.narrowPeak/') )
+			toidr+=( $odir/$(echo -e "$(basename $nrf)\t$(basename $pf)" | sed -E 's/(.+)\t(.+)\1/-\2.narrowPeak/') )
+			toidr+=( $odir/$(echo -e "$(basename $nff)\t$(basename $pff)" | sed -E 's/(.+)\t(.+)\1/-\2.narrowPeak/') )
 
 			callpeak::_idr \
 				-1 cmd3 \
@@ -322,24 +307,22 @@ callpeak::gem() {
 	[[ $mandatory -lt 11 ]] && _usage && return 1
 
 	commander::print "peak calling gem"
+	commander::print "preparing genome"
 
 	local instances ithreads jmem jgct jcgct
-	read -r instances ithreads jmem jgct jcgct < <(configure::jvm -i 1 -T $threads)
-
-	commander::print "preparing genome"
-	local m i f o tdir odir nf nrf tf rf x pff nff params
+	read -r instances ithreads jmem jgct jcgct < <(configure::jvm -i 3 -T $threads)
 
 	# get effective genome size
 	# if multimapped reads: genome minus Ns , else genome minus Ns minus repetetive Elements
 	declare -n _bams_gem=${_mapper_gem[0]}
-	nf=${_bams_gem[${_nidx_macs[$i]}]}
+	local genomesize nf=${_bams_gem[${_nidx_macs[0]}]}
 	if [[ $(samtools view -F 4 "$nf" | head -10000 | cat <(samtools view -H "$nf") - | samtools view -c -f 256) -gt 0 ]]; then
 		genomesize=$(faCount $genome | tail -1 | awk '{print $3+$4+$5+$6}')
 	else
 		genomesize=$(unique-kmers.py -k 100 $genome 2>&1 | tail -1 | awk '{print $NF}')
 	fi
-	tdir="$(mktemp -d -p "$tmpdir" cleanup.XXXXXXXXXX.genome)"
-	samtools view -H $nf | sed -rn '/^@SQ/{s/.+\tSN:(\S+)\s+LN:(\S+).*/\1\t\2/p}' > "$tdir/chrinfo"
+	local tdir="$(mktemp -d -p "$tmpdir" cleanup.XXXXXXXXXX.genome)"
+	samtools view -H $nf | sed -rn '/^@SQ/{s/.+\tSN:(\S+)\s+LN:(\S+).*/\1\t\2/p}' > "$tdir/chr.info"
 	declare -a cmdg
 	commander::makecmd -a cmdg -s ' ' -c {COMMANDER[0]}<<- 'CMD' {COMMANDER[1]}<<- CMD
 		perl -slane '
@@ -358,13 +341,20 @@ callpeak::gem() {
 	commander::runcmd -v -b -t $threads -a cmdg || return 1
 
 	# strandtype 1 disables search for asymmetry between sense and antisense mapped reads, instead directly calls peaks of reads from one strand
-	$ripseq && params=" --strand_type 1 --smooth $fragmentsize --relax --d $(dirname $(which gem))/Read_Distribution_CLIP.txt" || params=" --d $(dirname $(which gem))/Read_Distribution_default.txt"
+	# one could try to increase smooth (default: 30) and add relex for less mfold peaks - warning: runtime!!
+	# params="--smooth $fragmentsize --relax"
+	$ripseq && {
+		params="--strand_type 1 --d $(dirname $(which gem))/Read_Distribution_CLIP.txt"
+	} || {
+		params="--d $(dirname $(which gem))/Read_Distribution_default.txt"
+	}
 
-	declare -a cmd1 toidr
+	local m i f o tdir odir nf nrf tf rf x pff nff params
+	declare -a cmd1 cmd2 cmd3 toidr
 	for m in "${_mapper_gem[@]}"; do
 		declare -n _bams_gem=$m
 		odir=$outdir/$m/gem
-		mkdir -p $odir $tdir
+
 		for i in "${!_nidx_gem[@]}"; do
 			nf=${_bams_gem[${_nidx_gem[$i]}]}
 			tf=${_bams_gem[${_tidx_gem[$i]}]}
@@ -373,8 +363,8 @@ callpeak::gem() {
 
 			toidr=()
 			for f in $tf $rf $pf; do
-				o=$odir/$(echo -e "$(basename $nf)\t$(basename $f)" | sed -E 's/(.+)\t(.+)\1/-\2/')
-				mkdir -p $o
+				o=$(echo -e "$(basename $nf)\t$(basename $f)" | sed -E 's/(.+)\t(.+)\1/-\2/')
+				mkdir -p "$odir/$o"
 				
 				commander::makecmd -a cmd1 -s '&&' -c {COMMANDER[0]}<<- CMD {COMMANDER[1]}<<- CMD
 					gem
@@ -384,10 +374,10 @@ callpeak::gem() {
 						-Djava.io.TMPDIR="$tmpdir"
 						--t $ithreads
 						--genome "$tdir"
-						--g $tdir/chrinfo
-						--out $o
-						--expt ${m[${pidx[$i]}]}
-						--ctrl ${m[${nidx[$i]}]}
+						--g $tdir/chr.info
+						--out "$odir/$o"
+						--expt "$f"
+						--ctrl "$nf"
 						--f SAM
 						--nrf
 						--s $genomesize
@@ -395,17 +385,16 @@ callpeak::gem() {
 						--outNP
 						$params
 				CMD
-					cp $o/$(basename $o).GPS_events.narrowPeak $o.narrowPeak
+					cp "$odir/$o/$o.GPS_events.narrowPeak" "$odir/$o.narrowPeak"
 				CMD
-				_gem+=("$odir/$o.model_peaks.narrowPeak")
-				_gem+=("$odir/$o.nomodel_peaks.narrowPeak")
-				_gem+=("$odir/$o.merged_peaks.narrowPeak")
-				toidr+=("$odir/$o.merged_peaks.narrowPeak")
+
+				_gem+=("$odir/$o.narrowPeak")
+				toidr+=("$odir/$o.narrowPeak")
 			done
 
 			callpeak::_idr \
-				-1 cmd3 \
-				-2 cmd4 \
+				-1 cmd2 \
+				-2 cmd3 \
 				-t "${toidr[0]}" \
 				-r "${toidr[1]}" \
 				-p "${toidr[2]}" \
@@ -426,15 +415,15 @@ callpeak::gem() {
 
 			x=$(( ${_nridx_gem[$i]} + ${_pidx_gem[$i]} )) # 12
 			pff=${_bams_gem[$x]}
-			nff=${_bams_gem[$((--x))]} # 11
+			nff=${_bams_gem[$((x-1))]} # 11
 
-			toidr=( $odir/$(echo -e "$(basename $nf)\t$(basename $pf)" | sed -E 's/(.+)\t(.+)\1/-\2.merged_peaks.narrowPeak/') )
-			toidr+=( $odir/$(echo -e "$(basename $nrf)\t$(basename $pf)" | sed -E 's/(.+)\t(.+)\1/-\2.merged_peaks.narrowPeak/') )
-			toidr+=( $odir/$(echo -e "$(basename $nff)\t$(basename $pff)" | sed -E 's/(.+)\t(.+)\1/-\2.merged_peaks.narrowPeak/') )
+			toidr=( $odir/$(echo -e "$(basename $nf)\t$(basename $pf)" | sed -E 's/(.+)\t(.+)\1/-\2.narrowPeak/') )
+			toidr+=( $odir/$(echo -e "$(basename $nrf)\t$(basename $pf)" | sed -E 's/(.+)\t(.+)\1/-\2.narrowPeak/') )
+			toidr+=( $odir/$(echo -e "$(basename $nff)\t$(basename $pff)" | sed -E 's/(.+)\t(.+)\1/-\2.narrowPeak/') )
 
 			callpeak::_idr \
-				-1 cmd3 \
-				-2 cmd4 \
+				-1 cmd2 \
+				-2 cmd3 \
 				-t "${toidr[0]}" \
 				-r "${toidr[1]}" \
 				-p "${toidr[2]}" \
@@ -446,14 +435,12 @@ callpeak::gem() {
 		commander::printcmd -a cmd1
 		commander::printcmd -a cmd2
 		commander::printcmd -a cmd3
-		commander::printcmd -a cmd4
 	} || {
-		{	commander::runcmd -v -b -t $threads -a cmd1 && \
-			commander::runcmd -v -b -t $threads -a cmd2 && \
+		{	commander::runcmd -v -b -t $instances -a cmd1 && \
 			conda activate py3 && \
-			commander::runcmd -v -b -t $threads -a cmd3 && \
+			commander::runcmd -v -b -t $threads -a cmd2 && \
 			conda activate py2 && \
-			commander::runcmd -v -b -t $threads -a cmd4
+			commander::runcmd -v -b -t $threads -a cmd3
 		} || {
 			rm -rf "$tdir"
 			commander::printerr "$funcname failed"
