@@ -78,7 +78,6 @@ pipeline::_preprocess(){
 					-S ${notrim:=false} \
 					-s ${Strim:=false} \
 					-t $THREADS \
-					-m $MEMORY \
 					-o $OUTDIR/trimmed \
 					-p $TMPDIR \
 					-1 FASTQ1 \
@@ -143,7 +142,6 @@ pipeline::_preprocess(){
 					-s ${Srrm:=false} \
 					-t $THREADS \
 					-m $MEMORY \
-					-i $INSDIR \
 					-o $OUTDIR/rrnafiltered \
 					-p $TMPDIR \
 					-1 FASTQ1 \
@@ -473,14 +471,15 @@ pipeline::callpeak() {
 			-q ${RIPSEQ:=false} \
 			-f $FRAGMENTSIZE \
 			-g $GENOME \
-			-n nidx \
-			-m nridx \
+			-a nidx \
+			-b nridx \
 			-i tidx \
 			-j ridx \
 			-k pidx \
 			-r mapper \
 			-c caller \
 			-t $THREADS \
+			-m $MEMORY \
 			-p $TMPDIR \
 			-o $OUTDIR/peaks && \
 		callpeak::gem \
@@ -489,8 +488,9 @@ pipeline::callpeak() {
 			-q ${RIPSEQ:=false} \
 			-f $FRAGMENTSIZE \
 			-g $GENOME \
-			-n nidx \
-			-m nridx \
+			-f $GTF \
+			-a nidx \
+			-b nridx \
 			-i tidx \
 			-j ridx \
 			-k pidx \

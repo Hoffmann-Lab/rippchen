@@ -4,7 +4,7 @@
 alignment::mkreplicates() {
 	local funcname=${FUNCNAME[0]}
 	_usage() {
-		commander::printerr {COMMANDER[0]}<<- EOF
+		commander::print {COMMANDER[0]}<<- EOF
 			$funcname usage: 
 			-S <hardskip>   | true/false return
 			-s <softskip>   | true/false only print commands
@@ -44,7 +44,7 @@ alignment::mkreplicates() {
 	local m i odir o tmp nf nrf tf rf pf addindex=true ithreads1 ithreads2 instances1=1 instances2=1
 	declare -a cmd1 cmd2 cmd3 tdirs
 	if [[ $_ridx_mkreplicates ]]; then
-		commander::print "generating pseudo-pools"
+		commander::printinfo "generating pseudo-pools"
 		instances1=$((${#_mapper_mkreplicates[@]} * ${#_nidx_mkreplicates[@]} * 2 + ${#_mapper_mkreplicates[@]} * ${#_nridx_mkreplicates[@]} * 2))
 		instances2=$((${#_mapper_mkreplicates[@]} * ${#_nidx_mkreplicates[@]}))
 		read -r instances1 ithreads1 < <(configure::instances_by_threads -i $instances1 -t 10 -T $threads)
@@ -132,7 +132,7 @@ alignment::mkreplicates() {
 			done
 		fi
 	else
-		commander::print "generating pseudo-replicates"
+		commander::printinfo "generating pseudo-replicates"
 		instances1=$((${#_mapper_mkreplicates[@]} * ${#_nidx_mkreplicates[@]}))
 		read -r instances1 ithreads1 < <(configure::instances_by_threads -i $instances1 -t 10 -T $threads)
 		# make pseudo-replicates from pseudo-pool: 

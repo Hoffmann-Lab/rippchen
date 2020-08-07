@@ -2,7 +2,7 @@
 # (c) Konstantin Riege
 
 options::usage() {
-	cat <<- EOF
+	commander::print {COMMANDER[0]}<<- EOF
 		DESCRIPTION
 		RIPPCHEN are tasty!
 		acquire a taste for peak calling from *IP-Seq experiments or for differential expression- and ontology analysis from RNA-Seq data

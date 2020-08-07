@@ -11,8 +11,7 @@
 			if [[ ${BASH_VERSINFO[0]} -gt 4 ]] || [[ ${BASH_VERSINFO[0]} -eq 4 && ${BASH_VERSINFO[1]} -ge 4 ]]; then
 				insdir_pipeline=$(dirname $(readlink -e ${BASH_SOURCE[0]}))
 				insdir_tools_pipeline=$(dirname $insdir_pipeline)
-				activate_conda_pipeline=true
-				unset OPTIND
+				unset OPTIND activate_conda_pipeline
 				while getopts :i:c: ARG; do
 					case $ARG in
 						i) insdir_pipeline="$OPTARG";;
@@ -20,13 +19,14 @@
 						:) echo ":ERROR: argument missing" >&2 ; return 1;;
 					esac
 				done
-				source "$insdir_pipeline/bashbone/activate.sh" -i "$insdir_tools_pipeline" -c $activate_conda_pipeline || return 1
+				source "$insdir_pipeline/bashbone/activate.sh" -i "$insdir_tools_pipeline" -c ${activate_conda_pipeline:-false} || return 1
 				BASHBONEVERSION=$version && \
 				IFS=$'\n'
 				for f in "$insdir_pipeline/lib/"*.sh; do
 					source "$f"
 				done && {
 					unset IFS
+					INSDIR="$insdir_pipeline"
 					bashbone(){
 						declare -f | grep -P '::.+\(\)' | grep -vF -e compile:: -e helper::_ -e progress:: -e commander::_ -e pipeline:: | sort -V | sed -r 's/\s+\(\)\s+$//'
 					}

@@ -1,13 +1,5 @@
 #! /usr/bin/env bash
 # (c) Konstantin Riege
-trap '
-	cleanup $?
-	sleep 1
-	pids=($(pstree -p $$ | grep -Eo "\([0-9]+\)" | grep -Eo "[0-9]+" | tail -n +2))
-	{ kill -KILL "${pids[@]}" && wait "${pids[@]}"; } &> /dev/null
-	printf "\r"
-' EXIT
-trap 'die "killed"' INT TERM
 
 die() {
 	echo ":ERROR: $*" >&2
@@ -43,10 +35,12 @@ cleanup() {
 	}
 }
 
-[[ ! $RIPPCHEN ]] && die "cannot find installation. please run setup and/or do: export RIPPCHEN=/path/to/install/dir"
-INSDIR=$RIPPCHEN
-# sources bashbone and defines BASHBONEVERSION variable
-source $(dirname $(readlink -e $0))/activate.sh || die
+# defines INSDIR and by sourcing bashbone it defines BASHBONEVERSION variable as well
+source $(dirname $(readlink -e $0))/activate.sh -c true || die
+
+trap 'configure::exit -p $$ -f cleanup $?' EXIT
+trap 'die "killed"' INT TERM
+
 VERSION=$version
 CMD="$(basename $0) $*"
 THREADS=$(grep -cF processor /proc/cpuinfo)
@@ -181,8 +175,8 @@ unset IFS
 
 printf '' > $LOG || die "cannot access $LOG"
 progress::log -v $VERBOSITY -o $LOG
-commander::print "rippchen $VERSION utilizing bashbone $BASHBONEVERSION started with command: $CMD" >> $LOG
-commander::print "temporary files go to: $HOSTNAME:$TMPDIR" >> $LOG
+commander::printinfo "rippchen $VERSION utilizing bashbone $BASHBONEVERSION started with command: $CMD" >> $LOG
+commander::printinfo "temporary files go to: $HOSTNAME:$TMPDIR" >> $LOG
 
 ${Smd5:=false} || {
 	[[ ! -s $GENOME.md5.sh ]] && cp $(dirname $(readlink -e $0))/bashbone/lib/md5.sh $GENOME.md5.sh
@@ -199,12 +193,12 @@ ${INDEX:=false} && {
 	fi
 }
 ${Smd5:=false} || {
-	commander::print "finally updating genome and annotation md5 sums" >> $LOG
+	commander::printinfo "finally updating genome and annotation md5 sums" >> $LOG
 	thismd5genome=$(md5sum $GENOME | cut -d ' ' -f 1)
 	[[ "$md5genome" != "$thismd5genome" ]] && sed -i "s/md5genome=.*/md5genome=$thismd5genome/" $GENOME.md5.sh
 	thismd5gtf=$(md5sum $GTF | cut -d ' ' -f 1)
 	[[ "$md5gtf" != "$thismd5gtf" ]] && sed -i "s/md5gtf=.*/md5gtf=$thismd5gtf/" $GENOME.md5.sh
 }
 
-commander::print "success" >> $LOG
+commander::printinfo "success" >> $LOG
 exit 0

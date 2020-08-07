@@ -34,7 +34,7 @@ compile::rippchen() {
 	source $src/lib/version.sh
 	shopt -s extglob
 
-	commander::print "installing rippchen"
+	commander::printinfo "installing rippchen"
 	{	rm -rf $insdir/rippchen-$version && \
 		mkdir -p $insdir/rippchen-$version && \
 		cp -r $src/!(bashbone|setup*) $insdir/rippchen-$version && \
@@ -61,7 +61,7 @@ compile::conda() {
 	local insdir threads
 	compile::_parse -r insdir -s threads "$@"
 
-	commander::print "installing conda and tools"
+	commander::printinfo "installing conda and tools"
 	{	url='https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh' && \
 		wget -q -O $insdir/miniconda.sh $url && \
 		version=$(bash $insdir/miniconda.sh -h | grep -F Installs | cut -d ' ' -f 3) && \
@@ -115,7 +115,7 @@ compile::gem() {
 	local insdir threads
 	compile::_parse -r insdir -s threads "$@"
 
-	commander::print "installing gem"
+	commander::printinfo "installing gem"
 	{	source $insdir/conda/bin/activate py2 && \
 		url='https://groups.csail.mit.edu/cgs/gem/download/gem.v3.4.tar.gz' && \
 		version=$(basename $url | sed -E 's/.+v([0-9]+.+).tar.gz/\1/') && \
@@ -139,7 +139,7 @@ compile::idr() {
 	local insdir threads
 	compile::_parse -r insdir -s threads "$@"
 
-	commander::print "installing idr"
+	commander::printinfo "installing idr"
 	{	source $insdir/conda/bin/activate py3 && \
 		url='https://github.com/kundajelab/idr/archive/2.0.4.2.tar.gz' && \
 		wget -q $url -O $insdir/idr.tar.gz && \
@@ -161,7 +161,7 @@ compile::m6aviewer() {
 	local insdir threads
 	compile::_parse -r insdir -s threads "$@"
 
-	commander::print "installing m6aviewer"
+	commander::printinfo "installing m6aviewer"
 	{	source $insdir/conda/bin/activate py2 && \
 		url='http://dna2.leeds.ac.uk/m6a/m6aViewer_1_6_1.jar' && \
 		mkdir -p $insdir/m6aViewer/bin && \
@@ -179,7 +179,7 @@ compile::metpeak() {
 	local insdir threads
 	compile::_parse -r insdir -s threads "$@"
 
-	commander::print "installing metpeak"
+	commander::printinfo "installing metpeak"
 	{	source $insdir/conda/bin/activate py2r && \
 		Rscript -e "options(unzip='$(which unzip)'); Sys.setenv(TAR='$(which tar)'); library('devtools'); install_github('compgenomics/MeTPeak', build_opts = c('--no-resave-data', '--no-manual'), threads=$threads, force=T)"
 	} || return 1
@@ -191,7 +191,7 @@ compile::zerone() {
 	local insdir threads
 	compile::_parse -r insdir -s threads "$@"
 
-	commander::print "installing zerone"
+	commander::printinfo "installing zerone"
 	{	source $insdir/conda/bin/activate py2 && \
 		cd $insdir && \
 		rm -rf zerone && \
@@ -212,7 +212,7 @@ compile::dpgpc() {
 	local insdir threads
 	compile::_parse -r insdir -s threads "$@"
 
-	commander::print "installing dp_gp_cluster"
+	commander::printinfo "installing dp_gp_cluster"
 	{	source $insdir/conda/bin/activate py2 && \
 		cd $insdir && \
 		rm -rf DP_GP_cluster && \
@@ -239,7 +239,7 @@ compile::webgestalt() {
 	local insdir threads
 	compile::_parse -r insdir -s threads "$@"
 
-	commander::print "installing webgestalt"
+	commander::printinfo "installing webgestalt"
 	{	source $insdir/conda/bin/activate py2r && \
 		Rscript -e "options(unzip='$(which unzip)'); Sys.setenv(TAR='$(which tar)'); library('devtools'); install_github('cran/WebGestaltR', threads=$threads, force=T)"
 	} || return 1
