@@ -2,6 +2,8 @@
 RIPPCHEN are tasty!
 acquire a taste for peak calling from *IP-Seq experiments or for differential expression- and ontology analysis from RNA-Seq data
 
+RIPPCHEN leverages on bashbone, but comes with its own more lightweight installer
+
 RIPPCHEN provides
 0) a sophisticated infrastructure for task parallelization
 - a root less setup routine for all requirements and tools

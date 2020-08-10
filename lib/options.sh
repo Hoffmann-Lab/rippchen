@@ -34,7 +34,7 @@ options::usage() {
 		                                        0 - get simple status updates
 		                                        1 - get status updates and commands
 		                                        2 - get full output
-		-x       | --index                    : create all requiered indices if necessary and exit
+		-x       | --index                    : create all requiered genome indices if necessary and exit
 		-g       | --genome [path]            : genome fasta input, without only preprocessing is performed
 		-gtf     | --gtf [path]               : annotation gtf input - optional, default: genome.fasta.gtf
 		-a1      | --adapter1 [string,..]     : adapter sequence(s) - optional. single or first pair, comma seperated

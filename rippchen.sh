@@ -12,10 +12,9 @@ cleanup() {
 		find $TMPDIR -depth -type d -name "cleanup.*" -exec rm -rf {} \;
 	}
 	[[ $1 -eq 0 ]] && ${CLEANUP:=false} && {
-		echo ":INFO: removing temporary directory and unnecessary files"
 		[[ -e $TMPDIR ]] && {
 			find $TMPDIR -type f -exec rm -f {} \;
-			find $TMPDIR -type d -depth -exec rm -rf {} \;
+			find $TMPDIR -depth -type d -exec rm -rf {} \;
 			rm -rf $TMPDIR
 		}
 		[[ -e $OUTDIR ]] && {
@@ -183,7 +182,7 @@ ${Smd5:=false} || {
 	source $GENOME.md5.sh
 }
 ${INDEX:=false} && {
-	pipeline::index >> $LOG 2> >(tee -a $LOG >&2) || die
+	pipeline::index 2> >(tee -ai $LOG >&2) >> $LOG || die
 } || {
 	if [[ $tfq1 || $tmap ]]; then
 		${RIPSEQ:=false} || nosplit=true

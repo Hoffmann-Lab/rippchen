@@ -12,8 +12,8 @@
 				insdir_pipeline=$(dirname $(readlink -e ${BASH_SOURCE[0]}))
 				insdir_tools_pipeline=$(dirname $insdir_pipeline)
 				unset OPTIND activate_conda_pipeline
-				while getopts :i:c: ARG; do
-					case $ARG in
+				while getopts :i:c: arg; do
+					case $arg in
 						i) insdir_pipeline="$OPTARG";;
 						c) activate_conda_pipeline="$OPTARG";;
 						:) echo ":ERROR: argument missing" >&2 ; return 1;;
