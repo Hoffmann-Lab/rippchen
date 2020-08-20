@@ -72,7 +72,6 @@ if [[ $PREVIOUSTMPDIR ]]; then
 	mkdir -p $TMPDIR || die "cannot access $TMPDIR"
 	TMPDIR=$(readlink -e $TMPDIR)
 else
-	Sslice=false
 	mkdir -p $TMPDIR || die "cannot access $TMPDIR"
 	TMPDIR=$(readlink -e $TMPDIR)
 	TMPDIR=$(mktemp -d -p $TMPDIR rippchen.XXXXXXXXXX) || die "cannot access $TMPDIR"
@@ -83,10 +82,10 @@ fi
 [[ MTHREADS=$((MAXMEMORY/MEMORY)) -gt $THREADS ]] && MTHREADS=$THREADS
 [[ $MTHREADS -eq 0 ]] && die "too less memory available ($MAXMEMORY)"
 ${INDEX:=false} || {
-	[[ ! $nfq1 ]] && [[ ! $tfq1 ]] && [[ ! $nmap ]] && die "fastq file input missing"
+	[[ ! $nfq1 ]] && [[ ! $tfq1 ]] && [[ ! $nmap ]] && die "fastq or sam/bam file input missing"
 }
 [[ ! $nfq2 ]] && {
-	[[ "$nocomo" == "false" ]] && {
+	[[ "$nocmo" == "false" ]] && {
 		commander::warn "no second mate fastq file given - proceeding without mate overlap clipping"
 		nocmo=true
 	}
@@ -96,7 +95,6 @@ if [[ $GENOME ]]; then
 else
 	${INDEX:=false} && die "genome file missing"
 	commander::warn "proceeding without genome file"
-	Smd5=true
 	nosege=true
 	nostar=true
 fi
