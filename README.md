@@ -51,7 +51,7 @@ Load the library and list available functions. Each function comes with a usage.
 
 ```bash
 source activate.sh
-bashbone
+bashbone -h
 rippchen.sh -h
 ```
 
@@ -61,7 +61,7 @@ rippchen.sh -h
 ```bash
 setup -i all -d <path/to/installation>
 source <path/of/installation/activate.sh>
-rippchen.sh
+rippchen.sh -h
 ```
 
 ## Update to a newer release
@@ -69,7 +69,7 @@ rippchen.sh
 ```bash
 setup -i upgrade -d <path/of/installation>
 source <path/of/installation/activate.sh>
-bashbone
+bashbone -h
 ```
 
 # Usage
@@ -256,7 +256,6 @@ rippchen.sh [...] -redo quant,tpm
 | Tool | Source | DOI |
 | ---  | ---    | --- |
 | BamUtil       | <https://genome.sph.umich.edu/wiki/BamUtil>                         | 10.1101/gr.176552.114 |
-| BCFtools      | <http://www.htslib.org/doc/bcftools.html>                           | 10.1093/bioinformatics/btr509 |
 | BEDTools      | <https://bedtools.readthedocs.io>                                   | 10.1093/bioinformatics/btq033 |
 | Cutadapt      | <https://cutadapt.readthedocs.io/en/stable>                         | 10.14806/ej.17.1.200 |
 | DESeq2        | <https://bioconductor.org/packages/release/bioc/html/DESeq2.html>   | 10.1186/s13059-014-0550-8 |
@@ -280,7 +279,6 @@ rippchen.sh [...] -redo quant,tpm
 | STAR          | <https://github.com/alexdobin/STAR>                                 | 10.1093/bioinformatics/bts635 |
 | Trimmomatic   | <http://www.usadellab.org/cms/?page=trimmomatic>                    | 10.1093/bioinformatics/btu170 |
 | WGCNA         | <https://horvath.genetics.ucla.edu/html/CoexpressionNetwork/Rpackages/WGCNA> | 10.1186/1471-2105-9-559 |
-
 
 ## In preparation
 
@@ -308,7 +306,7 @@ for i in *R1.fastq.gz; do
 done
 ```
 
-In some cases an glibc pthreads bug (<https://sourceware.org/bugzilla/show_bug.cgi?id=23275>) may cause pigz failures (`internal threads error`) and tool leveraging on it e.g. Cutadapt. One can circumvent this by upgrading the operating system or making use of an alternative pthreads library and `LD_PRELOAD`
+In some cases a glibc pthreads bug (<https://sourceware.org/bugzilla/show_bug.cgi?id=23275>) may cause pigz failures (`internal threads error`) and premature termination of toola leveraging on it e.g. Cutadapt. One can circumvent this by upgrading the operating system or making use of an alternative pthreads library and `LD_PRELOAD`
 
 ```bash
 source <path/of/installation/activate.sh>
