@@ -346,7 +346,17 @@ pipeline::dea() {
 				-i $OUTDIR/counted \
 				-j $OUTDIR/deseq \
 				-o $OUTDIR/coexpressed \
-				-p $TMPDIR
+				-p $TMPDIR && \
+
+			enrichment::go \
+				-S ${nogo:=false} \
+				-s ${Sgo:=false} \
+				-t $THREADS \
+				-r mapper \
+				-c COMPARISONS \
+				-l coexpressions \
+				-g $GTF.go \
+				-i $OUTDIR/deseq
 		} || return 1
 	else
 		{	cluster::coexpression \
@@ -361,20 +371,17 @@ pipeline::dea() {
 				-l coexpressions \
 				-i $OUTDIR/counted \
 				-o $OUTDIR/coexpressed \
-				-p $TMPDIR
+				-p $TMPDIR && \
+
+			enrichment::go \
+				-S ${nogo:=false} \
+				-s ${Sgo:=false} \
+				-t $THREADS \
+				-r mapper \
+				-l coexpressions \
+				-g $GTF.go
 		} || return 1
 	fi
-
-	{	enrichment::go \
-		-S ${nogo:=false} \
-		-s ${Sgo:=false} \
-		-t $THREADS \
-		-r mapper \
-		-c COMPARISONS \
-		-l coexpressions \
-		-g $GTF.go \
-		-i $OUTDIR/deseq
-	} || return 1
 
 	return 0
 }
