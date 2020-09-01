@@ -297,7 +297,7 @@ pipeline::dea() {
 			-r mapper
 	} || return 1
 
-	! $noquant && [[ $COMPARISONS ]] && {
+	if [[ ! $noquant && $COMPARISONS ]]; then
 		{	expression::diego \
 				-S ${nodsj:=false} \
 				-s ${Sdsj:=false} \
@@ -332,31 +332,49 @@ pipeline::dea() {
 				-o $OUTDIR/counted \
 				-p $TMPDIR && \
 
-			cluster::coexpression \
+			cluster::coexpression_deseq \
 				-S ${noclust:=false} \
 				-s ${Sclust:=false} \
 				-f ${CLUSTERFILTER:=0} \
+				-b ${CLUSTERBIOTYPE:=""} \
+				-g $GTF \
 				-t $THREADS \
 				-m $MEMORY \
 				-r mapper \
 				-c COMPARISONS \
-				-z coexpressions \
+				-l coexpressions \
 				-i $OUTDIR/counted \
 				-j $OUTDIR/deseq \
 				-o $OUTDIR/coexpressed \
-				-p $TMPDIR && \
-
-			enrichment::go \
-				-S ${nogo:=false} \
-				-s ${Sgo:=false} \
-				-t $THREADS \
-				-r mapper \
-				-c COMPARISONS \
-				-l coexpressions \
-				-g $GTF.go \
-				-i $OUTDIR/deseq
+				-p $TMPDIR
 		} || return 1
-	}
+	else
+		{	cluster::coexpression \
+				-S ${noclust:=false} \
+				-s ${Sclust:=false} \
+				-f ${CLUSTERFILTER:=0} \
+				-b ${CLUSTERBIOTYPE:=""} \
+				-g $GTF \
+				-t $THREADS \
+				-m $MEMORY \
+				-r mapper \
+				-l coexpressions \
+				-i $OUTDIR/counted \
+				-o $OUTDIR/coexpressed \
+				-p $TMPDIR
+		} || return 1
+	fi
+
+	{	enrichment::go \
+		-S ${nogo:=false} \
+		-s ${Sgo:=false} \
+		-t $THREADS \
+		-r mapper \
+		-c COMPARISONS \
+		-l coexpressions \
+		-g $GTF.go \
+		-i $OUTDIR/deseq
+	} || return 1
 
 	return 0
 }

@@ -36,7 +36,7 @@ options::usage() {
 		                                        2 - get full output
 		-x       | --index                    : create all requiered genome indices if necessary and exit
 		-g       | --genome [path]            : genome fasta input, without only preprocessing is performed
-		-gtf     | --gtf [path]               : annotation gtf input - optional, default: genome.fasta.gtf
+		-gtf     | --gtf [path]               : annotation gtf input - optional, default: [-g].gtf
 		-a1      | --adapter1 [string,..]     : adapter sequence(s) - optional. single or first pair, comma seperated
 		-a2      | --adapter2 [string,..]     : adapter sequence(s) - optional. second pair, comma seperated
 		-o       | --out [path]               : output directory - default: $OUTDIR
@@ -76,18 +76,18 @@ options::usage() {
 
 		PEAK CALLING OPTIONS
 		-rip     | --rna-ip                   : switch type of *IP-Seq experiment to RNA based *IP-Seq (e.g. meRIP, m6A, CLIP)
-		-n1      | --normal-fq1 [path,..]     : normal fastq input - single or first pair, comma seperated
-		-n2      | --normal-fq2 [path,..]     : normal fastq input - optional. second pair, comma seperated
-		-nr1     | --normal-repfq1 [path,..]  : normal replicate fastq input - optional. single or first pair, comma seperated
-		-nr2     | --normal-repfq2 [path,..]  : normal replicate fastq input - optional. second pair, comma seperated
-		-t1      | --treat-fq1 [path,..]      : *IP-Seq fastq input - single or first pair, comma seperated
-		-t2      | --treat-fq2 [path,..]      : *IP-Seq fastq input - optional. second pair, comma seperated
-		-tr1     | --treat-repfq1 [path,..]   : *IP-Seq replicate fastq input - optional. single or first pair, comma seperated
-		-tr2     | --treat-repfq2 [path,..]   : *IP-Seq replicate fastq input - optional. second pair, comma seperated
-		-nm      | --normal-map [path,..]     : normal SAM/BAM input - comma seperated (cannot be used with fastq input)
-		-nrm     | --normal-repmap [path,..]  : normal replicate SAM/BAM input - optional. comma seperated (cannot be used with fastq input)
-		-tm      | --treat-map [path,..]      : *IP-Seq SAM/BAM input - comma seperated (cannot be used with fastq input)
-		-trm     | --treat-repmap [path,..]   : *IP-Seq replicate SAM/BAM input - optional. comma seperated (cannot be used with fastq input)
+		-n1      | --normal-fq1 [path,..]     : normal fastq input - single or first pair, comma seperated or a file with all paths
+		-n2      | --normal-fq2 [path,..]     : normal fastq input - optional. second pair, comma seperated or a file with all paths
+		-nr1     | --normal-repfq1 [path,..]  : normal replicate fastq input - optional. single or first pair, comma seperated or a file with all paths
+		-nr2     | --normal-repfq2 [path,..]  : normal replicate fastq input - optional. second pair, comma seperated or a file with all paths
+		-t1      | --treat-fq1 [path,..]      : *IP-Seq fastq input - single or first pair, comma seperated or a file with all paths
+		-t2      | --treat-fq2 [path,..]      : *IP-Seq fastq input - optional. second pair, comma seperated or a file with all paths
+		-tr1     | --treat-repfq1 [path,..]   : *IP-Seq replicate fastq input - optional. single or first pair, comma seperated or a file with all paths
+		-tr2     | --treat-repfq2 [path,..]   : *IP-Seq replicate fastq input - optional. second pair, comma seperated or a file with all paths
+		-nm      | --normal-map [path,..]     : normal SAM/BAM input - comma seperated or a file with all paths (replaces fastq input)
+		-nrm     | --normal-repmap [path,..]  : normal replicate SAM/BAM input - optional. comma seperated or a file with all paths (replaces fastq input)
+		-tm      | --treat-map [path,..]      : *IP-Seq SAM/BAM input - comma seperated or a file with all paths (replaces fastq input)
+		-trm     | --treat-repmap [path,..]   : *IP-Seq replicate SAM/BAM input - optional. comma seperated or a file with all paths (replaces fastq input)
 		-mn      | --mapper-name [string]     : name to use for output subdirectories in case of SAM/BAM input - optional. default: custom
 
 		-f       | --fragmentsize [value]     : fragment size of sequenced mate pairs - default: 150
@@ -98,9 +98,9 @@ options::usage() {
 		-no-gem  | --no-gem                   : disables peak calling by gem
 
 		DIFFERENTIAL EXPRESSION ANALYSIS OPTIONS
-		-1       | --fq1 [path,..]            : fastq input - single or first pair, comma seperated
-		-2       | --fq2 [path,..]            : fastq input - optional. second pair, comma seperated
-		-m       | --mapped [path,..]         : SAM/BAM input - comma seperated (cannot be used with fastq input)
+		-1       | --fq1 [path,..]            : fastq input - single or first pair, comma seperated or a file with all paths
+		-2       | --fq2 [path,..]            : fastq input - optional. second pair, comma seperated or a file with all paths
+		-m       | --mapped [path,..]         : SAM/BAM input - comma seperated or a file with all paths (replaces fastq input)
 		-mn      | --mapper-name [string]     : name to use for output subdirectories in case of SAM/BAM input - optional. default: custom
 		-rmd     | --removeduplicates         : enable removing duplicates - not recommended
 		-rx      | --regex [string]           : regex of read name identifier with grouped tile information - default: ^\S+:(\d+):(\d+):(\d+)\s*.*
@@ -129,12 +129,18 @@ options::usage() {
 		-no-dea  | --no-diffexanalysis        : disables differential feature expression analysis plus downstream analyses
 		-no-go   | --no-geneontology          : disables gene ontology enrichment analyses for differentially expressed features and co-expression clusters
 		-no-clust| --no-clustering            : disables feature co-expression clustering
-		-cf      | --clusterfilter [value]    : decide for a set of differntially expressed features to be clustered for co-expression - default: 0
+		-cf      | --clusterfilter [value]    : decide for a set of features by to be clustered for co-expression - default: 0
 		                                        0 - padj <= 0.05 in at least one comparison defined in experiment info file (see -c)
-		                                        1 - padj <= 0.05 and a log2foldchange difference >= 0.5 in at least one comparison
-		                                        2 - discard features within the 30% percentile of lowest expression values
-		                                        20 - 2 + 0
-		                                        21 - 2 + 1
+		                                        	to take effect, this filter requires upstream performed differential expression analysis
+		                                        1 - log2foldchange difference >= 0.5 in at least one comparison defined in experiment info file (see -c)
+		                                        	to take effect, this filter requires upstream performed differential expression analysis
+		                                        2 - basemean/TPM >=5 in at least one comparison/sample
+		                                        	to take effect, this filter requires either
+		                                        	- upstream performed differential expression analysis as defined in experiment info file (see -c)
+		                                        	- upstream performed quantification and TPM calculation
+		                                        3 - discard features within the lower 30% percentile of expression values
+		                                        NOTE: filter values can be combined. e.g 01 (equals 10) or 023 or ..
+		-cb      | --clusterbiotype [string]  : decide for features annotated by a gene_biotype tag (see -gtf) to be clustered for co-expression
 
 		REFERENCES
 		(c) Konstantin Riege
@@ -221,6 +227,7 @@ options::checkopt (){
 		-ql  | --quantifylevel) arg=true; QUANTIFYFLEVEL=$2;;
 		-qt  | --quantifytag) arg=true; QUANTIFYTAG=$2;;
 		-cf  | --clusterfilter) arg=true; CLUSTERFILTER=$2;;
+		-cb  | --clusterbiotype) arg=true; CLUSTERBIOTYPE=$2;;
 
 		-resume | --resume-from) arg=true; options::resume "$2";;
 		-skip | --skip) arg=true; options::skip "$2";;

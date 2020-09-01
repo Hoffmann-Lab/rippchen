@@ -54,11 +54,11 @@ DISTANCE=5
 FRAGMENTSIZE=150
 IPTYPE='chip'
 # all idx of FASTQ1[.] are equal to MAPPER[.]
-nidx=() #normal idx 
-nridx=() #normal replicate idx 
+nidx=() #normal idx
+nridx=() #normal replicate idx
 tidx=() #treatment idx
 ridx=() #treatment replicate idx
-pidx=() #pool (2x0.5 pseudoppol and 2x1 fullpool) idx 
+pidx=() #pool (2x0.5 pseudoppol and 2x1 fullpool) idx
 FASTQ1=()
 FASTQ2=()
 MAPPED=()
@@ -111,56 +111,60 @@ else
 fi
 
 
+checkfile(){
+	declare -n _idx=$2 _arr=$3
+	local f ifs
+	[[ $(readlink -e $1 | file -f - | grep ASCII) && -e $(readlink -e $(head -1 $1)) ]] && {
+		ifs=$IFS
+		unset IFS
+		while read -r f; do 
+			readlink -e $f &> /dev/null || die "$4 $f"
+			_arr[((++i))]=$f
+			_idx+=($i)
+		done < $1
+		IFS=$ifs
+	} || {
+		f=$1
+		readlink -e $f &> /dev/null || die "$4 $f"
+		_arr[((++i))]=$f
+		_idx+=($i)
+	}
+}
+
 IFS=','
 i=-1
 if [[ ! $nmap ]]; then
 	for f in $nfq1; do
-		readlink -e $f &> /dev/null || die "single or first mate fastq file does not exists $f"
-		FASTQ1[((++i))]=$f
-		nidx+=($i)
+		checkfile $f nidx FASTQ1 "single or first mate fastq file does not exist"
 	done
 	for f in $nrfq1; do
-		readlink -e $f &> /dev/null || die "single or first mate normal replicate fastq file does not exists $f"
-		FASTQ1[((++i))]=$f
-		nridx+=($i)
+		checkfile $f nridx FASTQ1 "single or first mate normal replicate fastq file does not exists"
 	done
 	for f in $tfq1; do
-		readlink -e $f &> /dev/null || die "single or first mate treatment fastq file does not exists $f"
-		FASTQ1[((++i))]=$f
-		[[ $rfq1 ]] && tidx+=($i) || pidx+=($i) #necessary for pooling, make pseudo-replicates respectively
+		#idx depends on available replicates - i.e. trigger pooling or make pseudo-replicates
+		checkfile $f $([[ $rfq1 ]] && echo tidx || echo pidx) FASTQ1 "single or first mate normal replicate fastq file does not exists"
 	done
 	for f in $rfq1; do
-		readlink -e $f &> /dev/null  || die "single or first mate treatment replicate fastq file does not exists $f"
-		FASTQ1[((++i))]=$f
-		ridx+=($i)
+		checkfile $f ridx FASTQ1 "single or first mate treatment replicate fastq file does not exists"
 	done
 	i=-1
 	for f in {$nfq2,$nrfq2,$tfq2,$rfq2}; do
-		readlink -e $f &> /dev/null || die "second mate fastq file does not exists $f"
-		FASTQ2[((++i))]=$f
+		checkfile $f foo FASTQ2 "second mate fastq file does not exists"
 	done
 	[[ $FASTQ2 ]] && [[ ${#FASTQ1[@]} -ne ${#FASTQ2[@]} ]] && die "unequal number of mate pairs"
 else
 	for f in $nmap; do
-		readlink -e $f &> /dev/null || die "alignment file does not exists $f"
-		MAPPED[((++i))]=$f
-		nidx+=($i)
+		checkfile $f nidx MAPPED "alignment file does not exists"
 	done
 	for f in $nrmap; do
-		readlink -e $f &> /dev/null || die "normal replicate alignment file does not exists $f"
-		MAPPED[((++i))]=$f
-		nridx+=($i)
+		checkfile $f nridx MAPPED "normal replicate alignment file does not exists"
 	done
 	[[ $nridx ]] && [[ ${#nidx[@]} -ne ${#nridx[@]} ]] && die "unequal number of normal replicates"
 	for f in $tmap; do
-		readlink -e $f &> /dev/null || die "treatment alignment file does not exists $f"
-		MAPPED[((++i))]=$f
-		pidx+=($i)
+		checkfile $f pidx MAPPED "treatment alignment file does not exists"
 	done
 	for f in $rmap; do
-		readlink -e $f &> /dev/null || die "treatment replicate alignment file does not exists $f"
-		MAPPED[((++i))]=$f
-		ridx+=($i)
+		checkfile $f ridx MAPPED "treatment replicate alignment file does not exists"
 	done
 	[[ $ridx ]] && {
 		tidx+=("${pidx[@]}")
