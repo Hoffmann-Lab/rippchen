@@ -28,69 +28,73 @@ options::usage() {
 
 		BASIC OPTIONS
 		-h       | --help                     : prints this message
-		-dev     | --devel                    : prints extended pipeline options
-		-r       | --remove                   : remove temporary and unnecessary files upon succesful termination
-		-v       | --verbosity [value]        : set level of verbosity - default: 0
+		-v       | --verbosity [value]        : set level of verbosity. default: 0
 		                                        0 - get simple status updates
 		                                        1 - get status updates and commands
 		                                        2 - get full output
-		-x       | --index                    : create all requiered genome indices if necessary and exit
-		-g       | --genome [path]            : genome fasta input, without only preprocessing is performed
-		-gtf     | --gtf [path]               : annotation gtf input - optional, default: [-g].gtf
-		-a1      | --adapter1 [string,..]     : adapter sequence(s) - optional. single or first pair, comma seperated
-		-a2      | --adapter2 [string,..]     : adapter sequence(s) - optional. second pair, comma seperated
-		-o       | --out [path]               : output directory - default: $OUTDIR
-		-l       | --log [path]               : output directory - default: $OUTDIR/run.log
-		-tmp     | --tmp                      : temporary directory - default: $TMPDIR/rippchen.XXXXXXXXXX
-		-t       | --threads [value]          : threads - predicted default: $THREADS
+		-o       | --out [path]               : output directory. default: $OUTDIR
+		-l       | --log [path]               : output directory. default: $OUTDIR/run.log
+		-tmp     | --tmp                      : temporary directory. default: $TMPDIR/rippchen.XXXXXXXXXX
+		-r       | --remove                   : remove temporary and unnecessary files upon succesful termination
+		-t       | --threads [value]          : number of threads. default: $THREADS
 		-mem     | --memory [value]           : amout of memory for creating bam slices and processing them in parallel instances
 		                                        available: $MAXMEMORY
 		                                        default: 30000 (allows for $MTHREADS instances)
 		                                        NOTE: needs to be raised in case of GCThreads, HeapSize or OutOfMemory errors
-		-resume  | --resume-from [string]     : resume from a specific pipeline step - see -dev|--devel
-		-skip    | --skip [string,..]         : skip specific pipeline step(s) - see -dev|--devel, comma seperated
-		-redo    | --redo [string,..]         : just rerun specific pipeline step(s) - see -dev|--devel, comma seperated
+
+		ADVANCED OPTIONS
+		-dev     | --devel                    : prints list of keywords in processing order for advanced pipeline control
+		-resume  | --resume-from [string]     : resume from a specific pipeline step (see -dev)
+		-skip    | --skip [string,..]         : skip specific pipeline step(s). comma seperated (see -dev)
+		-redo    | --redo [string,..]         : just rerun specific pipeline step(s). comma seperated (see -dev)
+
+		GENOME OPTIONS
+		-g       | --genome [path]            : genome fasta input. without only preprocessing is performed (see dlgenome.sh)
+		-gtf     | --gtf [path]               : annotation gtf input. default: [-g].gtf (see dlgenome.sh)
+		-x       | --index                    : create all requiered genome indices if necessary and exit
+		-no-sege | --no-segemehl              : disables indexing for segemehl when used with -x
+		-no-star | --no-star                  : disables indexing for STAR when used with -x
+		-no-dsj  | --no-diffsplicejunctions   : disables indexing for splice junction analysis when used with -x
+
+		PREPROCESSING OPTIONS
 		-no-qual | --no-qualityanalysis       : disables read quality analysis
 		-no-trim | --no-trimming              : disables quality trimming
 		-no-clip | --no-clipping              : disables removal of adapter sequences if -a|--adapter is used
+		-a1      | --adapter1 [string,..]     : adapter sequence(s). single or first pair. comma seperated
+		-a2      | --adapter2 [string,..]     : adapter sequence(s). second pair. comma seperated
 		-no-cor  | --no-correction            : disables majority based raw read error correction
 		-no-rrm  | --no-rrnafilter            : disables rRNA filter
-		-no-sege | --no-segemehl              : disables mapping by Segemehl
+		-no-sege | --no-segemehl              : disables mapping by segemehl
 		-no-star | --no-star                  : disables mapping by STAR
-		-no-stats| --no-statistics            : disables fastq preprocessing and mapping statistics
+		-no-stats| --no-statistics            : disables preprocessing statistics
 
 		ALIGNMENT OPTIONS
-		-d       | --distance                 : maximum read alignment edit distance in % - default: 5
-		-i       | --insertsize               : maximum allowed insert for aligning mate pairs - default: 200000
+		-d       | --distance                 : maximum read alignment edit distance in %. default: 5
+		-i       | --insertsize               : maximum allowed insert for aligning mate pairs. default: 200000
 		-no-split| --no-split                 : disable split read mapping
 		-no-uniq | --no-uniqify               : disables extraction of properly paired and uniquely mapped reads
 		-no-sort | --no-sort                  : disables sorting alignments
 		-no-idx  | --no-index                 : disables indexing alignments
 		-cmo     | --clipmateoverlaps         : enable clipping of read mate overlaps
-
-		QUANTIFICATION OPTIONS
-		-ql      | --quantifylevel            : switch to other feature type for quantification - default: exon
-		                                        NOTE: quantifying using a different feature will break differential expression analysis
-		-qt      | --quantifytag              : switch to other feature tag for quantification - default: gene_id
-		-no-quant| --no-quantification        : disables per feature read quantification plus downstream analyses
+		-fusions | --fusiondetection          : enable detection of gene fusions. requires HG38 CTAT resource as genome and gtf input (see -g, -gtf)
+		-no-stats| --no-statistics            : disables mapping statistics
 
 		PEAK CALLING OPTIONS
-		-rip     | --rna-ip                   : switch type of *IP-Seq experiment to RNA based *IP-Seq (e.g. meRIP, m6A, CLIP)
-		-n1      | --normal-fq1 [path,..]     : normal fastq input - single or first pair, comma seperated or a file with all paths
-		-n2      | --normal-fq2 [path,..]     : normal fastq input - optional. second pair, comma seperated or a file with all paths
-		-nr1     | --normal-repfq1 [path,..]  : normal replicate fastq input - optional. single or first pair, comma seperated or a file with all paths
-		-nr2     | --normal-repfq2 [path,..]  : normal replicate fastq input - optional. second pair, comma seperated or a file with all paths
-		-t1      | --treat-fq1 [path,..]      : *IP-Seq fastq input - single or first pair, comma seperated or a file with all paths
-		-t2      | --treat-fq2 [path,..]      : *IP-Seq fastq input - optional. second pair, comma seperated or a file with all paths
-		-tr1     | --treat-repfq1 [path,..]   : *IP-Seq replicate fastq input - optional. single or first pair, comma seperated or a file with all paths
-		-tr2     | --treat-repfq2 [path,..]   : *IP-Seq replicate fastq input - optional. second pair, comma seperated or a file with all paths
-		-nm      | --normal-map [path,..]     : normal SAM/BAM input - comma seperated or a file with all paths (replaces fastq input)
-		-nrm     | --normal-repmap [path,..]  : normal replicate SAM/BAM input - optional. comma seperated or a file with all paths (replaces fastq input)
-		-tm      | --treat-map [path,..]      : *IP-Seq SAM/BAM input - comma seperated or a file with all paths (replaces fastq input)
-		-trm     | --treat-repmap [path,..]   : *IP-Seq replicate SAM/BAM input - optional. comma seperated or a file with all paths (replaces fastq input)
-		-mn      | --mapper-name [string]     : name to use for output subdirectories in case of SAM/BAM input - optional. default: custom
-
-		-f       | --fragmentsize [value]     : fragment size of sequenced mate pairs - default: 150
+		-n1      | --normal-fq1 [path,..]     : normal fastq input. single or first pair. comma seperated or a file with all paths
+		-n2      | --normal-fq2 [path,..]     : normal fastq input (optional). second pair. comma seperated or a file with all paths
+		-nr1     | --normal-repfq1 [path,..]  : normal replicate fastq input (optional). single or first pair, comma seperated or a file with all paths
+		-nr2     | --normal-repfq2 [path,..]  : normal replicate fastq input (optional). second pair, comma seperated or a file with all paths
+		-t1      | --treat-fq1 [path,..]      : *IP-Seq fastq input. single or first pair. comma seperated or a file with all paths
+		-t2      | --treat-fq2 [path,..]      : *IP-Seq fastq input (optional). second pair. comma seperated or a file with all paths
+		-tr1     | --treat-repfq1 [path,..]   : *IP-Seq replicate fastq input (optional). single or first pair. comma seperated or a file with all paths
+		-tr2     | --treat-repfq2 [path,..]   : *IP-Seq replicate fastq input (optional). second pair. comma seperated or a file with all paths
+		-nm      | --normal-map [path,..]     : normal SAM/BAM input. comma seperated or a file with all paths (replaces fastq input)
+		-nrm     | --normal-repmap [path,..]  : normal replicate SAM/BAM input (optional). comma seperated or a file with all paths (replaces fastq input)
+		-tm      | --treat-map [path,..]      : *IP-Seq SAM/BAM input. comma seperated or a file with all paths (replaces fastq input)
+		-trm     | --treat-repmap [path,..]   : *IP-Seq replicate SAM/BAM input (optional). comma seperated or a file with all paths (replaces fastq input)
+		-mn      | --mapper-name [string]     : name to use for output subdirectories in case of SAM/BAM input (optional). default: custom
+		-rip     | --rna-ip                   : switch type of *IP-Seq experiment to RNA based *IP-Seq (e.g. meRIP, m6A, CLIP). default assumption is ChIP
+		-f       | --fragmentsize [value]     : fragment size of sequenced mate pairs - default: 200
 		-rx      | --regex [string]           : regex of read name identifier with grouped tile information - default: ^\S+:(\d+):(\d+):(\d+)\s*.*
 		                                        NOTE: necessary for sucessful deduplication, if unavailable set to 'null'
 		-no-rmd  | --no-removeduplicates      : disables removing duplicates - not recommended
@@ -102,9 +106,13 @@ options::usage() {
 		-2       | --fq2 [path,..]            : fastq input - optional. second pair, comma seperated or a file with all paths
 		-m       | --mapped [path,..]         : SAM/BAM input - comma seperated or a file with all paths (replaces fastq input)
 		-mn      | --mapper-name [string]     : name to use for output subdirectories in case of SAM/BAM input - optional. default: custom
-		-rmd     | --removeduplicates         : enable removing duplicates - not recommended
 		-rx      | --regex [string]           : regex of read name identifier with grouped tile information - default: ^\S+:(\d+):(\d+):(\d+)\s*.*
 		                                        NOTE: necessary for sucessful deduplication, if unavailable set to 'null'
+		-rmd     | --removeduplicates         : enable removing duplicates - not recommended
+		-no-quant| --no-quantification        : disables per feature read quantification and TPM calculation
+		-ql      | --quantifylevel            : switch to other feature type for quantification - default: exon
+		                                        NOTE: quantifying using a different feature will break differential expression analysis
+		-qt      | --quantifytag              : switch to other feature tag for quantification - default: gene_id
 		-c       | --comparisons [path,..]    : experiment info file(s) for pairwise analyses according to column condition (primary factor)
 		                                        format: 4 or more columns, seperated by tab or space(s)
 		                                          sample   condition   [single-end|paired-end]   replicate   [factor1   factor2   ..]
@@ -140,7 +148,7 @@ options::usage() {
 		                                        	- upstream performed quantification and TPM calculation
 		                                        3 - discard features within the lower 30% percentile of expression values
 		                                        NOTE: filter values can be combined. e.g 01 (equals 10) or 023 or ..
-		-cb      | --clusterbiotype [string]  : decide for features annotated by a gene_biotype tag (see -gtf) to be clustered for co-expression
+		-cb      | --clusterbiotype [string]  : decide for features annotated by a gene_biotype/gene_type tag (see -gtf) to be clustered for co-expression
 
 		REFERENCES
 		(c) Konstantin Riege
@@ -161,7 +169,7 @@ options::developer() {
 		clip  : adapter clipping
 		cor   : raw read correction
 		rrm   : rRNA filtering
-		sege  : Segemehl mapping
+		sege  : segemehl mapping
 		star  : STAR mapping
 		uniq  : extraction of properly paired and uniquely mapped reads
 		sort  : sorting and indexing of sam/bam files
@@ -215,6 +223,7 @@ options::checkopt (){
 		-tm  | --treat-mapped) arg=true; tmap=$2;;
 		-trm | --treat-repmapped) arg=true; rmap=$2;;
 		-mn  | --mapper-name) arg=true; MAPNAME=$2;;
+		-fusions | --fusiondetection) FUSIONS=true;;
 
 		-rx  | --regex) arg=true; REGEX=$2;;
 		-rip | --rna-ip) RIPSEQ=true;;
@@ -257,7 +266,7 @@ options::checkopt (){
 		-no-clust | --no-clustering) noclust=true;;
 		-no-go    | --no-geneontology) nogo=true;;
 
-		-*) commander::printerr "illegal option $1"; return 1;; 
+		-*) commander::printerr "illegal option $1"; return 1;;
 		*) commander::printerr "illegal option $2"; return 1;;
 	esac
 

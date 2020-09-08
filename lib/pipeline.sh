@@ -18,8 +18,9 @@ pipeline::index(){
 			-s true \
 			-t $THREADS \
 			-g $GENOME \
-			-x $GENOME-staridx \
+			-x $GENOME.star.idx \
 			-o $TMPDIR \
+			-p $TMPDIR \
 			-r NA1 \
 			-1 NA2 && \
 		genome::mkdict \
@@ -73,7 +74,7 @@ pipeline::_preprocess(){
 				-2 FASTQ2
 		} || return 1
 
-		${notrim:=false} || { 
+		${notrim:=false} || {
 			{	qualdirs+=("$OUTDIR/qualities/trimmed") && \
 				preprocess::trimmomatic \
 					-S ${notrim:=false} \
@@ -170,7 +171,7 @@ pipeline::_preprocess(){
 				-t $THREADS \
 				-a $((100-DISTANCE)) \
 				-i ${INSERTSIZE:=200000} \
-				-p ${nosplitreads:=false} \
+				-n ${nosplitreads:=false} \
 				-g $GENOME \
 				-x $GENOME.segemehl.idx \
 				-r mapper && \
@@ -182,13 +183,14 @@ pipeline::_preprocess(){
 				-1 FASTQ1 \
 				-2 FASTQ2 \
 				-o $OUTDIR/mapped \
+				-p $TMPDIR \
 				-t $THREADS \
 				-a $((100-DISTANCE)) \
 				-i ${INSERTSIZE:=200000} \
-				-p ${nosplitreads:=false} \
+				-n ${nosplitreads:=false} \
 				-g $GENOME \
 				-f "$GTF" \
-				-x $GENOME-staridx \
+				-x $GENOME.star.idx \
 				-r mapper
 		} || return 1
 	else
@@ -199,7 +201,22 @@ pipeline::_preprocess(){
 	fi
 
 	alignment::add4stats -r mapper
-	
+
+	${FUSIONS:=false} && {
+		{	alignment::postprocess \
+				-S ${nosort:=false} \
+				-s ${Ssort:=false} \
+				-j sort \
+				-t $THREADS \
+				-p $TMPDIR \
+				-o $OUTDIR/mapped \
+				-r mapper
+			#fusions::starfusion && \
+			#fusions::arriba && \
+			#fusions::fusioncatcher
+		} || return 1
+	}
+
 	return 0
 }
 
@@ -260,7 +277,7 @@ pipeline::dea() {
 			-c slicesinfo \
 			-o $OUTDIR/mapped && \
 		${nocmo:=true} || alignment::add4stats -r mapper && \
-		
+
 		alignment::postprocess \
 			-S ${noidx:=false} \
 			-s ${Sidx:=false} \
@@ -401,7 +418,6 @@ pipeline::callpeak() {
 			-p $TMPDIR \
 			-t $THREADS && \
 
-	
     	alignment::postprocess \
 			-S ${nouniq:=false} \
 			-s ${Suniq:=false} \
@@ -457,7 +473,6 @@ pipeline::callpeak() {
 			-c slicesinfo \
 			-o $OUTDIR/mapped && \
 		${nocmo:=true} || alignment::add4stats -r mapper && \
-		
 
 		alignment::postprocess \
 			-S ${noidx:=false} \

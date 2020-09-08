@@ -53,7 +53,7 @@ compile::upgrade(){
 	{	compile::bashbone -i "$insdir" -t $threads && \
 		compile::rippchen -i "$insdir" -t $threads
 	} || return 1
-	
+
 	return 0
 }
 

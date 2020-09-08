@@ -3,7 +3,7 @@
 
 ...are tasty! Acquire a taste for peak calling from *IP-Seq experiments or for differential expression- and ontology analysis from RNA-Seq data
 
-Rippchen leverages on bashbone, which is a bash library for workflow and pipeline design within but not restricted to the scope of Next Generation Sequencing (NGS) data analyses. Rippchen makes use of bashbones best-practice parameterized and run-time tweaked software wrappers and compiles them into a multi-threaded pipeline for analyses of model AND non-model organisms. 
+Rippchen leverages on bashbone, which is a bash library for workflow and pipeline design within but not restricted to the scope of Next Generation Sequencing (NGS) data analyses. Rippchen makes use of bashbones best-practice parameterized and run-time tweaked software wrappers and compiles them into a multi-threaded pipeline for analyses of model AND non-model organisms.
 
 ## Features
 
@@ -59,7 +59,7 @@ rippchen.sh -h
 ---
 
 ```bash
-setup -i all -d <path/to/installation>
+setup.sh -i all -d <path/to/installation>
 source <path/of/installation/activate.sh>
 rippchen.sh -h
 ```
@@ -67,7 +67,7 @@ rippchen.sh -h
 ## Update to a newer release
 
 ```bash
-setup -i upgrade -d <path/of/installation>
+setup.sh -i upgrade -d <path/of/installation>
 source <path/of/installation/activate.sh>
 bashbone -h
 ```
@@ -117,7 +117,7 @@ And this desired output (N=2 vs N=2 each):
 
 - wt_vs_A
 - wt_vs_b
-- A_vs_B 
+- A_vs_B
 
 Then the info file should consist of:
 
@@ -231,7 +231,7 @@ Use comma separated lists to e.g. skip md5 check and quality analysis.
 
 ```bash
 source <path/of/installation/activate.sh>
-rippchen.sh [...] -skip md5,qual 
+rippchen.sh [...] -skip md5,qual
 ```
 
 Example how to resume from the segemehl mapping break point after previous data pre-processing.

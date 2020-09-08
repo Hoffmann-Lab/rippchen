@@ -46,61 +46,65 @@ THREADS=$(grep -cF processor /proc/cpuinfo)
 MAXMEMORY=$(grep -F -i memavailable /proc/meminfo | awk '{printf("%d",$2*0.9/1024)}')
 MEMORY=30000
 [[ MTHREADS=$((MAXMEMORY/MEMORY)) -gt $THREADS ]] && MTHREADS=$THREADS
+[[ $MTHREADS -eq 0 ]] && die "too less memory available ($MAXMEMORY)"
 VERBOSITY=0
 OUTDIR=$PWD/results
 TMPDIR=$OUTDIR
 REGEX='\S+:(\d+):(\d+):(\d+)\s*.*'
 DISTANCE=5
-FRAGMENTSIZE=150
-IPTYPE='chip'
-# all idx of FASTQ1[.] are equal to MAPPER[.]
+FRAGMENTSIZE=200
+FASTQ1=() # all idx of FASTQ1[.] are equal to MAPPED[.]
+FASTQ2=()
+MAPPED=()
 nidx=() #normal idx
 nridx=() #normal replicate idx
 tidx=() #treatment idx
 ridx=() #treatment replicate idx
 pidx=() #pool (2x0.5 pseudoppol and 2x1 fullpool) idx
-FASTQ1=()
-FASTQ2=()
-MAPPED=()
+
 
 options::parse "$@" || die "parameterization issue"
 
+
 mkdir -p $OUTDIR || die "cannot access $OUTDIR"
 OUTDIR=$(readlink -e $OUTDIR)
-if [[ $PREVIOUSTMPDIR ]]; then
+[[ ! $LOG ]] && LOG=$OUTDIR/run.log
+mkdir -p $(dirname $LOG) || die "cannot access $LOG"
+printf '' > $LOG || die "cannot access $LOG"
+
+[[ $PREVIOUSTMPDIR ]] && {
 	TMPDIR=$PREVIOUSTMPDIR
 	mkdir -p $TMPDIR || die "cannot access $TMPDIR"
 	TMPDIR=$(readlink -e $TMPDIR)
-else
+} || {
 	mkdir -p $TMPDIR || die "cannot access $TMPDIR"
 	TMPDIR=$(readlink -e $TMPDIR)
 	TMPDIR=$(mktemp -d -p $TMPDIR rippchen.XXXXXXXXXX) || die "cannot access $TMPDIR"
-fi
+}
 
-
-[[ ! $LOG ]] && LOG=$OUTDIR/run.log
-[[ MTHREADS=$((MAXMEMORY/MEMORY)) -gt $THREADS ]] && MTHREADS=$THREADS
-[[ $MTHREADS -eq 0 ]] && die "too less memory available ($MAXMEMORY)"
 ${INDEX:=false} || {
 	[[ ! $nfq1 ]] && [[ ! $tfq1 ]] && [[ ! $nmap ]] && die "fastq or sam/bam file input missing"
 }
+
 [[ ! $nfq2 ]] && {
 	[[ "$nocmo" == "false" ]] && {
 		commander::warn "no second mate fastq file given - proceeding without mate overlap clipping"
 		nocmo=true
 	}
 }
-if [[ $GENOME ]]; then
+
+[[ $GENOME ]] && {
 	readlink -e $GENOME | file -f - | grep -qF ASCII || die "genome file does not exists or is compressed $GENOME"
-else
+} || {
 	${INDEX:=false} && die "genome file missing"
 	commander::warn "proceeding without genome file"
 	nosege=true
 	nostar=true
-fi
-if [[ $GTF ]]; then
+}
+
+[[ $GTF ]] && {
 	readlink -e $GTF | file -f - | grep -qF ASCII || die "annotation file does not exists or is compressed $GTF"
-else
+} || {
 	readlink -e $GENOME.gtf | file -f - | grep -qF ASCII && {
 		GTF=$GENOME.gtf
 	} || {
@@ -108,7 +112,18 @@ else
 		commander::warn "proceeding without gtf file"
 		noquant=true
 	}
-fi
+}
+
+${FUSIONS:=false} && {
+	commander::warn "segemehl will not be applied on CTAT genome resource"
+	nosege=true
+	Smd5=true
+}
+
+${Smd5:=false} || {
+	[[ ! -s $GENOME.md5.sh ]] && cp $(dirname $(readlink -e $0))/bashbone/lib/md5.sh $GENOME.md5.sh
+	source $GENOME.md5.sh
+}
 
 
 checkfile(){
@@ -117,7 +132,7 @@ checkfile(){
 	[[ $(readlink -e $1 | file -f - | grep ASCII) && -e $(readlink -e $(head -1 $1)) ]] && {
 		ifs=$IFS
 		unset IFS
-		while read -r f; do 
+		while read -r f; do
 			readlink -e $f &> /dev/null || die "$4 $f"
 			_arr[((++i))]=$f
 			_idx+=($i)
@@ -174,15 +189,11 @@ else
 fi
 unset IFS
 
-printf '' > $LOG || die "cannot access $LOG"
+
 progress::log -v $VERBOSITY -o $LOG
 commander::printinfo "rippchen $VERSION utilizing bashbone $BASHBONEVERSION started with command: $CMD" >> $LOG
 commander::printinfo "temporary files go to: $HOSTNAME:$TMPDIR" >> $LOG
 
-${Smd5:=false} || {
-	[[ ! -s $GENOME.md5.sh ]] && cp $(dirname $(readlink -e $0))/bashbone/lib/md5.sh $GENOME.md5.sh
-	source $GENOME.md5.sh
-}
 ${INDEX:=false} && {
 	pipeline::index 2> >(tee -ai $LOG >&2) >> $LOG || die
 } || {
@@ -193,6 +204,7 @@ ${INDEX:=false} && {
 		pipeline::dea 2> >(tee -ai $LOG >&2) >> $LOG || die
 	fi
 }
+
 ${Smd5:=false} || {
 	commander::printinfo "finally updating genome and annotation md5 sums" >> $LOG
 	thismd5genome=$(md5sum $GENOME | cut -d ' ' -f 1)
