@@ -49,11 +49,12 @@ options::usage() {
 		-redo    | --redo [string,..]         : just rerun specific pipeline step(s). comma seperated (see -dev)
 
 		GENOME OPTIONS
-		-g       | --genome [path]            : genome fasta input. without only preprocessing is performed (see dlgenome.sh)
+		-g       | --genome [path]            : genome fasta input. without, only preprocessing is performed (see dlgenome.sh)
 		-gtf     | --gtf [path]               : annotation gtf input. default: [-g].gtf (see dlgenome.sh)
-		-x       | --index                    : create all requiered genome indices if necessary and exit
+		-x       | --index                    : create all requiered genome indices and md5 sums and exit. otherwise create necessary indices on the fly
 		-no-sege | --no-segemehl              : disables indexing for segemehl when used with -x
-		-no-star | --no-star                  : disables indexing for STAR when used with -x
+		-no-star | --no-star                  : disables indexing for STAR when used with -x. use when indexing is applied on plug-n-play CTAT resource
+		                                        NOTE: md5sum of [-g].star.idx/SA file needs to be manually added to [-g].md5.sh file
 		-no-dsj  | --no-diffsplicejunctions   : disables indexing for splice junction analysis when used with -x
 
 		PREPROCESSING OPTIONS
@@ -67,6 +68,7 @@ options::usage() {
 		-no-sege | --no-segemehl              : disables mapping by segemehl
 		-no-star | --no-star                  : disables mapping by STAR
 		-no-stats| --no-statistics            : disables preprocessing statistics
+		-fusions | --fusiondetection          : enable detection of gene fusions. requires HG38 CTAT resource as genome and gtf input (see -g, -gtf, -x)
 
 		ALIGNMENT OPTIONS
 		-d       | --distance                 : maximum read alignment edit distance in %. default: 5
@@ -76,7 +78,6 @@ options::usage() {
 		-no-sort | --no-sort                  : disables sorting alignments
 		-no-idx  | --no-index                 : disables indexing alignments
 		-cmo     | --clipmateoverlaps         : enable clipping of read mate overlaps
-		-fusions | --fusiondetection          : enable detection of gene fusions. requires HG38 CTAT resource as genome and gtf input (see -g, -gtf)
 		-no-stats| --no-statistics            : disables mapping statistics
 
 		PEAK CALLING OPTIONS
@@ -242,7 +243,7 @@ options::checkopt (){
 		-skip | --skip) arg=true; options::skip "$2";;
 		-redo | --redo) arg=true; options::redo "$2";;
 
-		-x  | --index) INDEX=true;;
+		-x        | --index) INDEX=true;;
 		-no-qual  | --no-qualityanalysis) noqual=true;;
 		-no-clip  | --no-clipping) noclip=true;;
 		-no-trim  | --no-trimming) notrim=true;;

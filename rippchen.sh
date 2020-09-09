@@ -98,6 +98,7 @@ ${INDEX:=false} || {
 } || {
 	${INDEX:=false} && die "genome file missing"
 	commander::warn "proceeding without genome file"
+	Smd5=true
 	nosege=true
 	nostar=true
 }
@@ -112,12 +113,6 @@ ${INDEX:=false} || {
 		commander::warn "proceeding without gtf file"
 		noquant=true
 	}
-}
-
-${FUSIONS:=false} && {
-	commander::warn "segemehl will not be applied on CTAT genome resource"
-	nosege=true
-	Smd5=true
 }
 
 ${Smd5:=false} || {

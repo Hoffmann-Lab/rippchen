@@ -151,7 +151,6 @@ pipeline::_preprocess(){
 			} || return 1
 		}
 
-
 		{	preprocess::qcstats \
 					-S ${nostats:=false} \
 					-s ${Sstats:=false} \
@@ -159,9 +158,16 @@ pipeline::_preprocess(){
 					-o $OUTDIR/stats \
 					-p $TMPDIR \
 					-1 FASTQ1 \
-					-2 FASTQ2 && \
+					-2 FASTQ2
+		} || return 1
+	fi
 
-			alignment::segemehl \
+	return 0
+}
+
+pipeline::_mapping(){
+	if [[ ! $MAPPED ]]; then
+		{	alignment::segemehl \
 				-S ${nosege:=false} \
 				-s ${Ssege:=false} \
 				-5 ${Smd5:=false} \
@@ -189,7 +195,7 @@ pipeline::_preprocess(){
 				-i ${INSERTSIZE:=200000} \
 				-n ${nosplitreads:=false} \
 				-g $GENOME \
-				-f "$GTF" \
+				-f $GTF \
 				-x $GENOME.star.idx \
 				-r mapper
 		} || return 1
@@ -200,40 +206,7 @@ pipeline::_preprocess(){
 		mapper+=($MAPNAME)
 	fi
 
-	alignment::add4stats -r mapper
-
-	${FUSIONS:=false} && {
-		{	alignment::postprocess \
-				-S ${nosort:=false} \
-				-s ${Ssort:=false} \
-				-j sort \
-				-t $THREADS \
-				-p $TMPDIR \
-				-o $OUTDIR/mapped \
-				-r mapper
-			#fusions::starfusion && \
-			#fusions::arriba && \
-			#fusions::fusioncatcher
-		} || return 1
-	}
-
-	return 0
-}
-
-pipeline::dea() {
-	declare -a mapper coexpressions
-	declare -A slicesinfo
-
-	pipeline::_preprocess || return 1
-	[[ ${#mapper[@]} -eq 0 ]] && return 0
-
-	{	genome::mkdict \
-			-S ${nodict:=false} \
-			-s ${Sdict:=false} \
-			-5 ${Smd5:=false} \
-			-i $GENOME \
-			-p $TMPDIR \
-			-t $THREADS && \
+	{	alignment::add4stats -r mapper && \
 
 		alignment::postprocess \
 			-S ${nouniq:=false} \
@@ -252,9 +225,59 @@ pipeline::dea() {
 			-t $THREADS \
 			-p $TMPDIR \
 			-o $OUTDIR/mapped \
-			-r mapper && \
+			-r mapper
+	} || return 1
 
-		pipeline::_slice ${normd:=true} ${Srmd:=false}
+	return 0
+}
+
+pipeline::_fusions(){
+	${FUSIONS:=false} || return 0
+
+	{	fusions::arriba \
+			-S ${nofus:=false} \
+			-s ${Sfus:=false} \
+			-t $THREADS \
+			-g $GENOME \
+			-a $GTF \
+			-o $OUTDIR/fusions \
+			-p $TMPDIR \
+			-f $FRAGMENTSIZE \
+			-1 FASTQ1 \
+			-2 FASTQ2 && \
+
+		fusions::starfusion \
+			-S ${nofus:=false} \
+			-s ${Sfus:=false} \
+			-t $THREADS \
+			-g $GENOME \
+			-o $OUTDIR/fusions \
+			-1 FASTQ1 \
+			-2 FASTQ2
+	} || return 1
+
+	return 0
+}
+
+pipeline::dea(){
+	declare -a mapper coexpressions
+	declare -A slicesinfo strandness
+
+	pipeline::_preprocess || return 1
+
+	pipeline::_fusions || return 1
+
+	pipeline::_mapping || return 1
+	[[ ${#mapper[@]} -eq 0 ]] && return 0
+
+	{	genome::mkdict \
+			-S ${normd:=true} \
+			-s ${Srmd:=false} \
+			-5 ${Smd5:=false} \
+			-i $GENOME \
+			-p $TMPDIR \
+			-t $THREADS && \
+		pipeline::_slice ${normd:=true} ${Srmd:=false} && \
 		alignment::rmduplicates \
 			-S ${normd:=true} \
 			-s ${Srmd:=false} \
@@ -294,6 +317,14 @@ pipeline::dea() {
 			-t $THREADS \
 			-o $OUTDIR/stats && \
 
+		alignment::inferstrandness \
+			-S ${noquant:=false} \
+			-s ${Squant:=false} \
+			-t $THREADS \
+			-r mapper \
+			-x strandness \
+			-g $GTF \
+			-p $TMPDIR && \
 		quantify::featurecounts \
 			-S ${noquant:=false} \
 			-s ${Squant:=false} \
@@ -303,7 +334,8 @@ pipeline::dea() {
 			-l ${QUANTIFYFLEVEL:=exon} \
 			-f ${QUANTIFYTAG:=gene_id} \
 			-o $OUTDIR/counted \
-			-r mapper && \
+			-r mapper \
+			-x strandness && \
 
 		quantify::tpm \
 			-S ${noquant:=false} \
@@ -405,39 +437,13 @@ pipeline::dea() {
 
 pipeline::callpeak() {
 	declare -a mapper caller
-	declare -A slicesinfo
+	declare -A slicesinfo strandness
 
 	pipeline::_preprocess || return 1
+	pipeline::_mapping || return 1
 	[[ ${#mapper[@]} -eq 0 ]] && return 0
 
-	{	genome::mkdict \
-			-S ${nodict:=false} \
-			-s ${Sdict:=false} \
-			-5 ${Smd5:=false} \
-			-i $GENOME \
-			-p $TMPDIR \
-			-t $THREADS && \
-
-    	alignment::postprocess \
-			-S ${nouniq:=false} \
-			-s ${Suniq:=false} \
-			-j uniqify \
-			-t $THREADS \
-			-p $TMPDIR \
-			-o $OUTDIR/mapped \
-			-r mapper && \
-		${nouniq:=false} || alignment::add4stats -r mapper && \
-
-		alignment::postprocess \
-			-S ${nosort:=false} \
-			-s ${Ssort:=false} \
-			-j sort \
-			-t $THREADS \
-			-p $TMPDIR \
-			-o $OUTDIR/mapped \
-			-r mapper && \
-
-		alignment::mkreplicates \
+	{	alignment::mkreplicates \
 			-S ${norep:=false} \
 			-s ${Srep:=false} \
 			-t $THREADS \
@@ -450,6 +456,13 @@ pipeline::callpeak() {
 			-j ridx \
 			-k pidx && \
 
+		genome::mkdict \
+			-S ${normd:=false} \
+			-s ${Srmd:=false} \
+			-5 ${Smd5:=false} \
+			-i $GENOME \
+			-p $TMPDIR \
+			-t $THREADS && \
 		pipeline::_slice ${normd:=false} ${Srmd:=false} && \
 		alignment::rmduplicates \
 			-S ${normd:=false} \
@@ -490,7 +503,7 @@ pipeline::callpeak() {
 			-t $THREADS \
 			-o $OUTDIR/stats && \
 
-		callpeak::macs \
+		peaks::macs \
 			-S ${nomacs:=false} \
 			-s ${Smacs:=false} \
 			-q ${RIPSEQ:=false} \
@@ -508,7 +521,15 @@ pipeline::callpeak() {
 			-p $TMPDIR \
 			-o $OUTDIR/peaks && \
 
-		callpeak::gem \
+		alignment::inferstrandness \
+			-S ${nogem:=false} \
+			-s ${Sgem:=false} \
+			-t $THREADS \
+			-r mapper \
+			-x strandness \
+			-g $GTF \
+			-p $TMPDIR && \
+		peaks::gem \
 			-S ${nogem:=false} \
 			-s ${Sgem:=false} \
 			-q ${RIPSEQ:=false} \
@@ -521,6 +542,7 @@ pipeline::callpeak() {
 			-j ridx \
 			-k pidx \
 			-r mapper \
+			-x strandness \
 			-c caller \
 			-t $THREADS \
 			-p $TMPDIR \

@@ -17,6 +17,7 @@ Rippchen leverages on bashbone, which is a bash library for workflow and pipelin
 
 - For paired-end and single-end derived raw sequencing or prior mapped read data
 - Data preprocessing (quality check, adapter clipping, quality trimming, error correction, artificial rRNA depletion)
+- Gene fusion detection
 - Read alignment and post-processing
   - knapsack problem based slicing of alignment files for parallel task execution
   - sorting, filtering, unique alignment extraction, removal of optical duplicates
@@ -139,7 +140,7 @@ Then the info file should consist of:
 
 This section showcases some usages without explaining each parameter in a broader detail. Check out the Rippchen help page for more configuration options. Most of them will be opt-out settings.
 
-### Data pre-processing and mapping
+### Data pre-processing and mapping plus gene fusion detection
 
 Data pre-processing without mapping by segemehl or STAR and without Rcorrector for sequencing error correction and SortMeRNA for artificial rRNA depletion.
 
@@ -147,6 +148,14 @@ Data pre-processing without mapping by segemehl or STAR and without Rcorrector f
 source <path/of/installation/activate.sh>
 rippchen.sh -v 2 -t <threads> -g <fasta> -gtf <gtf> -o <outdir> -l <logfile> -tmp <tmpdir> \
 -1 <fastq> [-2 <fastq>] -no-cor -no-rrm -no-sege -no-star
+```
+
+Data pre-processing without mapping by segemehl or STAR but enabled fusion detection.
+
+```bash
+source <path/of/installation/activate.sh>
+rippchen.sh -v 2 -t <threads> -g <fasta> -gtf <gtf> -o <outdir> -l <logfile> -tmp <tmpdir> \
+-1 <fastq> [-2 <fastq>] -fusion -no-sege -no-star
 ```
 
 Data pre-processing, mapping by segemehl and STAR and alignment post-processing (i.e. unique read extraction, sorting, indexing).
@@ -255,6 +264,7 @@ rippchen.sh [...] -redo quant,tpm
 
 | Tool | Source | DOI |
 | ---  | ---    | --- |
+| Arriba        | <https://github.com/suhrig/arriba/>                                 | NA |
 | BamUtil       | <https://genome.sph.umich.edu/wiki/BamUtil>                         | 10.1101/gr.176552.114 |
 | BEDTools      | <https://bedtools.readthedocs.io>                                   | 10.1093/bioinformatics/btq033 |
 | Cutadapt      | <https://cutadapt.readthedocs.io/en/stable>                         | 10.14806/ej.17.1.200 |
@@ -277,6 +287,7 @@ rippchen.sh [...] -redo quant,tpm
 | segemehl      | <http://www.bioinf.uni-leipzig.de/Software/segemehl>                | 10.1186/gb-2014-15-2-r34 <br> 10.1371/journal.pcbi.1000502 |
 | SortMeRNA     | <https://bioinfo.lifl.fr/RNA/sortmerna>                             | 10.1093/bioinformatics/bts611 |
 | STAR          | <https://github.com/alexdobin/STAR>                                 | 10.1093/bioinformatics/bts635 |
+| STAR-Fusion   | <https://github.com/STAR-Fusion/STAR-Fusion/wiki>                   | 10.1101/120295 |
 | Trimmomatic   | <http://www.usadellab.org/cms/?page=trimmomatic>                    | 10.1093/bioinformatics/btu170 |
 | WGCNA         | <https://horvath.genetics.ucla.edu/html/CoexpressionNetwork/Rpackages/WGCNA> | 10.1186/1471-2105-9-559 |
 
@@ -287,7 +298,6 @@ rippchen.sh [...] -redo quant,tpm
 | BWA             | <https://github.com/lh3/bwa>                               | 10.1093/bioinformatics/btp324 |
 | clusterProfiler | <https://guangchuangyu.github.io/software/clusterProfiler> | NA |
 | HISAT2          | <https://daehwankimlab.github.io/hisat2>                   | 10.1038/nmeth.3317 |
-| STAR-Fusion     | <https://github.com/STAR-Fusion/STAR-Fusion/wiki>          | 10.1101/120295 |
 
 # Supplementary information
 
