@@ -69,6 +69,8 @@ options::usage() {
 		-no-star | --no-star                  : disables mapping by STAR
 		-no-stats| --no-statistics            : disables preprocessing statistics
 		-fusions | --fusiondetection          : enable detection of gene fusions. requires HG38 CTAT resource as genome and gtf input (see -g, -gtf, -x)
+		-no-arr  | --no-arriba                : disables fusion detection by Arriba
+		-no-fus  | --no-starfusion            : disables fusion detection by STAR-Fusion
 
 		ALIGNMENT OPTIONS
 		-d       | --distance                 : maximum read alignment edit distance in %. default: 5
@@ -170,6 +172,8 @@ options::developer() {
 		clip  : adapter clipping
 		cor   : raw read correction
 		rrm   : rRNA filtering
+		arr   : Arriba gene fusion detection
+		fus   : STAR-Fusion detection
 		sege  : segemehl mapping
 		star  : STAR mapping
 		uniq  : extraction of properly paired and uniquely mapped reads
@@ -225,6 +229,8 @@ options::checkopt (){
 		-trm | --treat-repmapped) arg=true; rmap=$2;;
 		-mn  | --mapper-name) arg=true; MAPNAME=$2;;
 		-fusions | --fusiondetection) FUSIONS=true;;
+		-no-arr | --no-arriba) noarr=true;;
+		-no-fus | --no-starfusion) nofus=true;;
 
 		-rx  | --regex) arg=true; REGEX=$2;;
 		-rip | --rna-ip) RIPSEQ=true;;
@@ -284,7 +290,7 @@ options::checkopt (){
 options::resume(){
 	local s enable=false
 	# don't Smd5, Sslice !
-	for s in qual trim clip cor rrm sege star uniq sort rep rmd cmo idx stats macs gem quant tpm dsj dea join clust go; do
+	for s in qual trim clip cor rrm arr fus sege star uniq sort rep rmd cmo idx stats macs gem quant tpm dsj dea join clust go; do
 		eval "\${S$s:=true}" # unless S$s already set to false by -redo, do skip
 		$enable || [[ "$1" == "$s" ]] && {
 			enable=true
@@ -298,7 +304,7 @@ options::skip(){
 	declare -a mapdata
 	mapfile -t -d ',' mapdata < <(printf '%s' "$1")
 	for x in "${mapdata[@]}"; do
-		for s in md5 qual trim clip cor rrm sege star uniq sort rep slice rmd cmo idx stats macs gem quant tpm dsj dea join clust go; do
+		for s in md5 qual trim clip cor rrm arr fus sege star uniq sort rep slice rmd cmo idx stats macs gem quant tpm dsj dea join clust go; do
 			[[ "$x" == "$s" ]] && eval "S$s=true"
 		done
 	done
@@ -308,11 +314,11 @@ options::redo(){
 	local x s
 	declare -a mapdata
 	mapfile -t -d ',' mapdata < <(printf '%s' "$1")
-	for s in qual trim clip cor rrm sege star uniq sort rep rmd cmo idx stats macs gem quant tpm dsj dea join clust go; do
+	for s in qual trim clip cor rrm arr fus sege star uniq sort rep rmd cmo idx stats macs gem quant tpm dsj dea join clust go; do
 		eval "\${S$s:=true}" # unless (no|S)$s alredy set to false by -resume, do skip
 	done
 	for x in "${mapdata[@]}"; do
-		for s in qual trim clip cor rrm sege star uniq sort rep rmd cmo idx stats macs gem quant tpm dsj dea join clust go; do
+		for s in qual trim clip cor rrm arr fus sege star uniq sort rep rmd cmo idx stats macs gem quant tpm dsj dea join clust go; do
 			[[ "$x" == "$s" ]] && eval "S$s=false"
 		done
 	done

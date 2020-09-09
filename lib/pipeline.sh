@@ -235,8 +235,8 @@ pipeline::_fusions(){
 	${FUSIONS:=false} || return 0
 
 	{	fusions::arriba \
-			-S ${nofus:=false} \
-			-s ${Sfus:=false} \
+			-S ${noarr:=false} \
+			-s ${Sarr:=false} \
 			-t $THREADS \
 			-g $GENOME \
 			-a $GTF \
