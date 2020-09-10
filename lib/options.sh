@@ -55,6 +55,7 @@ options::usage() {
 		-no-sege | --no-segemehl              : disables indexing for segemehl when used with -x
 		-no-star | --no-star                  : disables indexing for STAR when used with -x. use when indexing is applied on plug-n-play CTAT resource
 		                                        NOTE: md5sum of [-g].star.idx/SA file needs to be manually added to [-g].md5.sh file
+		-no-bwa  | --no-bwa                   : disables indexing for BWA when used with -x
 		-no-dsj  | --no-diffsplicejunctions   : disables indexing for splice junction analysis when used with -x
 
 		PREPROCESSING OPTIONS

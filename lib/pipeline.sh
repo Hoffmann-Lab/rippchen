@@ -23,6 +23,16 @@ pipeline::index(){
 			-p $TMPDIR \
 			-r NA1 \
 			-1 NA2 && \
+		unset NA1 NA2 && \
+		alignment::bwa \
+			-S ${nobwa:=false} \
+			-s true \
+			-t $THREADS \
+			-g $GENOME \
+			-x $GENOME.bwa.idx/bwa \
+			-o $TMPDIR \
+			-r NA1 \
+			-1 NA2 && \
 		genome::mkdict \
 			-t $THREADS \
 			-i $GENOME \
