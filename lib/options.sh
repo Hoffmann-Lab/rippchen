@@ -60,13 +60,14 @@ options::usage() {
 		PREPROCESSING OPTIONS
 		-no-qual | --no-qualityanalysis       : disables read quality analysis
 		-no-trim | --no-trimming              : disables quality trimming
-		-no-clip | --no-clipping              : disables removal of adapter sequences if -a|--adapter is used
-		-a1      | --adapter1 [string,..]     : adapter sequence(s). single or first pair. comma seperated
-		-a2      | --adapter2 [string,..]     : adapter sequence(s). second pair. comma seperated
+		-no-clip | --no-clipping              : disables removal of poly N, mono- and di-nucleotide ends as well as adapter sequences when used with -a
+		-a1      | --adapter1 [string,..]     : adapter sequence(s). single or first pair. comma seperated (e.g. Illumina universal adapter AGATCGGAAGAGC)
+		-a2      | --adapter2 [string,..]     : adapter sequence(s). second pair. comma seperated (can be the same as -a1. no revere complement required)
 		-no-cor  | --no-correction            : disables majority based raw read error correction
 		-no-rrm  | --no-rrnafilter            : disables rRNA filter
 		-no-sege | --no-segemehl              : disables mapping by segemehl
 		-no-star | --no-star                  : disables mapping by STAR
+		-no-bwa  | --no-bwa                   : disables mapping by BWA, when -no-split is used. default: no BWA mapping
 		-no-stats| --no-statistics            : disables preprocessing statistics
 		-fusions | --fusiondetection          : enable detection of gene fusions. requires HG38 CTAT resource as genome and gtf input (see -g, -gtf, -x)
 		-no-arr  | --no-arriba                : disables fusion detection by Arriba
@@ -75,7 +76,7 @@ options::usage() {
 		ALIGNMENT OPTIONS
 		-d       | --distance                 : maximum read alignment edit distance in %. default: 5
 		-i       | --insertsize               : maximum allowed insert for aligning mate pairs. default: 200000
-		-no-split| --no-split                 : disable split read mapping
+		-no-split| --no-split                 : disable split read mapping. triggers additional mapping by BWA
 		-no-uniq | --no-uniqify               : disables extraction of properly paired and uniquely mapped reads
 		-no-sort | --no-sort                  : disables sorting alignments
 		-no-idx  | --no-index                 : disables indexing alignments
@@ -258,6 +259,7 @@ options::checkopt (){
 		-no-split | --no-split) nosplitreads=true;;
 		-no-sege  | --no-segemehl) nosege=true;;
 		-no-star  | --no-star) nostar=true;;
+		-no-bwa   | --no-bwa) nobwa=true;;
 		-no-uniq  | --no-uniqify) nouniq=true;;
 		-no-sort  | --no-sort) nosort=true;;
 		-no-idx   | --no-index) noidx=true;;
@@ -290,7 +292,7 @@ options::checkopt (){
 options::resume(){
 	local s enable=false
 	# don't Smd5, Sslice !
-	for s in qual trim clip cor rrm arr fus sege star uniq sort rep rmd cmo idx stats macs gem quant tpm dsj dea join clust go; do
+	for s in qual trim clip cor rrm arr fus sege star bwa uniq sort rep rmd cmo idx stats macs gem quant tpm dsj dea join clust go; do
 		eval "\${S$s:=true}" # unless S$s already set to false by -redo, do skip
 		$enable || [[ "$1" == "$s" ]] && {
 			enable=true
@@ -304,7 +306,7 @@ options::skip(){
 	declare -a mapdata
 	mapfile -t -d ',' mapdata < <(printf '%s' "$1")
 	for x in "${mapdata[@]}"; do
-		for s in md5 qual trim clip cor rrm arr fus sege star uniq sort rep slice rmd cmo idx stats macs gem quant tpm dsj dea join clust go; do
+		for s in md5 qual trim clip cor rrm arr fus sege star bwa uniq sort rep slice rmd cmo idx stats macs gem quant tpm dsj dea join clust go; do
 			[[ "$x" == "$s" ]] && eval "S$s=true"
 		done
 	done
@@ -314,11 +316,11 @@ options::redo(){
 	local x s
 	declare -a mapdata
 	mapfile -t -d ',' mapdata < <(printf '%s' "$1")
-	for s in qual trim clip cor rrm arr fus sege star uniq sort rep rmd cmo idx stats macs gem quant tpm dsj dea join clust go; do
+	for s in qual trim clip cor rrm arr fus sege star bwa uniq sort rep rmd cmo idx stats macs gem quant tpm dsj dea join clust go; do
 		eval "\${S$s:=true}" # unless (no|S)$s alredy set to false by -resume, do skip
 	done
 	for x in "${mapdata[@]}"; do
-		for s in qual trim clip cor rrm arr fus sege star uniq sort rep rmd cmo idx stats macs gem quant tpm dsj dea join clust go; do
+		for s in qual trim clip cor rrm arr fus sege star bwa uniq sort rep rmd cmo idx stats macs gem quant tpm dsj dea join clust go; do
 			[[ "$x" == "$s" ]] && eval "S$s=false"
 		done
 	done

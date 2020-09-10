@@ -267,6 +267,7 @@ rippchen.sh [...] -redo quant,tpm
 | Arriba        | <https://github.com/suhrig/arriba/>                                 | NA |
 | BamUtil       | <https://genome.sph.umich.edu/wiki/BamUtil>                         | 10.1101/gr.176552.114 |
 | BEDTools      | <https://bedtools.readthedocs.io>                                   | 10.1093/bioinformatics/btq033 |
+| BWA           | <https://github.com/lh3/bwa>                                        | 10.1093/bioinformatics/btp324 |
 | Cutadapt      | <https://cutadapt.readthedocs.io/en/stable>                         | 10.14806/ej.17.1.200 |
 | DESeq2        | <https://bioconductor.org/packages/release/bioc/html/DESeq2.html>   | 10.1186/s13059-014-0550-8 |
 | DEXSeq        | <https://bioconductor.org/packages/release/bioc/html/DEXSeq.html>   | 10.1101/gr.133744.111 |
@@ -295,7 +296,6 @@ rippchen.sh [...] -redo quant,tpm
 
 | Tool | Source | DOI |
 | ---  | ---    | --- |
-| BWA             | <https://github.com/lh3/bwa>                               | 10.1093/bioinformatics/btp324 |
 | clusterProfiler | <https://guangchuangyu.github.io/software/clusterProfiler> | NA |
 | HISAT2          | <https://daehwankimlab.github.io/hisat2>                   | 10.1038/nmeth.3317 |
 

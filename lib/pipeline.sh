@@ -95,23 +95,43 @@ pipeline::_preprocess(){
 			} || return 1
 		}
 
+		${noclip:=false} || {
+			{	qualdirs+=("$OUTDIR/qualities/polyntclipped") && \
+				preprocess::rmpolynt \
+					-S ${noclip:=false} \
+					-s ${Sclip:=false} \
+					-t $THREADS \
+					-o $OUTDIR/polyntclipped \
+					-1 FASTQ1 \
+					-2 FASTQ2 && \
+				preprocess::fastqc \
+					-S ${noqual:=false} \
+					-s ${Squal:=false} \
+					-t $THREADS \
+					-o $OUTDIR/qualities/polyntclipped \
+					-p $TMPDIR \
+					-1 FASTQ1 \
+					-2 FASTQ2
+			} || return 1
+		}
+
 		if [[ $ADAPTER1 ]]; then
 			${noclip:=false} || {
-				{	qualdirs+=("$OUTDIR/qualities/clipped") && \
+				{	qualdirs+=("$OUTDIR/qualities/adapterclipped") && \
 					preprocess::cutadapt \
 						-S ${noclip:=false} \
 						-s ${Sclip:=false} \
 						-a ADAPTER1 \
 						-A ADAPTER2 \
 						-t $THREADS \
-						-o $OUTDIR/clipped \
+						-o $OUTDIR/adapterclipped \
 						-1 FASTQ1 \
 						-2 FASTQ2 && \
 					preprocess::fastqc \
 						-S ${noqual:=false} \
 						-s ${Squal:=false} \
 						-t $THREADS \
-						-o $OUTDIR/qualities/clipped \
+						-o $OUTDIR/qualities/adapterclipped \
 						-p $TMPDIR \
 						-1 FASTQ1 \
 						-2 FASTQ2
@@ -197,6 +217,20 @@ pipeline::_mapping(){
 				-g $GENOME \
 				-f $GTF \
 				-x $GENOME.star.idx \
+				-r mapper && \
+
+			! ${nosplitreads:=false} || alignment::bwa \
+				-S ${nobwa:=false} \
+				-s ${Sbwa:=false} \
+				-5 ${Smd5:=false} \
+				-1 FASTQ1 \
+				-2 FASTQ2 \
+				-o $OUTDIR/mapped \
+				-t $THREADS \
+				-a $((100-DISTANCE)) \
+				-f true \
+				-g $GENOME \
+				-x $GENOME.bwa.idx/bwa \
 				-r mapper
 		} || return 1
 	else
@@ -237,6 +271,7 @@ pipeline::_fusions(){
 	{	fusions::arriba \
 			-S ${noarr:=false} \
 			-s ${Sarr:=false} \
+			-5 ${Smd5:=false} \
 			-t $THREADS \
 			-g $GENOME \
 			-a $GTF \
