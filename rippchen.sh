@@ -191,9 +191,11 @@ ${INDEX:=false} && {
 } || {
 	if [[ $tfq1 || $tmap ]]; then
 		${RIPSEQ:=false} || nosplit=true
-		pipeline::callpeak 2> >(tee -ai $LOG >&2) >> $LOG || die
+		pipeline::callpeak 2> >(tee -ai $LOG >&2) >> $LOG
+		[[ $? -gt 0 ]] && die
 	else
-		pipeline::dea 2> >(tee -ai $LOG >&2) >> $LOG || die
+		pipeline::dea 2> >(tee -ai $LOG >&2) >> $LOG
+		[[ $? -gt 0 ]] && die
 	fi
 }
 

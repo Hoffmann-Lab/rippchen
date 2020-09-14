@@ -66,9 +66,6 @@ options::usage() {
 		-a2      | --adapter2 [string,..]     : adapter sequence(s). second pair. comma seperated (can be the same as -a1. no revere complement required)
 		-no-cor  | --no-correction            : disables majority based raw read error correction
 		-no-rrm  | --no-rrnafilter            : disables rRNA filter
-		-no-sege | --no-segemehl              : disables mapping by segemehl
-		-no-star | --no-star                  : disables mapping by STAR
-		-no-bwa  | --no-bwa                   : disables mapping by BWA, when -no-split is used. default: no BWA mapping
 		-no-stats| --no-statistics            : disables preprocessing statistics
 		-fusions | --fusiondetection          : enable detection of gene fusions. requires HG38 CTAT resource as genome and gtf input (see -g, -gtf, -x)
 		-no-arr  | --no-arriba                : disables fusion detection by Arriba
@@ -78,6 +75,9 @@ options::usage() {
 		-d       | --distance                 : maximum read alignment edit distance in %. default: 5
 		-i       | --insertsize               : maximum allowed insert for aligning mate pairs. default: 200000
 		-no-split| --no-split                 : disable split read mapping. triggers additional mapping by BWA
+		-no-sege | --no-segemehl              : disables mapping by segemehl
+		-no-star | --no-star                  : disables mapping by STAR
+		-no-bwa  | --no-bwa                   : disables mapping by BWA, when -no-split is used. default: no BWA mapping
 		-no-uniq | --no-uniqify               : disables extraction of properly paired and uniquely mapped reads
 		-no-sort | --no-sort                  : disables sorting alignments
 		-no-idx  | --no-index                 : disables indexing alignments
@@ -100,9 +100,9 @@ options::usage() {
 		-mn      | --mapper-name [string]     : name to use for output subdirectories in case of SAM/BAM input (optional). default: custom
 		-rip     | --rna-ip                   : switch type of *IP-Seq experiment to RNA based *IP-Seq (e.g. meRIP, m6A, CLIP). default assumption is ChIP
 		-f       | --fragmentsize [value]     : fragment size of sequenced mate pairs - default: 200
+		-no-rmd  | --no-removeduplicates      : disables removing duplicates - not recommended
 		-rx      | --regex [string]           : regex of read name identifier with grouped tile information - default: ^\S+:(\d+):(\d+):(\d+)\s*.*
 		                                        NOTE: necessary for sucessful deduplication, if unavailable set to 'null'
-		-no-rmd  | --no-removeduplicates      : disables removing duplicates - not recommended
 		-no-macs | --no-macs                  : disables peak calling by macs
 		-no-gem  | --no-gem                   : disables peak calling by gem
 
@@ -111,9 +111,9 @@ options::usage() {
 		-2       | --fq2 [path,..]            : fastq input - optional. second pair, comma seperated or a file with all paths
 		-m       | --mapped [path,..]         : SAM/BAM input - comma seperated or a file with all paths (replaces fastq input)
 		-mn      | --mapper-name [string]     : name to use for output subdirectories in case of SAM/BAM input - optional. default: custom
+		-rmd     | --removeduplicates         : enable removing duplicates - not recommended
 		-rx      | --regex [string]           : regex of read name identifier with grouped tile information - default: ^\S+:(\d+):(\d+):(\d+)\s*.*
 		                                        NOTE: necessary for sucessful deduplication, if unavailable set to 'null'
-		-rmd     | --removeduplicates         : enable removing duplicates - not recommended
 		-no-quant| --no-quantification        : disables per feature read quantification and TPM calculation
 		-ql      | --quantifylevel            : switch to other feature type for quantification - default: exon
 		                                        NOTE: quantifying using a different feature will break differential expression analysis
