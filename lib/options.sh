@@ -159,7 +159,7 @@ options::usage() {
 		(c) Konstantin Riege
 		konstantin.riege{a}leibniz-fli{.}de
 	EOF
-	exit 0
+	exit 1
 }
 
 options::developer() {
@@ -202,7 +202,7 @@ options::developer() {
 options::checkopt (){
 	local arg=false
 	case $1 in
-		-h   | --help) options::usage;;
+		-h   | --help) (options::usage); exit 0;;
 		-dev | --devel) options::developer;;
 
 		-r   | --remove) CLEANUP=true;;
