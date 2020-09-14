@@ -95,6 +95,8 @@ ${INDEX:=false} || {
 
 [[ $GENOME ]] && {
 	readlink -e $GENOME | file -f - | grep -qF ASCII || die "genome file does not exists or is compressed $GENOME"
+	[[ ! -s $GENOME.md5.sh ]] && cp $(dirname $(readlink -e $0))/bashbone/lib/md5.sh $GENOME.md5.sh
+	source $GENOME.md5.sh
 } || {
 	${INDEX:=false} && die "genome file missing"
 	commander::warn "proceeding without genome file"
@@ -113,11 +115,6 @@ ${INDEX:=false} || {
 		commander::warn "proceeding without gtf file"
 		noquant=true
 	}
-}
-
-${Smd5:=false} || {
-	[[ ! -s $GENOME.md5.sh ]] && cp $(dirname $(readlink -e $0))/bashbone/lib/md5.sh $GENOME.md5.sh
-	source $GENOME.md5.sh
 }
 
 

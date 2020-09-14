@@ -309,9 +309,7 @@ pipeline::dea(){
 	declare -A slicesinfo strandness
 
 	pipeline::_preprocess || return 1
-
 	pipeline::_fusions || return 1
-
 	pipeline::_mapping || return 1
 	[[ ${#mapper[@]} -eq 0 ]] && return 0
 
