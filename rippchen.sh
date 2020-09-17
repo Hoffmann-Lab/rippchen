@@ -1,10 +1,9 @@
 #! /usr/bin/env bash
 # (c) Konstantin Riege
+set -o pipefail
 
-die() {
-	echo ":ERROR: $*" >&2
-	exit 1
-}
+# defines INSDIR and by sourcing bashbone it defines BASHBONEVERSION variable as well
+source $(dirname $(readlink -e $0))/activate.sh -c true || exit 1
 
 cleanup() {
 	[[ -e $TMPDIR ]] && {
@@ -34,11 +33,10 @@ cleanup() {
 	}
 }
 
-# defines INSDIR and by sourcing bashbone it defines BASHBONEVERSION variable as well
-source $(dirname $(readlink -e $0))/activate.sh -c true || die
-
+unset ERROR
 trap 'configure::exit -p $$ -f cleanup $?' EXIT
-trap 'die "killed"' INT TERM
+trap 'ERROR="killed"' INT TERM
+trap 'configure::err -x $? -s "$0" -l $LINENO -e "$ERROR" -c "$BASH_COMMAND"; exit $?' ERR
 
 VERSION=$version
 CMD="$(basename $0) $*"
@@ -62,58 +60,65 @@ tidx=() #treatment idx
 ridx=() #treatment replicate idx
 pidx=() #pool (2x0.5 pseudoppol and 2x1 fullpool) idx
 
+ERROR="parameterization issue"
+options::parse "$@"
 
-options::parse "$@" || die "parameterization issue"
-
-
-mkdir -p $OUTDIR || die "cannot access $OUTDIR"
+ERROR="cannot access $OUTDIR"
+mkdir -p $OUTDIR
 OUTDIR=$(readlink -e $OUTDIR)
 [[ ! $LOG ]] && LOG=$OUTDIR/run.log
-mkdir -p $(dirname $LOG) || die "cannot access $LOG"
-printf '' > $LOG || die "cannot access $LOG"
+ERROR="cannot access $LOG"
+mkdir -p $(dirname $LOG)
+printf '' > $LOG
 
-[[ $PREVIOUSTMPDIR ]] && {
+ERROR="cannot access $TMPDIR"
+if [[ $PREVIOUSTMPDIR ]]; then
 	TMPDIR=$PREVIOUSTMPDIR
-	mkdir -p $TMPDIR || die "cannot access $TMPDIR"
+	mkdir -p $TMPDIR
 	TMPDIR=$(readlink -e $TMPDIR)
-} || {
-	mkdir -p $TMPDIR || die "cannot access $TMPDIR"
+else
+	mkdir -p $TMPDIR
 	TMPDIR=$(readlink -e $TMPDIR)
-	TMPDIR=$(mktemp -d -p $TMPDIR rippchen.XXXXXXXXXX) || die "cannot access $TMPDIR"
-}
+	TMPDIR=$(mktemp -d -p $TMPDIR rippchen.XXXXXXXXXX)
+fi
 
 ${INDEX:=false} || {
-	[[ ! $nfq1 ]] && [[ ! $tfq1 ]] && [[ ! $nmap ]] && die "fastq or sam/bam file input missing"
+	ERROR="fastq or sam/bam file input missing"
+	[[ ! $nfq1 && ! $tfq1 && ! $nmap ]] && false
 }
 
-[[ ! $nfq2 ]] && [[ "$nocmo" == "false" ]] && {
+[[ ! $nfq2 && "$nocmo" == "false" ]] && {
 	commander::warn "second mate fastq file missing. proceeding without mate overlap clipping"
 	nocmo=true
 }
 
 [[ $GENOME ]] && {
-	readlink -e $GENOME | file -f - | grep -qF ASCII || die "genome file does not exists or is compressed $GENOME"
+	ERROR="genome file does not exists or is compressed $GENOME"
+	readlink -e $GENOME | file -f - | grep -qF ASCII
 	[[ ! -s $GENOME.md5.sh ]] && cp $(dirname $(readlink -e $0))/bashbone/lib/md5.sh $GENOME.md5.sh
 	source $GENOME.md5.sh
 } || {
-	${INDEX:=false} && die "genome file missing"
+	ERROR="genome file missing"
+	! ${INDEX:=false}
 	commander::warn "genome file missing. proceeding without mapping"
 	Smd5=true
 	nosege=true
 	nostar=true
 }
 
-[[ $GTF ]] && {
-	readlink -e $GTF | file -f - | grep -qF ASCII || die "annotation file does not exists or is compressed $GTF"
-} || {
+if [[ $GTF ]]; then
+	ERROR="annotation file does not exists or is compressed $GTF"
+	readlink -e $GTF | file -f - | grep -qF ASCII
+else
 	readlink -e $GENOME.gtf | file -f - | grep -qF ASCII && {
 		GTF=$GENOME.gtf
 	} || {
-		${INDEX:=false} && die "annotation file missing"
+		ERROR="annotation file missing"
+		! ${INDEX:=false}
 		commander::warn "gtf file missing. proceeding without quantification"
 		noquant=true
 	}
-}
+fi
 
 
 checkfile(){
@@ -123,63 +128,76 @@ checkfile(){
 		ifs=$IFS
 		unset IFS
 		while read -r f; do
-			readlink -e $f &> /dev/null || die "$4 $f"
+			readlink -e $f &> /dev/null || return 1
 			_arr[((++i))]=$f
 			_idx+=($i)
 		done < $1
 		IFS=$ifs
 	} || {
 		f=$1
-		readlink -e $f &> /dev/null || die "$4 $f"
+		readlink -e $f &> /dev/null || return 1
 		_arr[((++i))]=$f
 		_idx+=($i)
 	}
+	return 0
 }
 
 IFS=','
 i=-1
 if [[ ! $nmap ]]; then
 	for f in $nfq1; do
-		checkfile $f nidx FASTQ1 "single or first mate fastq file does not exist"
+		ERROR="single or first mate fastq file does not exist $f"
+		checkfile $f nidx FASTQ1
 	done
 	for f in $nrfq1; do
-		checkfile $f nridx FASTQ1 "single or first mate normal replicate fastq file does not exists"
+		ERROR="single or first mate normal replicate fastq file does not exists $f"
+		checkfile $f nridx FASTQ1
 	done
 	for f in $tfq1; do
+		ERROR="single or first mate normal replicate fastq file does not exists $f"
 		#idx depends on available replicates - i.e. trigger pooling or make pseudo-replicates
-		checkfile $f $([[ $rfq1 ]] && echo tidx || echo pidx) FASTQ1 "single or first mate normal replicate fastq file does not exists"
+		checkfile $f $([[ $rfq1 ]] && echo tidx || echo pidx) FASTQ1
 	done
 	for f in $rfq1; do
-		checkfile $f ridx FASTQ1 "single or first mate treatment replicate fastq file does not exists"
+		ERROR="single or first mate treatment replicate fastq file does not exists $f"
+		checkfile $f ridx FASTQ1
 	done
 	i=-1
 	for f in {$nfq2,$nrfq2,$tfq2,$rfq2}; do
-		checkfile $f foo FASTQ2 "second mate fastq file does not exists"
+		ERROR="second mate fastq file does not exists $f"
+		checkfile $f foo FASTQ2
 	done
-	[[ $FASTQ2 ]] && [[ ${#FASTQ1[@]} -ne ${#FASTQ2[@]} ]] && die "unequal number of mate pairs"
+	ERROR="unequal number of mate pairs"
+	[[ $FASTQ2 && ${#FASTQ1[@]} -eq ${#FASTQ2[@]} ]]
 else
 	for f in $nmap; do
-		checkfile $f nidx MAPPED "alignment file does not exists"
+		ERROR="alignment file does not exists $f"
+		checkfile $f nidx MAPPED
 	done
 	for f in $nrmap; do
-		checkfile $f nridx MAPPED "normal replicate alignment file does not exists"
+		ERROR="normal replicate alignment file does not exists $f"
+		checkfile $f nridx MAPPED
 	done
-	[[ $nridx ]] && [[ ${#nidx[@]} -ne ${#nridx[@]} ]] && die "unequal number of normal replicates"
+	ERROR="unequal number of normal replicates"
+	[[ $nridx && ${#nidx[@]} -eq ${#nridx[@]} ]]
 	for f in $tmap; do
-		checkfile $f pidx MAPPED "treatment alignment file does not exists"
+		ERROR="treatment alignment file does not exists $f"
+		checkfile $f pidx MAPPED
 	done
 	for f in $rmap; do
-		checkfile $f ridx MAPPED "treatment replicate alignment file does not exists"
+		ERROR="treatment replicate alignment file does not exists $f"
+		checkfile $f ridx MAPPED
 	done
 	[[ $ridx ]] && {
 		tidx+=("${pidx[@]}")
 		pidx=()
-		[[ ${#ridx[@]} -ne ${#tidx[@]} ]] && die "unequal number of treatment replicates"
+		ERROR="unequal number of treatment replicates"
+		[[ ${#ridx[@]} -eq ${#tidx[@]} ]]
 	}
 fi
 unset IFS
 
-[[ ${#nidx[@]} -lt 2 ]] && [[ "$noclust" == "false" ]] && {
+[[ ${#nidx[@]} -lt 2 && "$noclust" != "true" ]] && {
 	commander::warn "too few samples. proceeding without clustering"
 	noclust=true
 }
@@ -188,18 +206,18 @@ progress::log -v $VERBOSITY -o $LOG
 commander::printinfo "rippchen $VERSION utilizing bashbone $BASHBONEVERSION started with command: $CMD" >> $LOG
 commander::printinfo "temporary files go to: $HOSTNAME:$TMPDIR" >> $LOG
 
-${INDEX:=false} && {
-	pipeline::index 2> >(tee -ai $LOG >&2) >> $LOG || die
-} || {
+if ${INDEX:=false}; then
+	pipeline::index 2> >(tee -ai $LOG >&2) >> $LOG
+else
 	if [[ $tfq1 || $tmap ]]; then
 		${RIPSEQ:=false} || nosplit=true
+		ERROR="peak calling pipeline failed"
 		pipeline::callpeak 2> >(tee -ai $LOG >&2) >> $LOG
-		[[ $? -gt 0 ]] && die
 	else
+		ERROR="expression analysis pipeline failed"
 		pipeline::dea 2> >(tee -ai $LOG >&2) >> $LOG
-		[[ $? -gt 0 ]] && die
 	fi
-}
+fi
 
 ${Smd5:=false} || {
 	commander::printinfo "finally updating genome and annotation md5 sums" >> $LOG

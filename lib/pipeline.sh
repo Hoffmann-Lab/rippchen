@@ -260,7 +260,7 @@ pipeline::_mapping(){
 			-p $TMPDIR \
 			-o $OUTDIR/mapped \
 			-r mapper && \
-		${nouniq:=false} || alignment::add4stats -r mapper && \
+		! ${nouniq:=false} && ${nosort:=false} && alignment::add4stats -r mapper && \
 
 		alignment::postprocess \
 			-S ${nosort:=false} \
@@ -269,7 +269,8 @@ pipeline::_mapping(){
 			-t $THREADS \
 			-p $TMPDIR \
 			-o $OUTDIR/mapped \
-			-r mapper
+			-r mapper && \
+		${nouniq:=false} && ! ${nosort:=false} && alignment::add4stats -r mapper
 	} || return 1
 
 	return 0
