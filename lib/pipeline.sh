@@ -389,7 +389,7 @@ pipeline::dea(){
 			-r mapper
 	} || return 1
 
-	if [[ ! $noquant && $COMPARISONS ]]; then
+	if [[ $COMPARISONS ]]; then
 		{	expression::diego \
 				-S ${nodsj:=false} \
 				-s ${Sdsj:=false} \
@@ -428,7 +428,7 @@ pipeline::dea(){
 				-S ${noclust:=false} \
 				-s ${Sclust:=false} \
 				-f ${CLUSTERFILTER:=0} \
-				-b ${CLUSTERBIOTYPE:=""} \
+				-b ${CLUSTERBIOTYPE:="."} \
 				-g $GTF \
 				-t $THREADS \
 				-m $MEMORY \
@@ -455,7 +455,7 @@ pipeline::dea(){
 				-S ${noclust:=false} \
 				-s ${Sclust:=false} \
 				-f ${CLUSTERFILTER:=0} \
-				-b ${CLUSTERBIOTYPE:=""} \
+				-b ${CLUSTERBIOTYPE:="."} \
 				-g $GTF \
 				-t $THREADS \
 				-m $MEMORY \

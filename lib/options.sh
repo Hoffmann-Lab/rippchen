@@ -86,34 +86,34 @@ options::usage() {
 
 		PEAK CALLING OPTIONS
 		-n1      | --normal-fq1 [path,..]     : normal fastq input. single or first pair. comma seperated or a file with all paths
-		-n2      | --normal-fq2 [path,..]     : normal fastq input (optional). second pair. comma seperated or a file with all paths
-		-nr1     | --normal-repfq1 [path,..]  : normal replicate fastq input (optional). single or first pair, comma seperated or a file with all paths
-		-nr2     | --normal-repfq2 [path,..]  : normal replicate fastq input (optional). second pair, comma seperated or a file with all paths
+		-n2      | --normal-fq2 [path,..]     : normal fastq input. second pair. comma seperated or a file with all paths
+		-nr1     | --normal-repfq1 [path,..]  : normal replicate fastq input. single or first pair, comma seperated or a file with all paths
+		-nr2     | --normal-repfq2 [path,..]  : normal replicate fastq input. second pair, comma seperated or a file with all paths
 		-t1      | --treat-fq1 [path,..]      : *IP-Seq fastq input. single or first pair. comma seperated or a file with all paths
-		-t2      | --treat-fq2 [path,..]      : *IP-Seq fastq input (optional). second pair. comma seperated or a file with all paths
-		-tr1     | --treat-repfq1 [path,..]   : *IP-Seq replicate fastq input (optional). single or first pair. comma seperated or a file with all paths
-		-tr2     | --treat-repfq2 [path,..]   : *IP-Seq replicate fastq input (optional). second pair. comma seperated or a file with all paths
+		-t2      | --treat-fq2 [path,..]      : *IP-Seq fastq input. second pair. comma seperated or a file with all paths
+		-tr1     | --treat-repfq1 [path,..]   : *IP-Seq replicate fastq input. single or first pair. comma seperated or a file with all paths
+		-tr2     | --treat-repfq2 [path,..]   : *IP-Seq replicate fastq input. second pair. comma seperated or a file with all paths
 		-nm      | --normal-map [path,..]     : normal SAM/BAM input. comma seperated or a file with all paths (replaces fastq input)
-		-nrm     | --normal-repmap [path,..]  : normal replicate SAM/BAM input (optional). comma seperated or a file with all paths (replaces fastq input)
+		-nrm     | --normal-repmap [path,..]  : normal replicate SAM/BAM input. comma seperated or a file with all paths (replaces fastq input)
 		-tm      | --treat-map [path,..]      : *IP-Seq SAM/BAM input. comma seperated or a file with all paths (replaces fastq input)
-		-trm     | --treat-repmap [path,..]   : *IP-Seq replicate SAM/BAM input (optional). comma seperated or a file with all paths (replaces fastq input)
-		-mn      | --mapper-name [string]     : name to use for output subdirectories in case of SAM/BAM input (optional). default: custom
+		-trm     | --treat-repmap [path,..]   : *IP-Seq replicate SAM/BAM input. comma seperated or a file with all paths (replaces fastq input)
+		-mn      | --mapper-name [string]     : name to use for output subdirectories in case of SAM/BAM input. default: custom
 		-rip     | --rna-ip                   : switch type of *IP-Seq experiment to RNA based *IP-Seq (e.g. meRIP, m6A, CLIP). default assumption is ChIP
 		-f       | --fragmentsize [value]     : fragment size of sequenced mate pairs - default: 200
 		-no-rmd  | --no-removeduplicates      : disables removing duplicates - not recommended
 		-rx      | --regex [string]           : regex of read name identifier with grouped tile information - default: ^\S+:(\d+):(\d+):(\d+)\s*.*
-		                                        NOTE: necessary for sucessful deduplication, if unavailable set to 'null'
+		                                        NOTE: necessary for sucessful deduplication. if unavailable, use null
 		-no-macs | --no-macs                  : disables peak calling by macs
 		-no-gem  | --no-gem                   : disables peak calling by gem
 
 		DIFFERENTIAL EXPRESSION ANALYSIS OPTIONS
 		-1       | --fq1 [path,..]            : fastq input - single or first pair, comma seperated or a file with all paths
-		-2       | --fq2 [path,..]            : fastq input - optional. second pair, comma seperated or a file with all paths
+		-2       | --fq2 [path,..]            : fastq input. second pair, comma seperated or a file with all paths
 		-m       | --mapped [path,..]         : SAM/BAM input - comma seperated or a file with all paths (replaces fastq input)
-		-mn      | --mapper-name [string]     : name to use for output subdirectories in case of SAM/BAM input - optional. default: custom
+		-mn      | --mapper-name [string]     : name to use for output subdirectories in case of SAM/BAM input. default: custom
 		-rmd     | --removeduplicates         : enable removing duplicates - not recommended
 		-rx      | --regex [string]           : regex of read name identifier with grouped tile information - default: ^\S+:(\d+):(\d+):(\d+)\s*.*
-		                                        NOTE: necessary for sucessful deduplication, if unavailable set to 'null'
+		                                        NOTE: necessary for sucessful deduplication. if unavailable, use null
 		-no-quant| --no-quantification        : disables per feature read quantification and TPM calculation
 		-ql      | --quantifylevel            : switch to other feature type for quantification - default: exon
 		                                        NOTE: quantifying using a different feature will break differential expression analysis
@@ -153,7 +153,7 @@ options::usage() {
 		                                        	- upstream performed quantification and TPM calculation
 		                                        3 - discard features within the lower 30% percentile of expression values
 		                                        NOTE: filter values can be combined. e.g 01 (equals 10) or 023 or ..
-		-cb      | --clusterbiotype [string]  : decide for features annotated by a gene_biotype/gene_type tag (see -gtf) to be clustered for co-expression
+		-cb      | --clusterbiotype [string]  : regex of features with a gene_(bio)type tag (see -gtf) to be clustered - default: .
 
 		REFERENCES
 		(c) Konstantin Riege
@@ -270,7 +270,7 @@ options::checkopt (){
 		-cmo      | --clipmateoverlaps) nocmo=false;;
 		-no-macs  | --no-macs) nomacs=true;;
 		-no-gem   | --no-gem) nogem=true;;
-		-no-quant | --no-quantification) noquant=true; nodea=true; noclust=true; nogo=true;;
+		-no-quant | --no-quantification) noquant=true; nodsj=true; nodea=true; noclust=true; nogo=true;;
 		-no-dsj   | --no-diffsplicejunctions) nodsj=true;;
 		-no-dea   | --no-diffexanalysis) nodea=true;;
 		-no-clust | --no-clustering) noclust=true;;

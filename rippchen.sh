@@ -86,11 +86,9 @@ ${INDEX:=false} || {
 	[[ ! $nfq1 ]] && [[ ! $tfq1 ]] && [[ ! $nmap ]] && die "fastq or sam/bam file input missing"
 }
 
-[[ ! $nfq2 ]] && {
-	[[ "$nocmo" == "false" ]] && {
-		commander::warn "no second mate fastq file given - proceeding without mate overlap clipping"
-		nocmo=true
-	}
+[[ ! $nfq2 ]] && [[ "$nocmo" == "false" ]] && {
+	commander::warn "second mate fastq file missing. proceeding without mate overlap clipping"
+	nocmo=true
 }
 
 [[ $GENOME ]] && {
@@ -99,7 +97,7 @@ ${INDEX:=false} || {
 	source $GENOME.md5.sh
 } || {
 	${INDEX:=false} && die "genome file missing"
-	commander::warn "proceeding without genome file"
+	commander::warn "genome file missing. proceeding without mapping"
 	Smd5=true
 	nosege=true
 	nostar=true
@@ -112,7 +110,7 @@ ${INDEX:=false} || {
 		GTF=$GENOME.gtf
 	} || {
 		${INDEX:=false} && die "annotation file missing"
-		commander::warn "proceeding without gtf file"
+		commander::warn "gtf file missing. proceeding without quantification"
 		noquant=true
 	}
 }
@@ -181,6 +179,10 @@ else
 fi
 unset IFS
 
+[[ ${#nidx[@]} -lt 2 ]] && [[ "$noclust" == "false" ]] && {
+	commander::warn "too few samples. proceeding without clustering"
+	noclust=true
+}
 
 progress::log -v $VERBOSITY -o $LOG
 commander::printinfo "rippchen $VERSION utilizing bashbone $BASHBONEVERSION started with command: $CMD" >> $LOG
