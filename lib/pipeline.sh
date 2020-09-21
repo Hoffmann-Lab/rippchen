@@ -2,11 +2,6 @@
 # (c) Konstantin Riege
 
 pipeline::index(){
-	set -o pipefail
-	local error funcname=${FUNCNAME[0]}
-	trap 'trap - ERR; trap - RETURN' RETURN
-	trap 'configure::err -x $? -f "$funcname" -l $LINENO -e "$error" -c "$BASH_COMMAND"; return $?' ERR
-
 	unset NA1 NA2
 	alignment::segemehl \
 		-S ${nosege:=false} \
@@ -59,11 +54,6 @@ pipeline::index(){
 }
 
 pipeline::_slice(){
-	set -o pipefail
-	local error funcname=${FUNCNAME[0]}
-	trap 'trap - ERR; trap - RETURN' RETURN
-	trap 'configure::err -x $? -f "$funcname" -l $LINENO -e "$error" -c "$BASH_COMMAND"; return $?' ERR
-
 	alignment::slice \
 		-S ${SLICED:-$1} \
 		-s ${Sslice:-$2} \
@@ -79,11 +69,6 @@ pipeline::_slice(){
 }
 
 pipeline::_preprocess(){
-	set -o pipefail
-	local error funcname=${FUNCNAME[0]}
-	trap 'trap - ERR; trap - RETURN' RETURN
-	trap 'configure::err -x $? -f "$funcname" -l $LINENO -e "$error" -c "$BASH_COMMAND"; return $?' ERR
-
 	if [[ ! $MAPPED ]]; then
 		declare -a qualdirs
 
@@ -203,11 +188,6 @@ pipeline::_preprocess(){
 }
 
 pipeline::_mapping(){
-	set -o pipefail
-	local error funcname=${FUNCNAME[0]}
-	trap 'trap - ERR; trap - RETURN' RETURN
-	trap 'configure::err -x $? -f "$funcname" -l $LINENO -e "$error" -c "$BASH_COMMAND"; return $?' ERR
-
 	if [[ ! $MAPPED ]]; then
 		alignment::segemehl \
 			-S ${nosege:=false} \
@@ -287,11 +267,6 @@ pipeline::_mapping(){
 }
 
 pipeline::_fusions(){
-	set -o pipefail
-	local error funcname=${FUNCNAME[0]}
-	trap 'trap - ERR; trap - RETURN' RETURN
-	trap 'configure::err -x $? -f "$funcname" -l $LINENO -e "$error" -c "$BASH_COMMAND"; return $?' ERR
-
 	${FUSIONS:=false} || return 0
 
 	fusions::arriba \
@@ -320,11 +295,6 @@ pipeline::_fusions(){
 }
 
 pipeline::dea(){
-	set -o pipefail
-	local error funcname=${FUNCNAME[0]}
-	trap 'trap - ERR; trap - RETURN' RETURN
-	trap 'configure::err -x $? -f "$funcname" -l $LINENO -e "$error" -c "$BASH_COMMAND"; return $?' ERR
-
 	declare -a mapper coexpressions
 	declare -A slicesinfo strandness
 
@@ -497,11 +467,6 @@ pipeline::dea(){
 }
 
 pipeline::callpeak() {
-	set -o pipefail
-	local error funcname=${FUNCNAME[0]}
-	trap 'trap - ERR; trap - RETURN' RETURN
-	trap 'configure::err -x $? -f "$funcname" -l $LINENO -e "$error" -c "$BASH_COMMAND"; return $?' ERR
-
 	declare -a mapper caller
 	declare -A slicesinfo strandness
 

@@ -2,11 +2,6 @@
 # (c) Konstantin Riege
 
 compile::all(){
-	set -o pipefail
-	local error funcname=${FUNCNAME[0]}
-	trap 'trap - ERR; trap - RETURN' RETURN
-	trap 'configure::err -x $? -f "$funcname" -l $LINENO -e "$error" -c "$BASH_COMMAND"; return $?' ERR
-
 	local insdir threads
 	compile::_parse -r insdir -s threads "$@"
 	compile::bashbone -i "$insdir" -t $threads
@@ -26,11 +21,6 @@ compile::all(){
 }
 
 compile::rippchen() {
-	set -o pipefail
-	local error funcname=${FUNCNAME[0]}
-	trap 'trap - ERR; trap - RETURN' RETURN
-	trap 'configure::err -x $? -f "$funcname" -l $LINENO -e "$error" -c "$BASH_COMMAND"; return $?' ERR
-
 	local insdir threads version bashboneversion src=$(dirname $(dirname $(readlink -e ${BASH_SOURCE[0]})))
 	commander::printinfo "installing rippchen"
 	compile::_parse -r insdir -s threads "$@"
@@ -49,11 +39,6 @@ compile::rippchen() {
 }
 
 compile::upgrade(){
-	set -o pipefail
-	local error funcname=${FUNCNAME[0]}
-	trap 'trap - ERR; trap - RETURN' RETURN
-	trap 'configure::err -x $? -f "$funcname" -l $LINENO -e "$error" -c "$BASH_COMMAND"; return $?' ERR
-
 	local insdir threads
 	compile::_parse -r insdir -s threads "$@"
 	compile::bashbone -i "$insdir" -t $threads
@@ -64,11 +49,6 @@ compile::upgrade(){
 }
 
 compile::conda_tools() {
-	set -o pipefail
-	local error funcname=${FUNCNAME[0]}
-	trap 'trap - ERR; trap - RETURN' RETURN
-	trap 'configure::err -x $? -f "$funcname" -l $LINENO -e "$error" -c "$BASH_COMMAND"; return $?' ERR
-
 	local insdir threads upgrade=false url version tool n bin doclean=false
 	declare -A envs
 

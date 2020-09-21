@@ -1,57 +1,32 @@
 #! /usr/bin/env bash
 # (c) Konstantin Riege
-set -o pipefail
-trap 'trap - ERR; trap - RETURN' RETURN
 
-unset ERROR
-trap 'e=$?; echo ":ERROR: ${ERROR:-"..an unexpected one"} (exit $e) @ $(basename "${BASH_SOURCE[0]}") (line: $LINENO) $BASH_COMMAND" >&2; exit $e' ERR
-ERROR="$(basename "${BASH_SOURCE[0]}") script needs to be sourced"
-[[ "${BASH_SOURCE[0]}" != "$0" ]]
-trap 'e=$?; echo ":ERROR: ${ERROR:-"..an unexpected one"} (exit $e) @ $(basename "${BASH_SOURCE[0]}") (line: $LINENO) $BASH_COMMAND" >&2; return $e' ERR
+[[ "${BASH_SOURCE[0]}" == "$0" ]] && echo "$(basename "${BASH_SOURCE[0]}") script needs to be sourced" >&2 && exit 1
+[[ ! "$(ps -p $$ -o command= | cut -d ' ' -f 1)" =~ bash ]] && echo "requires a bash shell" >&2 && return 1
+[[ $OSTYPE != "linux" ]] && echo "unsupported operating system" >&2 && return 1
+[[ ${BASH_VERSINFO[0]} -lt 4 || (${BASH_VERSINFO[0]} -eq 4 && ${BASH_VERSINFO[1]} -lt 4) ]] && echo "requieres bash >= v4.4" >&2 && return 1
 
-ERROR="requires a bash shell"
-[[ "$(ps -p $$ -o command= | cut -d ' ' -f 1)" =~ bash ]]
-ERROR="unsupported operating system"
-[[ $OSTYPE == "linux" ]]
-ERROR="requieres bash >= v4.4"
-[[ ${BASH_VERSINFO[0]} -gt 4 || (${BASH_VERSINFO[0]} -eq 4 && ${BASH_VERSINFO[1]} -ge 4) ]]
-
-unset ERROR
-INSDIR_PIPELINE="$(dirname "$(readlink -e "${BASH_SOURCE[0]}")")"
-INSDIR_TOOLS="$(dirname "$INSDIR_PIPELINE")"
+insdir="$(dirname "$(readlink -e "${BASH_SOURCE[0]}")")"
+toolsdir="$(dirname "$insdir")"
 unset OPTIND activate
 while getopts :i:c: arg; do
 	case $arg in
-		i) INSDIR_PIPELINE="$OPTARG";;
+		i) toolsdir="$OPTARG";;
 		c) activate="$OPTARG";;
-		:) ERROR="argument missing"; false;;
+		:) echo "argument missing" >&2; return 1;;
 	esac
 done
 
-f="$INSDIR_PIPELINE/bashbone/activate.sh"
-ERROR="file not found $f"
-[[ -s "$f" ]]
-source "$f" -i "$INSDIR_PIPELINE" -c ${activate:-false}
-BASHBONEVERSION=$version
-INSDIR="$INSDIR_PIPELINE"
+source "$insdir/bashbone/activate.sh" -i "$toolsdir" -c ${activate:-false} || exit 1
 
 _IFS=$IFS
 IFS=$'\n'
-for f in "$INSDIR/lib/"*.sh; do
-	ERROR="file not found $f"
+for f in "$insdir/lib/"*.sh; do
+	BASHBONE_ERROR="file not found $f"
 	[[ -s "$f" ]]
 	source "$f"
 done
 IFS=$_IFS
 
-trap 'trap - ERR; trap - RETURN' RETURN
-trap 'configure::err -x $? -s "${BASH_SOURCE[0]}" -l $LINENO -e "$ERROR" -c "$BASH_COMMAND"; return $?' ERR
-
-ERROR="environment setup failed. use -c false to disable tools and conda activation"
-configure::environment -i "$INSDIR_TOOLS" -b "$INSDIR" -c ${activate:-false}
-[[ $activate ]] || {
-	commander::printinfo {COMMANDER[0]}<<- EOF
-		to activate conda environment do
-		source $(basename "${BASH_SOURCE[0]}") -c true
-	EOF
-}
+unset BASHBONE_ERROR
+return 0

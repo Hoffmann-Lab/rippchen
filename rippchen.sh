@@ -1,9 +1,9 @@
 #! /usr/bin/env bash
 # (c) Konstantin Riege
-set -o pipefail
 
-# defines INSDIR and by sourcing bashbone it defines BASHBONEVERSION variable as well
-source $(dirname $(readlink -e $0))/activate.sh -c true || exit 1
+source "$(dirname "$(readlink -e "$0")")/activate.sh" -c true || exit 1
+trap 'configure::exit -p $$ -f cleanup $?' EXIT
+trap 'BASHBONE_ERROR="killed"' INT TERM
 
 cleanup() {
 	[[ -e $TMPDIR ]] && {
@@ -33,11 +33,6 @@ cleanup() {
 	}
 }
 
-unset ERROR
-trap 'configure::exit -p $$ -f cleanup $?' EXIT
-trap 'ERROR="killed"' INT TERM
-trap 'configure::err -x $? -s "$0" -l $LINENO -e "$ERROR" -c "$BASH_COMMAND"; exit $?' ERR
-
 VERSION=$version
 CMD="$(basename $0) $*"
 THREADS=$(grep -cF processor /proc/cpuinfo)
@@ -60,18 +55,18 @@ tidx=() #treatment idx
 ridx=() #treatment replicate idx
 pidx=() #pool (2x0.5 pseudoppol and 2x1 fullpool) idx
 
-ERROR="parameterization issue"
+BASHBONE_ERROR="parameterization issue"
 options::parse "$@"
 
-ERROR="cannot access $OUTDIR"
+BASHBONE_ERROR="cannot access $OUTDIR"
 mkdir -p $OUTDIR
 OUTDIR=$(readlink -e $OUTDIR)
 [[ ! $LOG ]] && LOG=$OUTDIR/run.log
-ERROR="cannot access $LOG"
-mkdir -p $(dirname $LOG)
-printf '' > $LOG
+BASHBONE_ERROR="cannot access $LOG"
+mkdir -p "$(dirname "$LOG")"
+progress::log -v $VERBOSITY -o $LOG
 
-ERROR="cannot access $TMPDIR"
+BASHBONE_ERROR="cannot access $TMPDIR"
 if [[ $PREVIOUSTMPDIR ]]; then
 	TMPDIR=$PREVIOUSTMPDIR
 	mkdir -p $TMPDIR
@@ -83,7 +78,7 @@ else
 fi
 
 ${INDEX:=false} || {
-	ERROR="fastq or sam/bam file input missing"
+	BASHBONE_ERROR="fastq or sam/bam file input missing"
 	[[ ! $nfq1 && ! $tfq1 && ! $nmap ]] && false
 }
 
@@ -93,12 +88,12 @@ ${INDEX:=false} || {
 }
 
 [[ $GENOME ]] && {
-	ERROR="genome file does not exists or is compressed $GENOME"
+	BASHBONE_ERROR="genome file does not exists or is compressed $GENOME"
 	readlink -e $GENOME | file -f - | grep -qF ASCII
 	[[ ! -s $GENOME.md5.sh ]] && cp $(dirname $(readlink -e $0))/bashbone/lib/md5.sh $GENOME.md5.sh
 	source $GENOME.md5.sh
 } || {
-	ERROR="genome file missing"
+	BASHBONE_ERROR="genome file missing"
 	! ${INDEX:=false}
 	commander::warn "genome file missing. proceeding without mapping"
 	Smd5=true
@@ -107,13 +102,13 @@ ${INDEX:=false} || {
 }
 
 if [[ $GTF ]]; then
-	ERROR="annotation file does not exists or is compressed $GTF"
+	BASHBONE_ERROR="annotation file does not exists or is compressed $GTF"
 	readlink -e $GTF | file -f - | grep -qF ASCII
 else
 	readlink -e $GENOME.gtf | file -f - | grep -qF ASCII && {
 		GTF=$GENOME.gtf
 	} || {
-		ERROR="annotation file missing"
+		BASHBONE_ERROR="annotation file missing"
 		! ${INDEX:=false}
 		commander::warn "gtf file missing. proceeding without quantification"
 		noquant=true
@@ -146,52 +141,52 @@ IFS=','
 i=-1
 if [[ ! $nmap ]]; then
 	for f in $nfq1; do
-		ERROR="single or first mate fastq file does not exist $f"
-		checkfile $f nidx FASTQ1
+		BASHBONE_ERROR="single or first mate fastq file does not exist $f"
+		checkfile "$f" nidx FASTQ1
 	done
 	for f in $nrfq1; do
-		ERROR="single or first mate normal replicate fastq file does not exists $f"
-		checkfile $f nridx FASTQ1
+		BASHBONE_ERROR="single or first mate normal replicate fastq file does not exists $f"
+		checkfile "$f" nridx FASTQ1
 	done
 	for f in $tfq1; do
-		ERROR="single or first mate normal replicate fastq file does not exists $f"
+		BASHBONE_ERROR="single or first mate normal replicate fastq file does not exists $f"
 		#idx depends on available replicates - i.e. trigger pooling or make pseudo-replicates
-		checkfile $f $([[ $rfq1 ]] && echo tidx || echo pidx) FASTQ1
+		checkfile "$f" $([[ $rfq1 ]] && echo tidx || echo pidx) FASTQ1
 	done
 	for f in $rfq1; do
-		ERROR="single or first mate treatment replicate fastq file does not exists $f"
-		checkfile $f ridx FASTQ1
+		BASHBONE_ERROR="single or first mate treatment replicate fastq file does not exists $f"
+		checkfile "$f" ridx FASTQ1
 	done
 	i=-1
 	for f in {$nfq2,$nrfq2,$tfq2,$rfq2}; do
-		ERROR="second mate fastq file does not exists $f"
-		checkfile $f foo FASTQ2
+		BASHBONE_ERROR="second mate fastq file does not exists $f"
+		checkfile "$f" foo FASTQ2
 	done
-	ERROR="unequal number of mate pairs"
+	BASHBONE_ERROR="unequal number of mate pairs"
 	[[ $FASTQ2 && ${#FASTQ1[@]} -eq ${#FASTQ2[@]} ]]
 else
 	for f in $nmap; do
-		ERROR="alignment file does not exists $f"
-		checkfile $f nidx MAPPED
+		BASHBONE_ERROR="alignment file does not exists $f"
+		checkfile "$f" nidx MAPPED
 	done
 	for f in $nrmap; do
-		ERROR="normal replicate alignment file does not exists $f"
-		checkfile $f nridx MAPPED
+		BASHBONE_ERROR="normal replicate alignment file does not exists $f"
+		checkfile "$f" nridx MAPPED
 	done
-	ERROR="unequal number of normal replicates"
+	BASHBONE_ERROR="unequal number of normal replicates"
 	[[ $nridx && ${#nidx[@]} -eq ${#nridx[@]} ]]
 	for f in $tmap; do
-		ERROR="treatment alignment file does not exists $f"
-		checkfile $f pidx MAPPED
+		BASHBONE_ERROR="treatment alignment file does not exists $f"
+		checkfile "$f" pidx MAPPED
 	done
 	for f in $rmap; do
-		ERROR="treatment replicate alignment file does not exists $f"
-		checkfile $f ridx MAPPED
+		BASHBONE_ERROR="treatment replicate alignment file does not exists $f"
+		checkfile "$f" ridx MAPPED
 	done
 	[[ $ridx ]] && {
 		tidx+=("${pidx[@]}")
 		pidx=()
-		ERROR="unequal number of treatment replicates"
+		BASHBONE_ERROR="unequal number of treatment replicates"
 		[[ ${#ridx[@]} -eq ${#tidx[@]} ]]
 	}
 fi
@@ -202,20 +197,20 @@ unset IFS
 	noclust=true
 }
 
-progress::log -v $VERBOSITY -o $LOG
-commander::printinfo "rippchen $VERSION utilizing bashbone $BASHBONEVERSION started with command: $CMD" >> $LOG
+commander::printinfo "rippchen $VERSION utilizing bashbone $BASHBONE_VERSION started with command: $CMD" >> $LOG
 commander::printinfo "temporary files go to: $HOSTNAME:$TMPDIR" >> $LOG
 
 if ${INDEX:=false}; then
-	pipeline::index 2> >(tee -ai $LOG >&2) >> $LOG
+	BASHBONE_ERROR="indexing failed"
+	progress::observe -v $VERBOSITY -o "$LOG" -f pipeline::index
 else
 	if [[ $tfq1 || $tmap ]]; then
 		${RIPSEQ:=false} || nosplit=true
-		ERROR="peak calling pipeline failed"
-		pipeline::callpeak 2> >(tee -ai $LOG >&2) >> $LOG
+		BASHBONE_ERROR="peak calling pipeline failed"
+		progress::observe -v $VERBOSITY -o "$LOG" -f pipeline::callpeak
 	else
-		ERROR="expression analysis pipeline failed"
-		pipeline::dea 2> >(tee -ai $LOG >&2) >> $LOG
+		BASHBONE_ERROR="expression analysis pipeline failed"
+		progress::observe -v $VERBOSITY -o "$LOG" -f pipeline::dea
 	fi
 fi
 
