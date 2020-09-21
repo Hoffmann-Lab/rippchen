@@ -351,13 +351,14 @@ pipeline::dea(){
 		-o $OUTDIR/stats
 
 	alignment::inferstrandness \
-		-S ${noquant:=false} \
-		-s ${Squant:=false} \
+		-S $( (${noquant:-false} && ${nodsj:-false} && true) && echo true || echo false) \
+		-s false \
 		-t $THREADS \
 		-r mapper \
 		-x strandness \
 		-g $GTF \
 		-p $TMPDIR
+
 	quantify::featurecounts \
 		-S ${noquant:=false} \
 		-s ${Squant:=false} \
@@ -386,6 +387,7 @@ pipeline::dea(){
 			-5 ${Smd5:=false} \
 			-t $THREADS \
 			-r mapper \
+			-x strandness \
 			-g $GTF \
 			-c COMPARISONS \
 			-i $OUTDIR/counted \
@@ -560,6 +562,7 @@ pipeline::callpeak() {
 		-x strandness \
 		-g $GTF \
 		-p $TMPDIR
+
 	peaks::gem \
 		-S ${nogem:=false} \
 		-s ${Sgem:=false} \
