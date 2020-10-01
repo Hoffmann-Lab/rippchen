@@ -9,15 +9,16 @@
 insdir="$(dirname "$(readlink -e "${BASH_SOURCE[0]}")")"
 toolsdir="$(dirname "$insdir")"
 unset OPTIND activate
-while getopts :i:c: arg; do
+while getopts ':i:c:x:' arg; do
 	case $arg in
 		i) toolsdir="$OPTARG";;
 		c) activate="$OPTARG";;
+		x) exitfun="$OPTARG";;
 		:) echo "argument missing" >&2; return 1;;
 	esac
 done
 
-source "$insdir/bashbone/activate.sh" -i "$toolsdir" -c ${activate:-false} || exit 1
+source "$insdir/bashbone/activate.sh" -i "$toolsdir" -c ${activate:-false} -x "$exitfun" || exit 1
 
 _IFS=$IFS
 IFS=$'\n'

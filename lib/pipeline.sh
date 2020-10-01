@@ -261,7 +261,7 @@ pipeline::_mapping(){
 		-p $TMPDIR \
 		-o $OUTDIR/mapped \
 		-r mapper
-	${nouniq:=false} && ! ${nosort:=false} && alignment::add4stats -r mapper
+	(${nouniq:=false} && ! ${nosort:=false}) || (! ${nouniq:=false} && ! ${nosort:=false}) && alignment::add4stats -r mapper
 
 	return 0
 }

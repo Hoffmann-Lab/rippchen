@@ -1,9 +1,7 @@
 #! /usr/bin/env bash
 # (c) Konstantin Riege
 
-source "$(dirname "$(readlink -e "$0")")/activate.sh" -c true || exit 1
-trap 'configure::exit -p $$ -f cleanup $?' EXIT
-trap 'BASHBONE_ERROR="killed"' INT TERM
+source "$(dirname "$(readlink -e "$0")")/activate.sh" -c true -x cleanup || exit 1
 
 cleanup() {
 	[[ -e $TMPDIR ]] && {
