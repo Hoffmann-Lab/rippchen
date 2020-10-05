@@ -161,7 +161,7 @@ if [[ ! $nmap ]]; then
 		checkfile "$f" foo FASTQ2
 	done
 	BASHBONE_ERROR="unequal number of mate pairs"
-	[[ $FASTQ2 && ${#FASTQ1[@]} -eq ${#FASTQ2[@]} ]]
+	[[ $FASTQ2 ]] && { [[ ${#FASTQ1[@]} -eq ${#FASTQ2[@]} ]] || false; }
 else
 	for f in $nmap; do
 		BASHBONE_ERROR="alignment file does not exists $f"
@@ -172,7 +172,7 @@ else
 		checkfile "$f" nridx MAPPED
 	done
 	BASHBONE_ERROR="unequal number of normal replicates"
-	[[ $nridx && ${#nidx[@]} -eq ${#nridx[@]} ]]
+	[[ $nridx ]] && { [[ ${#nidx[@]} -eq ${#nridx[@]} ]] || false; }
 	for f in $tmap; do
 		BASHBONE_ERROR="treatment alignment file does not exists $f"
 		checkfile "$f" pidx MAPPED
@@ -185,7 +185,7 @@ else
 		tidx+=("${pidx[@]}")
 		pidx=()
 		BASHBONE_ERROR="unequal number of treatment replicates"
-		[[ ${#ridx[@]} -eq ${#tidx[@]} ]]
+		[[ ${#ridx[@]} -eq ${#tidx[@]} ]] || false
 	}
 fi
 unset IFS
