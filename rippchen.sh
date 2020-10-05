@@ -62,7 +62,6 @@ OUTDIR=$(readlink -e $OUTDIR)
 [[ ! $LOG ]] && LOG=$OUTDIR/run.log
 BASHBONE_ERROR="cannot access $LOG"
 mkdir -p "$(dirname "$LOG")"
-progress::log -v $VERBOSITY -o $LOG
 
 BASHBONE_ERROR="cannot access $TMPDIR"
 if [[ $PREVIOUSTMPDIR ]]; then
@@ -190,18 +189,18 @@ else
 fi
 unset IFS
 
-[[ ${#nidx[@]} -lt 2 && "$noclust" != "true" ]] && {
-	commander::warn "too few samples. proceeding without clustering"
-	noclust=true
-}
-
-commander::printinfo "rippchen $VERSION utilizing bashbone $BASHBONE_VERSION started with command: $CMD" >> $LOG
-commander::printinfo "temporary files go to: $HOSTNAME:$TMPDIR" >> $LOG
+progress::log -v $VERBOSITY -o $LOG
+commander::printinfo "rippchen $VERSION utilizing bashbone $BASHBONE_VERSION started with command: $CMD" | tee -ai "$LOG"
+commander::printinfo "temporary files go to: $HOSTNAME:$TMPDIR" | tee -ia "$LOG"
 
 if ${INDEX:=false}; then
 	BASHBONE_ERROR="indexing failed"
 	progress::observe -v $VERBOSITY -o "$LOG" -f pipeline::index
 else
+	[[ ${#nidx[@]} -lt 2 && "$noclust" != "true" ]] && {
+		commander::warn "too few samples. proceeding without clustering"
+		noclust=true
+	}
 	if [[ $tfq1 || $tmap ]]; then
 		${RIPSEQ:=false} || nosplit=true
 		BASHBONE_ERROR="peak calling pipeline failed"
