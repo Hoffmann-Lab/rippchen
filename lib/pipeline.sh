@@ -37,19 +37,19 @@ pipeline::index(){
 		-t $THREADS \
 		-i $GENOME \
 		-p $TMPDIR
-	unset NA1 NA2
+	unset NA1 NA2 NA3
 	expression::diego \
 		-S ${nodsj:=false} \
 		-s true \
 		-t $THREADS \
 		-r NA1 \
+		-x NA2 \
 		-g $GTF \
-		-c NA2 \
+		-c NA3 \
 		-i $TMPDIR \
 		-j $TMPDIR \
 		-p $TMPDIR \
 		-o $TMPDIR
-
 	return 0
 }
 
