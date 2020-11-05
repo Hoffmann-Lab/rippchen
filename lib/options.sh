@@ -9,7 +9,7 @@ options::usage() {
 
 		VERSION
 		$VERSION
-		utilizing bashbone $BASHBONEVERSION
+		utilizing bashbone $BASHBONE_VERSION
 
 		SYNOPSIS INDEXING
 		rippchen.sh -x -g genome.fa -gtf genome.gtf
@@ -99,12 +99,15 @@ options::usage() {
 		-trm     | --treat-repmap [path,..]   : *IP-Seq replicate SAM/BAM input. comma seperated or a file with all paths (replaces fastq input)
 		-mn      | --mapper-name [string]     : name to use for output subdirectories in case of SAM/BAM input. default: custom
 		-rip     | --rna-ip                   : switch type of *IP-Seq experiment to RNA based *IP-Seq (e.g. meRIP, m6A, CLIP). default assumption is ChIP
-		-f       | --fragmentsize [value]     : fragment size of sequenced mate pairs - default: 200
-		-no-rmd  | --no-removeduplicates      : disables removing duplicates - not recommended
+		-f       | --fragmentsize [value]     : estimated size of sequenced fragments - default: 200
+		-no-rmd  | --no-removeduplicates      : disables removing duplicates - not recommended unless reads were mapped on a transcriptome
 		-rx      | --regex [string]           : regex of read name identifier with grouped tile information - default: ^\S+:(\d+):(\d+):(\d+)\s*.*
 		                                        NOTE: necessary for sucessful deduplication. if unavailable, use null
 		-no-macs | --no-macs                  : disables peak calling by macs
 		-no-gem  | --no-gem                   : disables peak calling by gem
+		-no-peaka| --no-peakachu              : disables peak calling by peakachu
+		-s-macs  | --strict-macs              : use a more strict macs parameterization - an alternative to IDR results
+		-s-gem   | --strict-gem               : use a more strict gem parameterization - an alternative to IDR results
 
 		DIFFERENTIAL EXPRESSION ANALYSIS OPTIONS
 		-1       | --fq1 [path,..]            : fastq input - single or first pair, comma seperated or a file with all paths
@@ -270,6 +273,9 @@ options::checkopt (){
 		-cmo      | --clipmateoverlaps) nocmo=false;;
 		-no-macs  | --no-macs) nomacs=true;;
 		-no-gem   | --no-gem) nogem=true;;
+		-no-peaka | --no-peakachu) nopeaka=true;;
+		-s-macs   | --strict-macs) STRICTMACS=true;;
+		-s-gem    | --strict-gem) STRICTGEM=true;;
 		-no-quant | --no-quantification) noquant=true; nodsj=true; nodea=true; noclust=true; nogo=true;;
 		-no-dsj   | --no-diffsplicejunctions) nodsj=true;;
 		-no-dea   | --no-diffexanalysis) nodea=true;;
@@ -293,7 +299,7 @@ options::checkopt (){
 options::resume(){
 	local s enable=false
 	# don't Smd5, Sslice !
-	for s in qual trim clip cor rrm arr fus sege star bwa uniq sort rep rmd cmo idx stats macs gem quant tpm dsj dea join clust go; do
+	for s in qual trim clip cor rrm arr fus sege star bwa uniq sort rep rmd cmo idx stats macs gem peaka quant tpm dsj dea join clust go; do
 		eval "\${S$s:=true}" # unless S$s already set to false by -redo, do skip
 		$enable || [[ "$1" == "$s" ]] && {
 			enable=true
@@ -307,7 +313,7 @@ options::skip(){
 	declare -a mapdata
 	mapfile -t -d ',' mapdata < <(printf '%s' "$1")
 	for x in "${mapdata[@]}"; do
-		for s in md5 qual trim clip cor rrm arr fus sege star bwa uniq sort rep slice rmd cmo idx stats macs gem quant tpm dsj dea join clust go; do
+		for s in md5 qual trim clip cor rrm arr fus sege star bwa uniq sort rep slice rmd cmo idx stats macs gem peaka quant tpm dsj dea join clust go; do
 			[[ "$x" == "$s" ]] && eval "S$s=true"
 		done
 	done
@@ -317,12 +323,13 @@ options::redo(){
 	local x s
 	declare -a mapdata
 	mapfile -t -d ',' mapdata < <(printf '%s' "$1")
-	for s in qual trim clip cor rrm arr fus sege star bwa uniq sort rep rmd cmo idx stats macs gem quant tpm dsj dea join clust go; do
+	for s in qual trim clip cor rrm arr fus sege star bwa uniq sort rep rmd cmo idx stats macs gem peaka quant tpm dsj dea join clust go; do
 		eval "\${S$s:=true}" # unless (no|S)$s alredy set to false by -resume, do skip
 	done
 	for x in "${mapdata[@]}"; do
-		for s in qual trim clip cor rrm arr fus sege star bwa uniq sort rep rmd cmo idx stats macs gem quant tpm dsj dea join clust go; do
+		for s in qual trim clip cor rrm arr fus sege star bwa uniq sort rep rmd cmo idx stats macs gem peaka quant tpm dsj dea join clust go; do
 			[[ "$x" == "$s" ]] && eval "S$s=false"
 		done
 	done
 }
+
