@@ -1,5 +1,4 @@
 # Rippchen
----
 
 ...are tasty! Acquire a taste for peak calling from *IP-Seq experiments or for differential expression- and ontology analysis from RNA-Seq data
 
@@ -30,7 +29,6 @@ Rippchen leverages on bashbone, which is a bash library for workflow and pipelin
 - Peak calling from RIP-Seq, MeRIP-Seq, m6A-Seq and other related *IP-Seq data
 
 # License
----
 
 The whole project is licensed under the GPL v3 (see LICENSE file for details). <br>
 **except** the the third-party tools set-upped during installation. Please refer to the corresponding licenses
@@ -38,7 +36,6 @@ The whole project is licensed under the GPL v3 (see LICENSE file for details). <
 Copyleft (C) 2020, Konstantin Riege
 
 # Download
----
 
 ```bash
 git clone --recursive https://github.com/koriege/rippchen.git
@@ -57,47 +54,87 @@ rippchen.sh -h
 ```
 
 # Installation
----
+
+## Full installation from scratch
 
 ```bash
-setup.sh -i all -d <path/to/installation>
-source <path/of/installation/activate.sh>
+setup -i all -d <path/to/installation>
+source <path/of/installation/latest/rippchen/activate.sh>
 rippchen.sh -h
 ```
 
-## Update to a newer release
+## In case bashbone was previously installed
+```bash
+setup.sh -i rippchen -d <path/to/bashbone/installation>
+source <path/of/bashbone/installation/latest/rippchen/activate.sh>
+rippchen.sh -h
+```
+
+### Upgrade to a newer release (sources only)
 
 ```bash
 setup.sh -i upgrade -d <path/of/installation>
-source <path/of/installation/activate.sh>
-bashbone -h
+source <path/of/installation/latest/rippchen/activate.sh>
+rippchen.sh -h
+```
+
+### Update tools
+
+The setup routine will always install the latest software via conda, which can be updated by running the related setup functions again.
+
+```bash
+setup -i conda_tools -d <path/of/installation>
+```
+
+Trimmomatic, segemehl, STAR-Fusion and GEM will be installed next to the conda environments. If new releases are available, they will be automatically fetched and installed upon running the related setup functions again.
+
+```bash
+setup -i trimmomatic,segemehl,starfusion,gem -d <path/of/installation>
 ```
 
 # Usage
----
+
+To load rippchen, bashbone respectively, execute
+```bash
+source <path/of/installation/latest/rippchen/activate.sh>
+bashbone -h
+```
+
+In order to get all function work properly, enable rippchen via bashbone to use conda environments. Conda can be disabled analogously.
+```bash
+bashbone -c
+bashbone -s
+```
+
+Shortcut:
+
+```bash
+source <path/of/installation/latest/rippchen/activate.sh> -c true
+bashbone -s
+```
 
 ## Retrieve SRA datasets
 
 Use the enclosed script to fetch sequencing data from SRA
 
 ```bash
-source <path/of/installation/activate.sh> -c true
+source <path/of/installation/latest/rippchen/activate.sh> -c true
 sra-dump.sh -h
 ```
 
 ## Retrieve genomes
 
-Use the enclosed script to fetch human hg19/hg38 or mouse mm9/mm10 genomes and annotations.
+Use the enclosed script to fetch human hg19/hg38 or mouse mm9/mm10 genomes and annotations. Plug-n-play CTAT genome resource made for gene fusion detection and shipped with STAR index can be selected optionally.
 
 ```bash
-source <path/of/installation/activate.sh> -c true
+source <path/of/installation/latest/rippchen/activate.sh> -c true
 dlgenome.sh -h
 ```
 
 ## Index genomes
 
 ```bash
-source <path/of/installation/activate.sh>
+source <path/of/installation/latest/rippchen/activate.sh>
 rippchen.sh -x -g <path/to/genome.fa> -gtf <path/to/genome.gtf>
 ```
 
@@ -135,17 +172,16 @@ Then the info file should consist of:
 | trB.n1 | B   | single-end | N1  | female |
 | trB.n2 | B   | single-end | N2  | male   |
 
-
 ## Examples
 
-This section showcases some usages without explaining each parameter in a broader detail. Check out the Rippchen help page for more configuration options. Most of them will be opt-out settings.
+This section showcases some usages without explaining each parameter in a broader detail. Check out the rippchen help page for more configuration options. Most of them will be opt-out settings.
 
 ### Data pre-processing and mapping plus gene fusion detection
 
 Data pre-processing without mapping by segemehl or STAR and without Rcorrector for sequencing error correction and SortMeRNA for artificial rRNA depletion.
 
 ```bash
-source <path/of/installation/activate.sh>
+source <path/of/installation/latest/rippchen/activate.sh>
 rippchen.sh -v 2 -t <threads> -g <fasta> -gtf <gtf> -o <outdir> -l <logfile> -tmp <tmpdir> \
 -1 <fastq> [-2 <fastq>] -no-cor -no-rrm -no-sege -no-star
 ```
@@ -153,7 +189,7 @@ rippchen.sh -v 2 -t <threads> -g <fasta> -gtf <gtf> -o <outdir> -l <logfile> -tm
 Data pre-processing without mapping by segemehl or STAR but enabled fusion detection.
 
 ```bash
-source <path/of/installation/activate.sh>
+source <path/of/installation/latest/rippchen/activate.sh>
 rippchen.sh -v 2 -t <threads> -g <fasta> -gtf <gtf> -o <outdir> -l <logfile> -tmp <tmpdir> \
 -1 <fastq> [-2 <fastq>] -fusion -no-sege -no-star
 ```
@@ -161,7 +197,7 @@ rippchen.sh -v 2 -t <threads> -g <fasta> -gtf <gtf> -o <outdir> -l <logfile> -tm
 Data pre-processing, mapping by segemehl and STAR and alignment post-processing (i.e. unique read extraction, sorting, indexing).
 
 ```bash
-source <path/of/installation/activate.sh>
+source <path/of/installation/latest/rippchen/activate.sh>
 rippchen.sh -v 2 -t <threads> -g <fasta> -gtf <gtf> -o <outdir> -l <logfile> -tmp <tmpdir> \
 -1 <fastq> [-2 <fastq>]
 ```
@@ -169,7 +205,7 @@ rippchen.sh -v 2 -t <threads> -g <fasta> -gtf <gtf> -o <outdir> -l <logfile> -tm
 Data pre-processing with Illumina universal adapter removal, mapping by segemehl and STAR and alignment post-processing (i.e. unique read extraction, sorting, indexing). More sequences can be found via Illumina Adapter Sequences Document (<https://www.illumina.com/search.html?q=Illumina Adapter Sequences Document&filter=manuals&p=1>), the resource of Trimmomatic (<https://github.com/timflutre/trimmomatic/tree/master/adapters>), FastQC respectively (<https://github.com/s-andrews/FastQC/blob/master/Configuration/contaminant_list.txt>).
 
 ```bash
-source <path/of/installation/activate.sh>
+source <path/of/installation/latest/rippchen/activate.sh>
 rippchen.sh -v 2 -t <threads> -g <fasta> -gtf <gtf> -o <outdir> -l <logfile> -tmp <tmpdir> \
 -1 <fastq> [-2 <fastq>] -a1 AGATCGGAAGAG [-a2 AGATCGGAAGAG]
 ```
@@ -177,7 +213,7 @@ rippchen.sh -v 2 -t <threads> -g <fasta> -gtf <gtf> -o <outdir> -l <logfile> -tm
 Data pre-processing, mapping by segemehl and STAR and disabled post-processing (i.e. unique read extraction, sorting, indexing).
 
 ```bash
-source <path/of/installation/activate.sh>
+source <path/of/installation/latest/rippchen/activate.sh>
 rippchen.sh -v 2 -t <threads> -g <fasta> -gtf <gtf> -o <outdir> -l <logfile> -tmp <tmpdir> \
 -1 <fastq> [-2 <fastq>] -no-uniq -no-sort -no-idx
 ```
@@ -185,7 +221,7 @@ rippchen.sh -v 2 -t <threads> -g <fasta> -gtf <gtf> -o <outdir> -l <logfile> -tm
 Multiple inputs can be submitted as comma separated list.
 
 ```bash
-source <path/of/installation/activate.sh>
+source <path/of/installation/latest/rippchen/activate.sh>
 rippchen.sh -v 2 -t <threads> -g <fasta> -gtf <gtf> -o <outdir> -l <logfile> -tmp <tmpdir> \
 -1 <fastq,fastq,...> [-2 <fastq,fastq,...>]
 ```
@@ -193,7 +229,7 @@ rippchen.sh -v 2 -t <threads> -g <fasta> -gtf <gtf> -o <outdir> -l <logfile> -tm
 Tweak the amount of allowed mismatches in % during mapping and enable clipping of read mate overlaps (paired-end data only).
 
 ```bash
-source <path/of/installation/activate.sh>
+source <path/of/installation/latest/rippchen/activate.sh>
 rippchen.sh -v 2 -t <threads> -g <fasta> -gtf <gtf> -o <outdir> -l <logfile> -tmp <tmpdir> \
 -1 <fastq> [-2 <fastq>] -d 10 -cmo
 ```
@@ -203,7 +239,7 @@ rippchen.sh -v 2 -t <threads> -g <fasta> -gtf <gtf> -o <outdir> -l <logfile> -tm
 Pairwise differential gene expression analysis with disabled co-expression analysis.
 
 ```bash
-source <path/of/installation/activate.sh>
+source <path/of/installation/latest/rippchen/activate.sh>
 rippchen.sh -v 2 -t <threads> -g <fasta> -gtf <gtf> -o <outdir> -l <logfile> -tmp <tmpdir> \
 -1 <fastq,fastq,...> [-2 <fastq,fastq,...>] -c <sample-info> -no-clust
 ```
@@ -213,15 +249,14 @@ rippchen.sh -v 2 -t <threads> -g <fasta> -gtf <gtf> -o <outdir> -l <logfile> -tm
 Infer peaks from paired datasets of normal/control and ChIP-Seq using macs2 and GEM.
 
 ```bash
-source <path/of/installation/activate.sh>
+source <path/of/installation/latest/rippchen/activate.sh>
 rippchen.sh -v 2 -t <threads> -g <fasta> -gtf <gtf> -o <outdir> -l <logfile> -tmp <tmpdir> \
 -n1 <fastq,fastq,...> [-n2 <fastq,fastq,...>] -t1 <fastq,fastq,...> [-t2 <fastq,fastq,...>]
 ```
-
 Infer peaks from paired datasets of normal/control and *IP-Seq with replicates and without utilizing macs2.
 
 ```bash
-source <path/of/installation/activate.sh>
+source <path/of/installation/latest/rippchen/activate.sh>
 rippchen.sh -v 2 -t <threads> -g <fasta> -gtf <gtf> -o <outdir> -l <logfile> -tmp <tmpdir> \
 -n1 <fastq,fastq,...> [-n2 <fastq,fastq,...>] -t1 <fastq,fastq,...> [-t2 <fastq,fastq,...>] \
 -tr1 <fastq,fastq,...> [-tr2 <fastq,fastq,...>] -no-macs
@@ -232,33 +267,32 @@ rippchen.sh -v 2 -t <threads> -g <fasta> -gtf <gtf> -o <outdir> -l <logfile> -tm
 List all possible break points and keywords to control Rippchen.
 
 ```bash
-source <path/of/installation/activate.sh>
+source <path/of/installation/latest/rippchen/activate.sh>
 rippchen.sh -dev
 ```
 
 Use comma separated lists to e.g. skip md5 check and quality analysis.
 
 ```bash
-source <path/of/installation/activate.sh>
+source <path/of/installation/latest/rippchen/activate.sh>
 rippchen.sh [...] -skip md5,qual
 ```
 
 Example how to resume from the segemehl mapping break point after previous data pre-processing.
 
 ```bash
-source <path/of/installation/activate.sh>
+source <path/of/installation/latest/rippchen/activate.sh>
 rippchen.sh [...] -resume sege
 ```
 
 Single tasks can be re-computed with the `redo` parameter and a comma separated list of arguments.
 
 ```bash
-source <path/of/installation/activate.sh>
+source <path/of/installation/latest/rippchen/activate.sh>
 rippchen.sh [...] -redo quant,tpm
 ```
 
 # Third-party software
----
 
 ## In production
 
@@ -301,24 +335,30 @@ rippchen.sh [...] -redo quant,tpm
 
 # Supplementary information
 
-Rippchen can be executed in parallel instances and thus is able to be submitted as a job into a queuing system like a Sun Grid Engine (SGE). This could be easily done by amending the following code snipped.
+Rippchen can be executed in parallel instances and thus is able to be submitted as a job into a queuing system like a Sun Grid Engine (SGE). This could be easily done by using scripts written via here-documents or via the bashbone builtin `commander::qsubcmd`. The latter makes use of array jobs, which enables to wait for completion of all jobs, handle single exit codes and amend used resources via `qalter -tc <instances> <jobname>`.
 
 ```bash
+source <path/of/installation/latest/rippchen/activate.sh>
+declare -a cmds=()
 for i in *R1.fastq.gz; do
 	j=${i/R1/R2}
 	sh=job_$(basename $i .R1.fastq.gz)
-	cat <<- EOF > $sh.sh
-		#!/usr/bin/env bash
-		source <path/of/installation/activate.sh>
+	commander::makecmd -a cmd1 -c {COMMANDER[0]}<<- CMD
+		source <path/of/installation/latest/rippchen/activate.sh>;
 		rippchen.sh -v 2 -t <threads> -g <fasta> -gtf <gtf> -o <outdir> -l <logfile> -tmp <tmpdir> -1 $i -2 $j
-	EOF
-	echo "rm -f $sh.+(log|err) && qsub -pe <env> <threads> -l 'h=<hostname>|<hostname>' -S /bin/bash -e $sh.err -o $sh.log -V -cwd $sh.sh"
+	CMD
 done
+commander::qsubcmd -r -l h=<hosts> -p <env> -t <threads> -i <instances> -n <jobname> -o <logdir> -a cmds
+# analogously: echo job.\$SGE_TASK_ID.sh | qsub -sync n -pe <env> <threads> -t 1-<#jobs> -tc <instances> -l h="<hostname>|<hostname>" -S /bin/bash -N <jobname> -o <logfile> -j y -V -cwd
 ```
 
 In some cases a glibc pthreads bug (<https://sourceware.org/bugzilla/show_bug.cgi?id=23275>) may cause pigz failures (`internal threads error`) and premature termination of toola leveraging on it e.g. Cutadapt. One can circumvent this by upgrading the operating system or making use of an alternative pthreads library and `LD_PRELOAD`
 
 ```bash
-source <path/of/installation/activate.sh>
+source <path/of/installation/latest/rippchen/activate.sh>
 LD_PRELOAD=/lib64/noelision/libpthread.so.0 rippchen.sh [...]
 ```
+
+# Closing remarks
+
+Bashbone is a continuously developed library and actively used in my daily work. As a single developer it may take me a while to fix errors and issues. Feature requests cannot be handled so far, but I am happy to receive pull request.
