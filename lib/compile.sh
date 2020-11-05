@@ -12,9 +12,11 @@ compile::all(){
 	compile::trimmomatic -i "$insdir" -t $threads
 	compile::sortmerna -i "$insdir" -t $threads
 	compile::segemehl -i "$insdir" -t $threads
+	compile::starfusion -i "$insdir" -t $threads
 	compile::preparedexseq -i "$insdir" -t $threads
 	compile::revigo -i "$insdir" -t $threads
 	compile::gem -i "$insdir" -t $threads
+	compile::m6aviewer -i "$insdir" -t $threads
 	compile::idr -i "$insdir" -t $threads
 
 	return 0
@@ -24,10 +26,10 @@ compile::rippchen() {
 	local insdir threads version bashboneversion src=$(dirname $(dirname $(readlink -e ${BASH_SOURCE[0]})))
 	commander::printinfo "installing rippchen"
 	compile::_parse -r insdir -s threads "$@"
-	source $src/bashbone/lib/version.sh
+	#source $src/bashbone/lib/version.sh
+	source $insdir/latest/bashbone/lib/version.sh
 	bashboneversion=$version
 	source $src/lib/version.sh
-	shopt -s extglob
 	rm -rf $insdir/rippchen-$version
 	mkdir -p $insdir/rippchen-$version
 	cp -r $src/!(bashbone|setup*) $insdir/rippchen-$version
@@ -59,12 +61,14 @@ compile::conda_tools() {
 	done < <(conda info -e | awk -v prefix="^"$insdir '$NF ~ prefix {print $1}')
 
 	# python 3 envs
-	for tool in fastqc cutadapt rcorrector star bwa rseqc subread arriba star-fusion picard bamutil macs2 diego; do
-		n=${tool//[^[:alpha:]]/}
+	# ensure star compatibility with CTAT genome index and STAR-fusion
+	for tool in fastqc cutadapt rcorrector star=2.7.2b bwa rseqc subread arriba picard bamutil macs2 peakachu diego igv; do
+		n=${tool/=*/}
+		n=${n//[^[:alpha:]]/}
 		$upgrade && ${envs[$n]:=false} && continue
 		doclean=true
 
-		commander::printinfo "setup conda $tool env"
+		commander::printinfo "setup conda $n env"
 		conda create -y -n $n python=3
 		conda install -n $n -y --override-channels -c iuc -c conda-forge -c bioconda -c main -c defaults -c r -c anaconda $tool
 		# link commonly used base binaries into env
