@@ -210,6 +210,7 @@ else
 		progress::observe -v $VERBOSITY -o "$LOG" -f pipeline::dea
 	fi
 fi
+unset BASHBONE_ERROR
 
 ${Smd5:=false} || {
 	commander::printinfo "finally updating genome and annotation md5 sums" >> $LOG
