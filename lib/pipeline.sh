@@ -241,6 +241,8 @@ pipeline::_mapping(){
 		mapper+=($MAPNAME)
 	fi
 
+	[[ ${#mapper[@]} -eq 0 ]] && return 0
+
 	alignment::add4stats -r mapper
 
 	alignment::postprocess \
@@ -469,7 +471,7 @@ pipeline::dea(){
 }
 
 pipeline::callpeak() {
-	declare -a mapper caller
+	declare -a mapper
 	declare -A slicesinfo strandness
 
 	pipeline::_preprocess
@@ -548,11 +550,11 @@ pipeline::callpeak() {
 		-j ridx \
 		-k pidx \
 		-r mapper \
-		-c caller \
 		-t $THREADS \
 		-m $MEMORY \
 		-p $TMPDIR \
-		-o $OUTDIR/peaks
+		-o $OUTDIR/peaks \
+		-z ${STRICTMACS:=false}
 
 	alignment::inferstrandness \
 		-S ${nogem:=false} \
@@ -567,7 +569,6 @@ pipeline::callpeak() {
 		-S ${nogem:=false} \
 		-s ${Sgem:=false} \
 		-q ${RIPSEQ:=false} \
-		-f $FRAGMENTSIZE \
 		-g $GENOME \
 		-f $GTF \
 		-a nidx \
@@ -577,9 +578,36 @@ pipeline::callpeak() {
 		-k pidx \
 		-r mapper \
 		-x strandness \
-		-c caller \
 		-t $THREADS \
+		-m $MEMORY \
 		-p $TMPDIR \
+		-o $OUTDIR/peaks \
+		-z ${STRICTGEM:=false}
+
+	${RIPSEQ:=false} || return 0
+
+	peaks::peakachu \
+		-S ${nopeaka:=false} \
+		-s ${Speaka:=false} \
+		-a nidx \
+		-b nridx \
+		-i tidx \
+		-j ridx \
+		-k pidx \
+		-r mapper \
+		-t $THREADS \
+		-o $OUTDIR/peaks
+
+	peaks::m6aviewer \
+		-S ${nom6a:=false} \
+		-s ${Sm6a:=false} \
+		-a nidx \
+		-b nridx \
+		-i tidx \
+		-j ridx \
+		-k pidx \
+		-r mapper \
+		-t $THREADS \
 		-o $OUTDIR/peaks
 
 	return 0
