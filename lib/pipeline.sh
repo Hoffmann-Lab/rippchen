@@ -3,53 +3,67 @@
 
 pipeline::index(){
 	unset NA1 NA2
-	alignment::segemehl \
-		-S ${nosege:=false} \
-		-s true \
-		-t $THREADS \
-		-g $GENOME \
-		-x $GENOME.segemehl.idx \
-		-o $TMPDIR \
-		-r NA1 \
-		-1 NA2
-	unset NA1 NA2
-	alignment::star \
-		-S ${nostar:=false} \
-		-s true \
-		-t $THREADS \
-		-g $GENOME \
-		-x $GENOME.star.idx \
-		-o $TMPDIR \
-		-p $TMPDIR \
-		-r NA1 \
-		-1 NA2
-	unset NA1 NA2
-	alignment::bwa \
-		-S ${nobwa:=false} \
-		-s true \
-		-t $THREADS \
-		-g $GENOME \
-		-x $GENOME.bwa.idx/bwa \
-		-o $TMPDIR \
-		-r NA1 \
-		-1 NA2
-	genome::mkdict \
-		-t $THREADS \
-		-i $GENOME \
-		-p $TMPDIR
-	unset NA1 NA2 NA3
-	expression::diego \
-		-S ${nodsj:=false} \
-		-s true \
-		-t $THREADS \
-		-r NA1 \
-		-x NA2 \
-		-g $GTF \
-		-c NA3 \
-		-i $TMPDIR \
-		-j $TMPDIR \
-		-p $TMPDIR \
-		-o $TMPDIR
+	if ${BISULFITE:=false}; then
+		bisulfite::segemehl \
+			-S ${nosege:=false} \
+			-s true \
+			-t $THREADS \
+			-g $GENOME \
+			-x $GENOME.segemehl.ctidx \
+			-y $GENOME.segemehl.gaidx \
+			-o $TMPDIR \
+			-r NA \
+			-1 NA
+	else
+		alignment::segemehl \
+			-S ${nosege:=false} \
+			-s true \
+			-t $THREADS \
+			-g $GENOME \
+			-x $GENOME.segemehl.idx \
+			-o $TMPDIR \
+			-r NA1 \
+			-1 NA2
+		unset NA1 NA2
+		alignment::star \
+			-S ${nostar:=false} \
+			-s true \
+			-t $THREADS \
+			-g $GENOME \
+			-x $GENOME.star.idx \
+			-f $GTF \
+			-o $TMPDIR \
+			-p $TMPDIR \
+			-r NA1 \
+			-1 NA2
+		unset NA1 NA2
+		alignment::bwa \
+			-S ${nobwa:=false} \
+			-s true \
+			-t $THREADS \
+			-g $GENOME \
+			-x $GENOME.bwa.idx/bwa \
+			-o $TMPDIR \
+			-r NA1 \
+			-1 NA2
+		genome::mkdict \
+			-t $THREADS \
+			-i $GENOME \
+			-p $TMPDIR
+		unset NA1 NA2 NA3
+		expression::diego \
+			-S ${nodsj:=false} \
+			-s true \
+			-t $THREADS \
+			-r NA1 \
+			-x NA2 \
+			-g $GTF \
+			-c NA3 \
+			-i $TMPDIR \
+			-p $TMPDIR \
+			-o $TMPDIR
+	fi
+
 	return 0
 }
 
@@ -189,51 +203,68 @@ pipeline::_preprocess(){
 
 pipeline::_mapping(){
 	if [[ ! $MAPPED ]]; then
-		alignment::segemehl \
-			-S ${nosege:=false} \
-			-s ${Ssege:=false} \
-			-5 ${Smd5:=false} \
-			-1 FASTQ1 \
-			-2 FASTQ2 \
-			-o $OUTDIR/mapped \
-			-t $THREADS \
-			-a $((100-DISTANCE)) \
-			-i ${INSERTSIZE:=200000} \
-			-n ${nosplitreads:=false} \
-			-g $GENOME \
-			-x $GENOME.segemehl.idx \
-			-r mapper
+		if ${BISULFITE:=false}; then
+			bisulfite::segemehl \
+				-S ${nosege:=false} \
+				-s ${Ssege:=false} \
+				-5 ${Smd5:=false} \
+				-1 FASTQ1 \
+				-2 FASTQ2 \
+				-o $OUTDIR/mapped \
+				-t $THREADS \
+				-a $((100-DISTANCE)) \
+				-i ${INSERTSIZE:=200000} \
+				-g $GENOME \
+				-x $GENOME.segemehl.ctidx \
+				-y $GENOME.segemehl.gaidx \
+				-r mapper
+		else
+			alignment::segemehl \
+				-S ${nosege:=false} \
+				-s ${Ssege:=false} \
+				-5 ${Smd5:=false} \
+				-1 FASTQ1 \
+				-2 FASTQ2 \
+				-o $OUTDIR/mapped \
+				-t $THREADS \
+				-a $((100-DISTANCE)) \
+				-i ${INSERTSIZE:=200000} \
+				-n ${nosplitreads:=false} \
+				-g $GENOME \
+				-x $GENOME.segemehl.idx \
+				-r mapper
 
-		alignment::star \
-			-S ${nostar:=false} \
-			-s ${Sstar:=false} \
-			-5 ${Smd5:=false} \
-			-1 FASTQ1 \
-			-2 FASTQ2 \
-			-o $OUTDIR/mapped \
-			-p $TMPDIR \
-			-t $THREADS \
-			-a $((100-DISTANCE)) \
-			-i ${INSERTSIZE:=200000} \
-			-n ${nosplitreads:=false} \
-			-g $GENOME \
-			-f $GTF \
-			-x $GENOME.star.idx \
-			-r mapper
+			alignment::star \
+				-S ${nostar:=false} \
+				-s ${Sstar:=false} \
+				-5 ${Smd5:=false} \
+				-1 FASTQ1 \
+				-2 FASTQ2 \
+				-o $OUTDIR/mapped \
+				-p $TMPDIR \
+				-t $THREADS \
+				-a $((100-DISTANCE)) \
+				-i ${INSERTSIZE:=200000} \
+				-n ${nosplitreads:=false} \
+				-g $GENOME \
+				-f $GTF \
+				-x $GENOME.star.idx \
+				-r mapper
 
-		! ${nosplitreads:=false} || alignment::bwa \
-			-S ${nobwa:=false} \
-			-s ${Sbwa:=false} \
-			-5 ${Smd5:=false} \
-			-1 FASTQ1 \
-			-2 FASTQ2 \
-			-o $OUTDIR/mapped \
-			-t $THREADS \
-			-a $((100-DISTANCE)) \
-			-f true \
-			-g $GENOME \
-			-x $GENOME.bwa.idx/bwa \
-			-r mapper
+			! ${nosplitreads:=false} || alignment::bwa \
+				-S ${nobwa:=false} \
+				-s ${Sbwa:=false} \
+				-5 ${Smd5:=false} \
+				-1 FASTQ1 \
+				-2 FASTQ2 \
+				-o $OUTDIR/mapped \
+				-t $THREADS \
+				-a $((100-DISTANCE)) \
+				-f true \
+				-g $GENOME \
+				-x $GENOME.bwa.idx/bwa \
+				-r mapper
+		fi
 	else
 		declare -g -a ${MAPNAME:=custom}
 		declare -n _MAPNAME_rippchen=$MAPNAME
@@ -268,8 +299,10 @@ pipeline::_mapping(){
 	return 0
 }
 
-pipeline::_fusions(){
-	${FUSIONS:=false} || return 0
+pipeline::fusions(){
+	declare -a mapper
+
+	pipeline::_preprocess
 
 	fusions::arriba \
 			-S ${noarr:=false} \
@@ -277,6 +310,7 @@ pipeline::_fusions(){
 			-5 ${Smd5:=false} \
 			-t $THREADS \
 			-g $GENOME \
+			-v $FUSIONS \
 			-a $GTF \
 			-o $OUTDIR/fusions \
 			-p $TMPDIR \
@@ -285,13 +319,95 @@ pipeline::_fusions(){
 			-2 FASTQ2
 
 	fusions::starfusion \
-			-S ${nofus:=false} \
-			-s ${Sfus:=false} \
+			-S ${nosfus:=false} \
+			-s ${Ssfus:=false} \
+			-5 ${Smd5:=false} \
 			-t $THREADS \
 			-g $GENOME \
 			-o $OUTDIR/fusions \
+			-p $TMPDIR \
 			-1 FASTQ1 \
 			-2 FASTQ2
+
+	return 0
+}
+
+pipeline::bs(){
+	declare -a mapper
+	declare -A slicesinfo strandness
+
+	pipeline::_preprocess
+	pipeline::_mapping
+	[[ ${#mapper[@]} -eq 0 ]] && return 0
+
+	genome::mkdict \
+		-S ${normd:=true} \
+		-s ${Srmd:=false} \
+		-5 ${Smd5:=false} \
+		-i $GENOME \
+		-p $TMPDIR \
+		-t $THREADS
+	pipeline::_slice ${normd:=false} ${Srmd:=false}
+	alignment::rmduplicates \
+		-S ${normd:=false} \
+		-s ${Srmd:=false} \
+		-t $THREADS \
+		-m $MEMORY \
+		-r mapper \
+		-c slicesinfo \
+		-x "$REGEX" \
+		-p $TMPDIR \
+		-o $OUTDIR/mapped
+	${normd:=false} || alignment::add4stats -r mapper
+
+	pipeline::_slice ${nocmo:=false} ${Scmo:=false}
+	alignment::clipmateoverlaps \
+		-S ${nocmo:=false} \
+		-s ${Scmo:=false} \
+		-t $THREADS \
+		-m $MEMORY \
+		-r mapper \
+		-c slicesinfo \
+		-o $OUTDIR/mapped
+	${nocmo:=false} || alignment::add4stats -r mapper
+
+	alignment::postprocess \
+		-S ${noidx:=false} \
+		-s ${Sidx:=false} \
+		-j index \
+		-t $THREADS \
+		-p $TMPDIR \
+		-o $OUTDIR/mapped \
+		-r mapper
+
+	alignment::bamstats \
+		-S ${nostats:=false} \
+		-s ${Sstats:=false} \
+		-r mapper \
+		-t $THREADS \
+		-o $OUTDIR/stats
+
+	bisulfite::mecall \
+		-S ${nomec:=false} \
+		-s ${Smec:=false} \
+		-t $THREADS \
+		-g $GENOME \
+		-r mapper \
+		-o $OUTDIR/mecall \
+		-p $TMPDIR
+
+	${nomec:=false} && return 0
+
+	bisulfite::metilene \
+		-S ${nodma:=false} \
+		-s ${Sdma:=false} \
+		-t $THREADS \
+		-c COMPARISONS \
+		-m ${MISSING:=0.2} \
+		-r mapper \
+		-i $OUTDIR/mecall \
+		-o $OUTDIR/metilene \
+		-p $TMPDIR
 
 	return 0
 }
@@ -301,7 +417,6 @@ pipeline::dea(){
 	declare -A slicesinfo strandness
 
 	pipeline::_preprocess
-	pipeline::_fusions
 	pipeline::_mapping
 	[[ ${#mapper[@]} -eq 0 ]] && return 0
 
@@ -393,7 +508,6 @@ pipeline::dea(){
 			-g $GTF \
 			-c COMPARISONS \
 			-i $OUTDIR/counted \
-			-j $OUTDIR/mapped \
 			-p $TMPDIR \
 			-o $OUTDIR/diego
 
@@ -407,12 +521,13 @@ pipeline::dea(){
 			-i $OUTDIR/counted \
 			-o $OUTDIR/deseq
 
-		expression::joincounts \
+		expression::join \
 			-S ${noquant:=false} \
 			-s ${Sjoin:=false} \
 			-t $THREADS \
 			-r mapper \
 			-c COMPARISONS \
+			-g $GTF \
 			-i $OUTDIR/counted \
 			-j $OUTDIR/deseq \
 			-o $OUTDIR/counted \
@@ -599,7 +714,7 @@ pipeline::callpeak() {
 		-o $OUTDIR/peaks
 
 	peaks::m6aviewer \
-		-S ${nom6a:=false} \
+		-S ${nom6a:=true} \
 		-s ${Sm6a:=false} \
 		-a nidx \
 		-b nridx \
