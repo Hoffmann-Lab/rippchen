@@ -15,12 +15,16 @@ Rippchen leverages on bashbone, which is a bash library for workflow and pipelin
 ## Covered Tasks
 
 - For paired-end and single-end derived raw sequencing or prior mapped read data
+  - RNA-Seq protocols
+  - DNA-Seq protocols
+  - Bisulfite converted DNA-Seq protocols
 - Data preprocessing (quality check, adapter clipping, quality trimming, error correction, artificial rRNA depletion)
 - Gene fusion detection
 - Read alignment and post-processing
   - knapsack problem based slicing of alignment files for parallel task execution
   - sorting, filtering, unique alignment extraction, removal of optical duplicates
   - generation of pools and pseudo-replicates
+- Methyl-C calling and prediction of differentially methylated regions
 - Read quantification, TPM and Z-score normalization (automated inference of strand specific library preparation methods)
 - Inference of differential expression as well as co-expression clusters
 - Detection of differential splice junctions and differential exon usage
@@ -203,6 +207,10 @@ rippchen.sh -v 2 -t <threads> -g <fasta> -gtf <gtf> -o <outdir> -l <logfile> -tm
 ```
 
 Data pre-processing with Illumina universal adapter removal, mapping by segemehl and STAR and alignment post-processing (i.e. unique read extraction, sorting, indexing). More sequences can be found via Illumina Adapter Sequences Document (<https://www.illumina.com/search.html?q=Illumina Adapter Sequences Document&filter=manuals&p=1>), the resource of Trimmomatic (<https://github.com/timflutre/trimmomatic/tree/master/adapters>), FastQC respectively (<https://github.com/s-andrews/FastQC/blob/master/Configuration/contaminant_list.txt>).
+<br>
+Nextera Transposase Sequence: CTGTCTCTTATACACATCT
+<br>
+Illumina Universal Adapter: ATGTGTATAAGAGACA
 
 ```bash
 source <path/of/installation/latest/rippchen/activate.sh>
@@ -292,6 +300,38 @@ source <path/of/installation/latest/rippchen/activate.sh>
 rippchen.sh [...] -redo quant,tpm
 ```
 
+# Outputs
+
+## coexpressed
+
+- WGCNA based coexpression clustering of genes, optionally filtered by biotype, which have a basemean readcount >=5 and abs(log2FC)>=0.5 in at least one deseq comparison
+- Clustering is performed on TPM transformed read counts and DESeq variance stabilization transformed read counts (VSC)
+- Sub-directories `vsc` and `tpm` contain clusters composed of modules plus z-score based heatmaps and log2FC trajectory footprints
+- If computed, within each cluster or module directory, GO enrichment tables and plots can be found for the main three GO categories
+
+
+## counts
+
+- raw read counts per gene or exon as well as TPM transformed read counts, deseq variance stabilization transformed read counts (VSC) and z-score normalized values of all samples
+
+
+## deseq
+
+- Pairwise tests for differentially expressed genes between groups, contstrained by optionally input factors with heatmaps
+- PCA plots for the first three principle components of all sample
+- Sub-directories hold volcano plot like ma-plots, VSC based heatmaps of top 50 abs(log2FC) genes and DESeq tables
+- If computed, GO enrichment tables and plots can be found for the main three GO categories
+
+## diego
+
+- Pairwise test results for differential splice junctions
+
+
+## stats
+
+- simple read count statistics of raw read quality assessing steps, multi- and uniquely mapped reads. Bars are shown in an overlayed fashion
+
+
 # Third-party software
 
 ## In production
@@ -315,6 +355,7 @@ rippchen.sh [...] -redo quant,tpm
 | IDR           | <https://github.com/kundajelab/idr>                                 | 10.1214/11-AOAS466 |
 | khmer         | <https://khmer.readthedocs.io>                                      | 10.12688/f1000research.6924.1 |
 | Macs2         | <https://github.com/macs3-project/MACS>                             | 10.1186/gb-2008-9-9-r137 |
+| metilene      | <https://www.bioinf.uni-leipzig.de/Software/metilene/>              | 10.1101/gr.196394.115 |
 | Picard        | <http://broadinstitute.github.io/picard>                            | NA |
 | Rcorrector    | <https://github.com/mourisl/Rcorrector>                             | 10.1186/s13742-015-0089-y |
 | ReSeqC        | <http://rseqc.sourceforge.net>                                      | 10.1093/bioinformatics/bts356 |
@@ -344,7 +385,6 @@ for i in *R1.fastq.gz; do
 	j=${i/R1/R2}
 	sh=job_$(basename $i .R1.fastq.gz)
 	commander::makecmd -a cmd1 -c {COMMANDER[0]}<<- CMD
-		source <path/of/installation/latest/rippchen/activate.sh>;
 		rippchen.sh -v 2 -t <threads> -g <fasta> -gtf <gtf> -o <outdir> -l <logfile> -tmp <tmpdir> -1 $i -2 $j
 	CMD
 done
@@ -352,11 +392,12 @@ commander::qsubcmd -r -l h=<hosts> -p <env> -t <threads> -i <instances> -n <jobn
 # analogously: echo job.\$SGE_TASK_ID.sh | qsub -sync n -pe <env> <threads> -t 1-<#jobs> -tc <instances> -l h="<hostname>|<hostname>" -S /bin/bash -N <jobname> -o <logfile> -j y -V -cwd
 ```
 
-In some cases a glibc pthreads bug (<https://sourceware.org/bugzilla/show_bug.cgi?id=23275>) may cause pigz failures (`internal threads error`) and premature termination of toola leveraging on it e.g. Cutadapt. One can circumvent this by upgrading the operating system or making use of an alternative pthreads library and `LD_PRELOAD`
+In some cases a glibc pthreads bug (<https://sourceware.org/bugzilla/show_bug.cgi?id=23275>) may cause pigz failures (`internal threads error`) and premature termination of tools leveraging on it e.g. Cutadapt. One can circumvent this by e.g. making use of an alternative pthreads library via `LD_PRELOAD`
 
 ```bash
 source <path/of/installation/latest/rippchen/activate.sh>
-LD_PRELOAD=/lib64/noelision/libpthread.so.0 rippchen.sh [...]
+LD_PRELOAD=/lib64/noelision/libpthread.so.0 rippchen.sh
+LD_PRELOAD=/gsc/biosw/src/glibc-2.32/lib/libpthread.so.0 rippchen.sh
 ```
 
 # Closing remarks
