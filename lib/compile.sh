@@ -60,16 +60,14 @@ compile::conda_tools() {
 		envs[$tool]=true
 	done < <(conda info -e | awk -v prefix="^"$insdir '$NF ~ prefix {print $1}')
 
-	# python 3 envs
-	# ensure star compatibility with CTAT genome index and STAR-fusion
-	for tool in fastqc cutadapt rcorrector star=2.7.2b bwa rseqc subread arriba picard bamutil macs2 peakachu diego igv; do
+	for tool in fastqc cutadapt rcorrector star bwa rseqc subread arriba picard bamutil macs2 peakachu diego metilene; do
 		n=${tool/=*/}
 		n=${n//[^[:alpha:]]/}
 		$upgrade && ${envs[$n]:=false} && continue
 		doclean=true
 
 		commander::printinfo "setup conda $n env"
-		conda create -y -n $n python=3
+		conda create -y -n $n #python=3
 		conda install -n $n -y --override-channels -c iuc -c conda-forge -c bioconda -c main -c defaults -c r -c anaconda $tool
 		# link commonly used base binaries into env
 		for bin in perl samtools bedtools; do
@@ -77,6 +75,25 @@ compile::conda_tools() {
 		done
 	done
 	chmod 755 "$insdir/conda/envs/rcorrector/bin/run_rcorrector.pl" # necessary fix
+
+	# manual setup of requirements from bioconda meta.yaml (see compile::starfusion) due to non-latest installation via conda
+	# note: recent star is not compatible with CTAT plug-n-play genome index as of CTAT for star-fusion v1.9 (star indexer 2.7.1a)
+	tool=star-fusion
+	n=${tool/=*/}
+	n=${n//[^[:alpha:]]/}
+	$upgrade && ${envs[$n]:=false} || {
+		doclean=true
+
+		commander::printinfo "setup conda $n env"
+		conda create -y -n $n #python=3
+		# propably enought: perl perl-set-intervaltree perl-carp perl-carp-assert perl-db-file perl-io-gzip perl-json-xs perl-uri \
+		conda install -n $n -y --override-channels -c iuc -c conda-forge -c bioconda -c main -c defaults -c r -c anaconda \
+			perl perl-file-path perl-getopt-long perl-set-intervaltree perl-carp perl-carp-assert perl-data-dumper perl-findbin perl-db-file perl-io-gzip perl-json-xs perl-uri perl-list-moreutils perl-list-util perl-storable \
+			igv-reports star gmap bowtie bbmap samtools blast
+		for bin in perl samtools bedtools; do
+			conda list -n $n -f $bin | grep -qv '^#' || ln -sfnr "$insdir/conda/bin/$bin" "$insdir/conda/envs/$n/bin/$bin"
+		done
+	}
 
 	$doclean && {
 		commander::printinfo "conda clean up"
