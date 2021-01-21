@@ -29,6 +29,7 @@ cleanup() {
 			done
 		}
 	}
+	return 0
 }
 
 VERSION=$version
@@ -41,7 +42,6 @@ MEMORY=30000
 VERBOSITY=0
 OUTDIR=$PWD/results
 TMPDIR=$OUTDIR
-REGEX='\S+:(\d+):(\d+):(\d+)\s*.*'
 DISTANCE=5
 FRAGMENTSIZE=200
 FASTQ1=() # all idx of FASTQ1[.] are equal to MAPPED[.]
@@ -84,19 +84,19 @@ ${INDEX:=false} || {
 	nocmo=true
 }
 
-[[ $GENOME ]] && {
+if [[ $GENOME ]]; then
 	BASHBONE_ERROR="genome file does not exists or is compressed $GENOME"
 	readlink -e $GENOME | file -f - | grep -qF ASCII
 	[[ ! -s $GENOME.md5.sh ]] && cp $(dirname $(readlink -e $0))/bashbone/lib/md5.sh $GENOME.md5.sh
 	source $GENOME.md5.sh
-} || {
+else
 	BASHBONE_ERROR="genome file missing"
 	! ${INDEX:=false}
 	commander::warn "genome file missing. proceeding without mapping"
-	Smd5=true
 	nosege=true
 	nostar=true
-}
+	nobwa=true
+fi
 
 if [[ $GTF ]]; then
 	BASHBONE_ERROR="annotation file does not exists or is compressed $GTF"
@@ -105,32 +105,49 @@ else
 	readlink -e $GENOME.gtf | file -f - | grep -qF ASCII && {
 		GTF=$GENOME.gtf
 	} || {
-		BASHBONE_ERROR="annotation file missing"
-		! ${INDEX:=false}
-		commander::warn "gtf file missing. proceeding without quantification"
-		noquant=true
+		if ! ${BISULFITE:=false}; then # does not require gtf, even for indexing
+			if ${INDEX:=false}; then
+				commander::warn "gtf file missing. proceeding without star"
+				nostar=true
+			elif [[ $FUSIONS ]]; then
+				commander::warn "gtf file missing. proceeding without arriba"
+				noarr=true
+			elif [[ $tfq1 || $tmap ]]; then
+				commander::warn "gtf file missing. proceeding without gem"
+				nogem=true
+			else
+				commander::warn "gtf file missing. proceeding without quantification"
+				noquant=true
+			fi
+		fi
 	}
 fi
 
+if [[ $COMPARISONS ]]; then
+	for f in "${COMPARISONS[@]}"; do
+		BASHBONE_ERROR="experiment summary file for pairwise comparisons does not exists or is compressed $f"
+		readlink -e $f | file -f - | grep -qF ASCII
+	done
+fi
 
 checkfile(){
 	declare -n _idx=$2 _arr=$3
 	local f ifs
-	[[ $(readlink -e $1 | file -f - | grep ASCII) && -e $(readlink -e $(head -1 $1)) ]] && {
+	if [[ $(readlink -e $1 | file -f - | grep ASCII) && -e $(readlink -e $(head -1 $1)) ]]; then
 		ifs=$IFS
 		unset IFS
 		while read -r f; do
 			readlink -e $f &> /dev/null || return 1
-			_arr[((++i))]=$f
+			_arr[((++i))]=$(cd $(dirname $f); echo $PWD/$(basename $f))
 			_idx+=($i)
 		done < $1
 		IFS=$ifs
-	} || {
+	else
 		f=$1
 		readlink -e $f &> /dev/null || return 1
-		_arr[((++i))]=$f
+		_arr[((++i))]=$(cd $(dirname $f); echo $PWD/$(basename $f))
 		_idx+=($i)
-	}
+	fi
 	return 0
 }
 
@@ -205,9 +222,15 @@ else
 		${RIPSEQ:=false} || nosplit=true
 		BASHBONE_ERROR="peak calling pipeline failed"
 		progress::observe -v $VERBOSITY -o "$LOG" -f pipeline::callpeak
+	elif [[ $FUSIONS ]]; then
+			BASHBONE_ERROR="fusion detection pipeline failed"
+			progress::observe -v $VERBOSITY -o "$LOG" -f pipeline::fusions
+	elif ${BISULFITE:=false}; then
+			BASHBONE_ERROR="methylation analysis pipeline failed"
+			progress::observe -v $VERBOSITY -o "$LOG" -f pipeline::bs
 	else
-		BASHBONE_ERROR="expression analysis pipeline failed"
-		progress::observe -v $VERBOSITY -o "$LOG" -f pipeline::dea
+			BASHBONE_ERROR="expression analysis pipeline failed"
+			progress::observe -v $VERBOSITY -o "$LOG" -f pipeline::dea
 	fi
 fi
 unset BASHBONE_ERROR
