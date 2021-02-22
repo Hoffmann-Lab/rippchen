@@ -96,6 +96,26 @@ pipeline::_preprocess(){
 			-1 FASTQ1 \
 			-2 FASTQ2
 
+		${nomspi:=true} || {
+			qualdirs+=("$OUTDIR/qualities/mspicut")
+			bisulfite::mspicut \
+				-S ${nomspi:=false} \
+				-s ${Smspi:=false} \
+				-t $THREADS \
+				-d $DIVERSITY \
+				-o $OUTDIR/mspicut \
+				-1 FASTQ1 \
+				-2 FASTQ2
+			preprocess::fastqc \
+				-S ${noqual:=false} \
+				-s ${Squal:=false} \
+				-t $THREADS \
+				-o $OUTDIR/qualities/mspicut \
+				-p $TMPDIR \
+				-1 FASTQ1 \
+				-2 FASTQ2
+		}
+
 		${notrim:=false} || {
 			qualdirs+=("$OUTDIR/qualities/trimmed")
 			preprocess::trimmomatic \
@@ -123,6 +143,7 @@ pipeline::_preprocess(){
 				-s ${Sclip:=false} \
 				-t $THREADS \
 				-o $OUTDIR/polyntclipped \
+				-d $(${BISULFITE:=false} && echo false || echo true) \
 				-1 FASTQ1 \
 				-2 FASTQ2
 			preprocess::fastqc \
@@ -211,6 +232,7 @@ pipeline::_mapping(){
 				-1 FASTQ1 \
 				-2 FASTQ2 \
 				-o $OUTDIR/mapped \
+				-p $TMPDIR \
 				-t $THREADS \
 				-a $((100-DISTANCE)) \
 				-i ${INSERTSIZE:=200000} \
@@ -396,18 +418,18 @@ pipeline::bs(){
 		-o $OUTDIR/mecall \
 		-p $TMPDIR
 
-	${nomec:=false} && return 0
-
-	bisulfite::metilene \
-		-S ${nodma:=false} \
-		-s ${Sdma:=false} \
-		-t $THREADS \
-		-c COMPARISONS \
-		-m ${MISSING:=0.2} \
-		-r mapper \
-		-i $OUTDIR/mecall \
-		-o $OUTDIR/metilene \
-		-p $TMPDIR
+	if ! ${nomec:=false} && [[ $COMPARISONS ]]; then
+		bisulfite::metilene \
+			-S ${nodma:=false} \
+			-s ${Sdma:=false} \
+			-t $THREADS \
+			-c COMPARISONS \
+			-m ${MISSING:=0.2} \
+			-r mapper \
+			-i $OUTDIR/mecall \
+			-o $OUTDIR/metilene \
+			-p $TMPDIR
+	fi
 
 	return 0
 }
