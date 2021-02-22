@@ -51,10 +51,10 @@ options::usage() {
 		-g       | --genome [path]            : genome fasta input. without, only preprocessing is performed (see dlgenome.sh)
 		-gtf     | --gtf [path]               : annotation gtf input. default: [-g].gtf (see dlgenome.sh)
 		-x       | --index                    : create all requiered genome indices and md5 sums and exit. otherwise create necessary indices on the fly
-		                                        NOTE: use with -b|--bisulfite switch (see below) to create indices for bisulfite analysis
+		                                        NOTE: use with -b|--bisulfite WGBS switch (see below) to create indices for both, WGBS and RRBS analysis
 		-no-sege | --no-segemehl              : disables indexing for segemehl when used with -x
 		-no-star | --no-star                  : disables indexing for STAR when used with -x. use when indexing is applied on plug-n-play CTAT resource
-		                                        NOTE: md5sum of [-g].star.idx/SA file needs to be manually added to [-g].md5.sh file
+		                                        NOTE: md5sum of CTAT [-g].star.idx/SA file needs to be manually added to [-g].md5.sh file
 		-no-bwa  | --no-bwa                   : disables indexing for BWA when used with -x
 		-no-dsj  | --no-diffsplicejunctions   : disables indexing for splice junction analysis when used with -x
 
@@ -62,16 +62,18 @@ options::usage() {
 		-no-qual | --no-qualityanalysis       : disables read quality analysis
 		-no-trim | --no-trimming              : disables quality trimming
 		-no-clip | --no-clipping              : disables removal of poly N, mono- and di-nucleotide ends as well as adapter sequences when used with -a
-		-a1      | --adapter1 [string,..]     : adapter sequence(s). single or first pair. comma seperated (e.g. Illumina universal adapter AGATCGGAAGAGC)
-		-a2      | --adapter2 [string,..]     : adapter sequence(s). second pair. comma seperated (can be the same as -a1. no revere complement required)
+		-a1      | --adapter1 [string,..]     : adapter sequence(s) of single or first mate. comma seperated
+		-a2      | --adapter2 [string,..]     : adapter sequence(s) of mate pair. comma seperated (can be the same as [-a1]. no revere complement required)
 		-no-cor  | --no-correction            : disables majority based raw read error correction. recommended for bisulfite sequencing data
 		-no-rrm  | --no-rrnafilter            : disables rRNA filter
 		-no-stats| --no-statistics            : disables preprocessing statistics
 
 		FUSION DETECTION OPTIONS
 		-f       | --fusiondetection [string] : triggers gene fusion detection. use one of the accepted keywords [null|hg19|hg38|mm10]
-		-no-arr  | --no-arriba                : disables fusion detection by Arriba which requieres hg19|hg38|mm10 genome/gtf input (see -fusions, -g, -gtf)
-		-no-sfus | --no-starfusion            : disables fusion detection by STAR-Fusion which requires CTAT resource as genome/gtf input (see -g, -gtf)
+		-1       | --fq1 [path,..]            : fastq input - single or first mate, comma seperated or a file with all paths
+		-2       | --fq2 [path,..]            : fastq input. mate pair, comma seperated or a file with all paths
+		-no-arr  | --no-arriba                : disables fusion detection by Arriba which requieres hg19|hg38|mm10 genome/gtf input
+		-no-sfus | --no-starfusion            : disables fusion detection by STAR-Fusion which requires CTAT resource as genome/gtf input
 
 		ALIGNMENT OPTIONS
 		-d       | --distance                 : maximum read alignment edit distance in % - default: 5
@@ -86,14 +88,14 @@ options::usage() {
 		-no-stats| --no-statistics            : disables mapping statistics
 
 		PEAK CALLING OPTIONS
-		-n1      | --normal-fq1 [path,..]     : normal fastq input. single or first pair. comma seperated or a file with all paths
-		-n2      | --normal-fq2 [path,..]     : normal fastq input. second pair. comma seperated or a file with all paths
-		-nr1     | --normal-repfq1 [path,..]  : normal replicate fastq input. single or first pair, comma seperated or a file with all paths
-		-nr2     | --normal-repfq2 [path,..]  : normal replicate fastq input. second pair, comma seperated or a file with all paths
-		-t1      | --treat-fq1 [path,..]      : *IP-Seq fastq input. single or first pair. comma seperated or a file with all paths
-		-t2      | --treat-fq2 [path,..]      : *IP-Seq fastq input. second pair. comma seperated or a file with all paths
-		-tr1     | --treat-repfq1 [path,..]   : *IP-Seq replicate fastq input. single or first pair. comma seperated or a file with all paths
-		-tr2     | --treat-repfq2 [path,..]   : *IP-Seq replicate fastq input. second pair. comma seperated or a file with all paths
+		-n1      | --normal-fq1 [path,..]     : normal fastq input. single or first mate. comma seperated or a file with all paths
+		-n2      | --normal-fq2 [path,..]     : normal fastq input. mate pair. comma seperated or a file with all paths
+		-nr1     | --normal-repfq1 [path,..]  : normal replicate fastq input. single or first mate, comma seperated or a file with all paths
+		-nr2     | --normal-repfq2 [path,..]  : normal replicate fastq input. mate pair, comma seperated or a file with all paths
+		-t1      | --treat-fq1 [path,..]      : *IP-Seq fastq input. single or first mate. comma seperated or a file with all paths
+		-t2      | --treat-fq2 [path,..]      : *IP-Seq fastq input. mate pair. comma seperated or a file with all paths
+		-tr1     | --treat-repfq1 [path,..]   : *IP-Seq replicate fastq input. single or first mate. comma seperated or a file with all paths
+		-tr2     | --treat-repfq2 [path,..]   : *IP-Seq replicate fastq input. mate pair. comma seperated or a file with all paths
 		-nm      | --normal-map [path,..]     : normal SAM/BAM input. comma seperated or a file with all paths (replaces fastq input)
 		-nrm     | --normal-repmap [path,..]  : normal replicate SAM/BAM input. comma seperated or a file with all paths (replaces fastq input)
 		-tm      | --treat-map [path,..]      : *IP-Seq SAM/BAM input. comma seperated or a file with all paths (replaces fastq input)
@@ -104,6 +106,7 @@ options::usage() {
 		-no-rmd  | --no-removeduplicates      : disables removing duplicates - not recommended unless reads were mapped on a transcriptome
 		-rx      | --regex [string]           : regex of read name identifier with grouped tile information - default: \S+:(\d+):(\d+):(\d+).*
 		                                        NOTE: necessary for successful optical deduplication. to disable or if unavailable, set to null
+		-cmo     | --clipmateoverlaps         : enable clipping of read mate overlaps
 		-no-macs | --no-macs                  : disables peak calling by macs
 		-no-gem  | --no-gem                   : disables peak calling by gem
 		-no-peaka| --no-peakachu              : disables peak calling by peakachu
@@ -112,8 +115,8 @@ options::usage() {
 		-s-gem   | --strict-gem               : use a more strict gem parameterization - an alternative to IDR results
 
 		DIFFERENTIAL ANALYSIS OPTIONS
-		-1       | --fq1 [path,..]            : fastq input - single or first pair, comma seperated or a file with all paths
-		-2       | --fq2 [path,..]            : fastq input. second pair, comma seperated or a file with all paths
+		-1       | --fq1 [path,..]            : fastq input - single or first mate, comma seperated or a file with all paths
+		-2       | --fq2 [path,..]            : fastq input. mate pair, comma seperated or a file with all paths
 		-m       | --mapped [path,..]         : SAM/BAM input - comma seperated or a file with all paths (replaces fastq input)
 		-mn      | --mapper-name [string]     : name to use for output subdirectories in case of SAM/BAM input - default: custom
 		-c       | --comparisons [path,..]    : experiment summary file(s) for pairwise analyses according to condition column (primary factor)
@@ -138,18 +141,20 @@ options::usage() {
 		                                        output: wt_vs_tr (N=2 vs N=4)
 
 		DIFFERENTIAL METHYLATION ANALYSIS OPTIONS
-		-b       | --bisulfite                : triggers differential methylation analysis
-		-no-rmd  | --no-removeduplicates      : disables removing duplicates - recommended for RRBS-Seq analyses
+		-b       | --bisulfite [string|value] : triggers methylation analysis. use keyword WGBS or length of RRBS diversity adapters (0 if none)
+		                                        NOTE: applies -no-cor and -no-rrm
+		-rmd     | --removeduplicates         : in case of RRBS, enable removing duplicates
+		-no-rmd  | --no-removeduplicates      : in case of WGBS, disables removing duplicates
 		-rx      | --regex [string]           : regex of read name identifier with grouped tile information - default: \S+:(\d+):(\d+):(\d+)\s*.*
 		                                        NOTE: necessary for successful optical deduplication. to disable or if unavailable, set to null
 		-no-cmo  | --no-clipmateoverlaps      : disables clipping of read mate overlaps
 		-no-mec  | --no-mecall                : disables calling of methylated Cs plus downstream analyses
 		-no-dma  | --no-diffmeanalysis        : disables differential CpG methylation analysis
-		-md      | --missingdata              : allow for missing data points per condition CpG replicates in %/100 - default: 0.2
+		-md      | --missingdata              : allow for missing CpG data points in %/100 per condition (see -c) - default: 0.2
 
 
 		DIFFERENTIAL EXPRESSION ANALYSIS OPTIONS
-		-rmd     | --removeduplicates         : enable removing duplicates - not recommended
+		-rmd     | --removeduplicates         : enable removing duplicates
 		-rx      | --regex [string]           : regex of read name identifier with grouped tile information - default: \S+:(\d+):(\d+):(\d+)\s*.*
 		                                        NOTE: necessary for successful optical deduplication. to disable or if unavailable, set to null
 		-cmo     | --clipmateoverlaps         : enable clipping of read mate overlaps
@@ -303,7 +308,7 @@ options::checkopt (){
 
 		-c        | --comparisons) arg=true; mapfile -t -d ',' COMPARISONS < <(printf '%s' "$2");;
 
-		-b        | --bisulfite) BISULFITE=true;;
+		-b        | --bisulfite) arg=true; BISULFITE=true; DIVERSITY=$2; nocor=true; norrm=true; [[ $2 == "WGBS" ]] && normd=${normd:-false} || { normd=${normd:-true}; nomspi=false; };;
 		-no-mec   | --no-mecall) nomec=true;;
 		-no-dma   | --no-diffmeanalysis) nodma=true;;
 		-md       | --missingdata) arg=true; MISSING=$2;;
@@ -335,7 +340,7 @@ options::checkopt (){
 options::resume(){
 	local s enable=false
 	# don't Smd5, Sslice !
-	for s in qual trim clip cor rrm arr sfus sege star bwa uniq sort rep rmd cmo idx stats macs gem peaka m6a mec dma quant tpm dsj dea join clust go; do
+	for s in qual mspi trim clip cor rrm arr sfus sege star bwa uniq sort rep rmd cmo idx stats macs gem peaka m6a mec dma quant tpm dsj dea join clust go; do
 		eval "\${S$s:=true}" # unless S$s already set to false by -redo, do skip
 		$enable || [[ "$1" == "$s" ]] && {
 			enable=true
@@ -349,7 +354,7 @@ options::skip(){
 	declare -a mapdata
 	mapfile -t -d ',' mapdata < <(printf '%s' "$1")
 	for x in "${mapdata[@]}"; do
-		for s in md5 qual trim clip cor rrm arr sfus sege star bwa uniq sort rep slice rmd cmo idx stats macs gem peaka m6a mec dma quant tpm dsj dea join clust go; do
+		for s in md5 qual mspi trim clip cor rrm arr sfus sege star bwa uniq sort rep slice rmd cmo idx stats macs gem peaka m6a mec dma quant tpm dsj dea join clust go; do
 			[[ "$x" == "$s" ]] && eval "S$s=true"
 		done
 	done
@@ -359,11 +364,11 @@ options::redo(){
 	local x s
 	declare -a mapdata
 	mapfile -t -d ',' mapdata < <(printf '%s' "$1")
-	for s in qual trim clip cor rrm arr sfus sege star bwa uniq sort rep rmd cmo idx stats macs gem peaka m6a mec dma quant tpm dsj dea join clust go; do
+	for s in qual mspi trim clip cor rrm arr sfus sege star bwa uniq sort rep rmd cmo idx stats macs gem peaka m6a mec dma quant tpm dsj dea join clust go; do
 		eval "\${S$s:=true}" # unless (no|S)$s alredy set to false by -resume, do skip
 	done
 	for x in "${mapdata[@]}"; do
-		for s in qual trim clip cor rrm arr sfus sege star bwa uniq sort rep rmd cmo idx stats macs gem peaka m6a mec dma quant tpm dsj dea join clust go; do
+		for s in qual mspi trim clip cor rrm arr sfus sege star bwa uniq sort rep rmd cmo idx stats macs gem peaka m6a mec dma quant tpm dsj dea join clust go; do
 			[[ "$x" == "$s" ]] && eval "S$s=false"
 		done
 	done
