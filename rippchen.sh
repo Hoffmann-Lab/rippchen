@@ -214,23 +214,23 @@ if ${INDEX:=false}; then
 	BASHBONE_ERROR="indexing failed"
 	progress::observe -v $VERBOSITY -o "$LOG" -f pipeline::index
 else
-	[[ ${#nidx[@]} -lt 2 && "$noclust" != "true" ]] && {
-		commander::warn "too few samples. proceeding without clustering"
-		noclust=true
-	}
 	if [[ $tfq1 || $tmap ]]; then
 		${RIPSEQ:=false} || nosplit=true
 		BASHBONE_ERROR="peak calling pipeline failed"
 		progress::observe -v $VERBOSITY -o "$LOG" -f pipeline::callpeak
 	elif [[ $FUSIONS ]]; then
-			BASHBONE_ERROR="fusion detection pipeline failed"
-			progress::observe -v $VERBOSITY -o "$LOG" -f pipeline::fusions
+		BASHBONE_ERROR="fusion detection pipeline failed"
+		progress::observe -v $VERBOSITY -o "$LOG" -f pipeline::fusions
 	elif ${BISULFITE:=false}; then
-			BASHBONE_ERROR="methylation analysis pipeline failed"
-			progress::observe -v $VERBOSITY -o "$LOG" -f pipeline::bs
+		BASHBONE_ERROR="methylation analysis pipeline failed"
+		progress::observe -v $VERBOSITY -o "$LOG" -f pipeline::bs
 	else
-			BASHBONE_ERROR="expression analysis pipeline failed"
-			progress::observe -v $VERBOSITY -o "$LOG" -f pipeline::dea
+		[[ ${#nidx[@]} -lt 2 && "$noclust" != "true" ]] && {
+			commander::warn "too few samples. proceeding without clustering"
+			noclust=true
+		}
+		BASHBONE_ERROR="expression analysis pipeline failed"
+		progress::observe -v $VERBOSITY -o "$LOG" -f pipeline::dea
 	fi
 fi
 unset BASHBONE_ERROR
