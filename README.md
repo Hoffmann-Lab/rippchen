@@ -62,22 +62,15 @@ rippchen.sh -h
 ## Full installation from scratch
 
 ```bash
-setup -i all -d <path/to/installation>
+./setup.sh -i all -d <path/to/installation>
 source <path/of/installation/latest/rippchen/activate.sh>
 rippchen.sh -h
 ```
 
-## In case bashbone was previously installed
-```bash
-setup.sh -i rippchen -d <path/to/bashbone/installation>
-source <path/of/bashbone/installation/latest/rippchen/activate.sh>
-rippchen.sh -h
-```
-
-### Upgrade to a newer release (sources only)
+### Upgrade to a new release or if bashbone was previously installed
 
 ```bash
-setup.sh -i upgrade -d <path/of/installation>
+./setup.sh -i upgrade -d <path/of/installation>
 source <path/of/installation/latest/rippchen/activate.sh>
 rippchen.sh -h
 ```
@@ -87,13 +80,13 @@ rippchen.sh -h
 The setup routine will always install the latest software via conda, which can be updated by running the related setup functions again.
 
 ```bash
-setup -i conda_tools -d <path/of/installation>
+./setup.sh -i conda_tools -d <path/of/installation>
 ```
 
 Trimmomatic, segemehl, STAR-Fusion and GEM will be installed next to the conda environments. If new releases are available, they will be automatically fetched and installed upon running the related setup functions again.
 
 ```bash
-setup -i trimmomatic,segemehl,starfusion,gem -d <path/of/installation>
+./setup.sh -i trimmomatic,segemehl,starfusion,gem -d <path/of/installation>
 ```
 
 # Usage
@@ -206,16 +199,23 @@ rippchen.sh -v 2 -t <threads> -g <fasta> -gtf <gtf> -o <outdir> -l <logfile> -tm
 -1 <fastq> [-2 <fastq>]
 ```
 
-Data pre-processing with Illumina universal adapter removal, mapping by segemehl and STAR and alignment post-processing (i.e. unique read extraction, sorting, indexing). More sequences can be found via Illumina Adapter Sequences Document (<https://www.illumina.com/search.html?q=Illumina Adapter Sequences Document&filter=manuals&p=1>), the resource of Trimmomatic (<https://github.com/timflutre/trimmomatic/tree/master/adapters>), FastQC respectively (<https://github.com/s-andrews/FastQC/blob/master/Configuration/contaminant_list.txt>).
-<br>
-Nextera Transposase Sequence: CTGTCTCTTATACACATCT
-<br>
-Illumina Universal Adapter: ATGTGTATAAGAGACA
+Data pre-processing with Illumina universal adapter removal, mapping by segemehl and STAR and alignment post-processing (i.e. unique read extraction, sorting, indexing). Sequences can be found in the Illumina Adapter Sequences Document (<https://www.illumina.com/search.html?q=Illumina Adapter Sequences Document>) and the resource of Trimmomatic (<https://github.com/timflutre/trimmomatic/tree/master/adapters>), FastQC respectively (<https://github.com/s-andrews/FastQC/blob/master/Configuration>).
+
+The following excerpt is independent of the indexing type, i.e. single, unique dual (UD) or combinatorial dual (CD).
+
+Nextera (Transposase Sequence), TruSight, AmpliSeq, stranded total/mRNA Prep, Ribo-Zero Plus: CTGTCTCTTATACACATCT
+
+TruSeq (Universal) Adapter with A prefix due to 3' primer A-tailing : AGATCGGAAGAGC
+
+      - full DNA & RNA - R1: AGATCGGAAGAGCACACGTCTGAACTCCAGTCA R2: AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT
+      - full DNA MethC - R1: AGATCGGAAGAGCACACGTCTGAAC R2: AGATCGGAAGAGCGTCGTGTAGGGA
+
+TruSeq Small RNA: TGGAATTCTCGGGTGCCAAGG
 
 ```bash
 source <path/of/installation/latest/rippchen/activate.sh>
 rippchen.sh -v 2 -t <threads> -g <fasta> -gtf <gtf> -o <outdir> -l <logfile> -tmp <tmpdir> \
--1 <fastq> [-2 <fastq>] -a1 AGATCGGAAGAG [-a2 AGATCGGAAGAG]
+-1 <fastq> [-2 <fastq>] -a1 AGATCGGAAGAGC [-a2 AGATCGGAAGAGC]
 ```
 
 Data pre-processing, mapping by segemehl and STAR and disabled post-processing (i.e. unique read extraction, sorting, indexing).
@@ -360,6 +360,7 @@ rippchen.sh [...] -redo quant,tpm
 | Rcorrector    | <https://github.com/mourisl/Rcorrector>                             | 10.1186/s13742-015-0089-y |
 | ReSeqC        | <http://rseqc.sourceforge.net>                                      | 10.1093/bioinformatics/bts356 |
 | REVIGO        | <https://code.google.com/archive/p/revigo-standalone>               | 10.1371/journal.pone.0021800 |
+| SAMtools      | <http://www.htslib.org/doc/samtools.html>                           | 10.1093/bioinformatics/btp352 |
 | segemehl      | <http://www.bioinf.uni-leipzig.de/Software/segemehl>                | 10.1186/gb-2014-15-2-r34 <br> 10.1371/journal.pcbi.1000502 |
 | SortMeRNA     | <https://bioinfo.lifl.fr/RNA/sortmerna>                             | 10.1093/bioinformatics/bts611 |
 | STAR          | <https://github.com/alexdobin/STAR>                                 | 10.1093/bioinformatics/bts635 |
