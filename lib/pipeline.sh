@@ -73,6 +73,7 @@ pipeline::_slice(){
 		-s ${Sslice:-$2} \
 		-t $THREADS \
 		-m $MEMORY \
+		-M $MAXMEMORY \
 		-r mapper \
 		-c slicesinfo \
 		-p $TMPDIR
@@ -194,7 +195,6 @@ pipeline::_preprocess(){
 				-S ${norrm:=false} \
 				-s ${Srrm:=false} \
 				-t $THREADS \
-				-m $MEMORY \
 				-o $OUTDIR/rrnafiltered \
 				-p $TMPDIR \
 				-1 FASTQ1 \
@@ -375,6 +375,7 @@ pipeline::bs(){
 		-s ${Srmd:=false} \
 		-t $THREADS \
 		-m $MEMORY \
+		-M $MAXMEMORY \
 		-r mapper \
 		-c slicesinfo \
 		-x "$REGEX" \
@@ -388,6 +389,7 @@ pipeline::bs(){
 		-s ${Scmo:=false} \
 		-t $THREADS \
 		-m $MEMORY \
+		-M $MAXMEMORY \
 		-r mapper \
 		-c slicesinfo \
 		-o $OUTDIR/mapped
@@ -455,6 +457,7 @@ pipeline::dea(){
 		-s ${Srmd:=false} \
 		-t $THREADS \
 		-m $MEMORY \
+		-M $MAXMEMORY \
 		-r mapper \
 		-c slicesinfo \
 		-x "$REGEX" \
@@ -468,6 +471,7 @@ pipeline::dea(){
 		-s ${Scmo:=false} \
 		-t $THREADS \
 		-m $MEMORY \
+		-M $MAXMEMORY \
 		-r mapper \
 		-c slicesinfo \
 		-o $OUTDIR/mapped
@@ -562,7 +566,7 @@ pipeline::dea(){
 			-b ${CLUSTERBIOTYPE:="."} \
 			-g $GTF \
 			-t $THREADS \
-			-m $MEMORY \
+			-M $MAXMEMORY \
 			-r mapper \
 			-c COMPARISONS \
 			-l coexpressions \
@@ -588,7 +592,7 @@ pipeline::dea(){
 			-b ${CLUSTERBIOTYPE:="."} \
 			-g $GTF \
 			-t $THREADS \
-			-m $MEMORY \
+			-M $MAXMEMORY \
 			-r mapper \
 			-l coexpressions \
 			-i $OUTDIR/counted \
@@ -641,6 +645,7 @@ pipeline::callpeak() {
 		-s ${Srmd:=false} \
 		-t $THREADS \
 		-m $MEMORY \
+		-M $MAXMEMORY \
 		-r mapper \
 		-c slicesinfo \
 		-x "$REGEX" \
@@ -654,6 +659,7 @@ pipeline::callpeak() {
 		-s ${Scmo:=false} \
 		-t $THREADS \
 		-m $MEMORY \
+		-M $MAXMEMORY \
 		-r mapper \
 		-c slicesinfo \
 		-o $OUTDIR/mapped
@@ -689,6 +695,7 @@ pipeline::callpeak() {
 		-r mapper \
 		-t $THREADS \
 		-m $MEMORY \
+		-M $MAXMEMORY \
 		-p $TMPDIR \
 		-o $OUTDIR/peaks \
 		-z ${STRICTMACS:=false}
@@ -717,6 +724,7 @@ pipeline::callpeak() {
 		-x strandness \
 		-t $THREADS \
 		-m $MEMORY \
+		-M $MAXMEMORY \
 		-p $TMPDIR \
 		-o $OUTDIR/peaks \
 		-z ${STRICTGEM:=false}
