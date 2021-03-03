@@ -19,7 +19,7 @@ compile::all(){
 	compile::gem -i "$insdir" -t $threads
 	compile::m6aviewer -i "$insdir" -t $threads
 	compile::idr -i "$insdir" -t $threads
-	compile::mdless
+	compile::mdless -i "$insdir" -t $threads
 
 	return 0
 }
