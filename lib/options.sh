@@ -37,9 +37,10 @@ options::usage() {
 		-tmp     | --tmp                      : temporary directory. default: $TMPDIR/rippchen.XXXXXXXXXX
 		-r       | --remove                   : remove temporary and unnecessary files upon succesful termination
 		-t       | --threads [value]          : number of threads. default: $THREADS
-		-mem     | --memory [value]           : expected picard memory usage of a bam slice. determines number of slices and thus parallel instances
-		                                        default: 30000 (allows for $MTHREADS instances using $MAXMEMORY MB currently available memory)
+		-mem     | --memory [value]           : expected memory comsumption processing a bam slice. determines number of slices and parallel instances
+		                                        default: $MEMORY (allows for $MTHREADS instances using $MAXMEMORY MB of currently available memory)
 		                                        NOTE: needs to be raised in case of GCThreads, HeapSize or OutOfMemory errors
+		-xmem    | --max-memory [value]       : total amount of allocatable memory. default: $MAXMEMORY MB i.e. currently available memory
 
 		ADVANCED OPTIONS
 		-dev     | --devel                    : prints list of keywords in processing order for advanced pipeline control
@@ -76,12 +77,12 @@ options::usage() {
 		-no-sfus | --no-starfusion            : disables fusion detection by STAR-Fusion which requires CTAT resource as genome/gtf input
 
 		ALIGNMENT OPTIONS
-		-d       | --distance                 : maximum read alignment edit distance in % - default: 5
+		-d       | --distance                 : maximum read alignment edit distance in %. default: 5
 		-i       | --insertsize               : maximum allowed insert for aligning mate pairs. default: 200000
 		-no-split| --no-split                 : disables split read mapping. triggers additional mapping by BWA
 		-no-sege | --no-segemehl              : disables mapping by segemehl
 		-no-star | --no-star                  : disables mapping by STAR
-		-no-bwa  | --no-bwa                   : disables mapping by BWA, when -no-split is used - default: no BWA mapping
+		-no-bwa  | --no-bwa                   : disables mapping by BWA, when -no-split is used. default: no BWA mapping
 		-no-uniq | --no-uniqify               : disables extraction of properly paired and uniquely mapped reads
 		-no-sort | --no-sort                  : disables sorting alignments
 		-no-idx  | --no-index                 : disables indexing alignments
@@ -100,11 +101,11 @@ options::usage() {
 		-nrm     | --normal-repmap [path,..]  : normal replicate SAM/BAM input. comma seperated or a file with all paths (replaces fastq input)
 		-tm      | --treat-map [path,..]      : *IP-Seq SAM/BAM input. comma seperated or a file with all paths (replaces fastq input)
 		-trm     | --treat-repmap [path,..]   : *IP-Seq replicate SAM/BAM input. comma seperated or a file with all paths (replaces fastq input)
-		-mn      | --mapper-name [string]     : name to use for output subdirectories in case of SAM/BAM input - default: custom
-		-rip     | --rna-ip                   : switch type of *IP-Seq experiment to RNA based *IP-Seq (e.g. meRIP, m6A, CLIP) - default: ChIP
-		-fs      | --fragmentsize [value]     : estimated size of sequenced fragments - default: 200
+		-mn      | --mapper-name [string]     : name to use for output subdirectories in case of SAM/BAM input. default: custom
+		-rip     | --rna-ip                   : switch type of *IP-Seq experiment to RNA based *IP-Seq (e.g. meRIP, m6A, CLIP). default: ChIP
+		-fs      | --fragmentsize [value]     : estimated size of sequenced fragments. default: 200
 		-no-rmd  | --no-removeduplicates      : disables removing duplicates - not recommended unless reads were mapped on a transcriptome
-		-rx      | --regex [string]           : regex of read name identifier with grouped tile information - default: \S+:(\d+):(\d+):(\d+).*
+		-rx      | --regex [string]           : regex of read name identifier with grouped tile information. default: \S+:(\d+):(\d+):(\d+).*
 		                                        NOTE: necessary for successful optical deduplication. to disable or if unavailable, set to null
 		-cmo     | --clipmateoverlaps         : enable clipping of read mate overlaps
 		-no-macs | --no-macs                  : disables peak calling by macs
@@ -118,7 +119,7 @@ options::usage() {
 		-1       | --fq1 [path,..]            : fastq input - single or first mate, comma seperated or a file with all paths
 		-2       | --fq2 [path,..]            : fastq input. mate pair, comma seperated or a file with all paths
 		-m       | --mapped [path,..]         : SAM/BAM input - comma seperated or a file with all paths (replaces fastq input)
-		-mn      | --mapper-name [string]     : name to use for output subdirectories in case of SAM/BAM input - default: custom
+		-mn      | --mapper-name [string]     : name to use for output subdirectories in case of SAM/BAM input. default: custom
 		-c       | --comparisons [path,..]    : experiment summary file(s) for pairwise analyses according to condition column (primary factor)
 		                                        format: 4 or more columns, seperated by tab or space(s)
 		                                          sample   condition   [single-end|paired-end]   replicate   [factor1   factor2   ..]
@@ -145,28 +146,28 @@ options::usage() {
 		                                        NOTE: applies -no-cor and -no-rrm
 		-rmd     | --removeduplicates         : in case of RRBS, enable removing duplicates
 		-no-rmd  | --no-removeduplicates      : in case of WGBS, disables removing duplicates
-		-rx      | --regex [string]           : regex of read name identifier with grouped tile information - default: \S+:(\d+):(\d+):(\d+)\s*.*
+		-rx      | --regex [string]           : regex of read name identifier with grouped tile information. default: \S+:(\d+):(\d+):(\d+)\s*.*
 		                                        NOTE: necessary for successful optical deduplication. to disable or if unavailable, set to null
 		-no-cmo  | --no-clipmateoverlaps      : disables clipping of read mate overlaps
 		-no-mec  | --no-mecall                : disables calling of methylated Cs plus downstream analyses
 		-no-dma  | --no-diffmeanalysis        : disables differential CpG methylation analysis
-		-md      | --missingdata              : allow for missing CpG data points in %/100 per condition (see -c) - default: 0.2
+		-md      | --missingdata              : allow for missing CpG data points in %/100 per condition (see -c). default: 0.2
 
 
 		DIFFERENTIAL EXPRESSION ANALYSIS OPTIONS
 		-rmd     | --removeduplicates         : enable removing duplicates
-		-rx      | --regex [string]           : regex of read name identifier with grouped tile information - default: \S+:(\d+):(\d+):(\d+)\s*.*
+		-rx      | --regex [string]           : regex of read name identifier with grouped tile information. default: \S+:(\d+):(\d+):(\d+)\s*.*
 		                                        NOTE: necessary for successful optical deduplication. to disable or if unavailable, set to null
 		-cmo     | --clipmateoverlaps         : enable clipping of read mate overlaps
 		-no-quant| --no-quantification        : disables per feature read quantification and TPM calculation plus downstream analyses
-		-ql      | --quantifylevel            : switch to other feature type for quantification - default: exon
+		-ql      | --quantifylevel            : switch to other feature type for quantification. default: exon
 		                                        NOTE: quantifying using a different feature will break differential expression analysis
-		-qt      | --quantifytag              : switch to other feature tag for quantification - default: gene_id
+		-qt      | --quantifytag              : switch to other feature tag for quantification. default: gene_id
 		-no-dsj  | --no-diffsplicejunctions   : disables differential splice junction analysis
 		-no-dea  | --no-diffexanalysis        : disables differential feature expression analysis plus downstream analyses
 		-no-go   | --no-geneontology          : disables gene ontology enrichment analyses for differentially expressed features and co-expression clusters
 		-no-clust| --no-clustering            : disables feature co-expression clustering
-		-cf      | --clusterfilter [value]    : decide for a set of features by to be clustered for co-expression - default: 0
+		-cf      | --clusterfilter [value]    : decide for a set of features by to be clustered for co-expression. default: 0
 		                                        0 - padj <= 0.05 in at least one comparison defined in experiment summary file (see -c)
 		                                        	to take effect, this filter requires upstream performed differential expression analysis
 		                                        1 - log2foldchange difference >= 0.5 in at least one comparison defined in experiment summary file (see -c)
@@ -177,7 +178,7 @@ options::usage() {
 		                                        	- upstream performed quantification and TPM calculation
 		                                        3 - discard features within the lower 30% percentile of expression values
 		                                        NOTE: filter values can be combined. e.g 01 (equals 10) or 023 or ..
-		-cb      | --clusterbiotype [string]  : regex of features with a gene_(bio)type tag (see -gtf) to be clustered - default: .
+		-cb      | --clusterbiotype [string]  : regex of features with a gene_(bio)type tag (see -gtf) to be clustered. default: .
 
 		REFERENCES
 		(c) Konstantin Riege
@@ -247,6 +248,7 @@ options::checkopt (){
 		-v        | --verbosity) arg=true; VERBOSITY=$2;;
 		-t        | --threads) arg=true; THREADS=$2;;
 		-mem      | --memory) arg=true; MEMORY=$2;;
+		-xmem     | --max-memory) arg=true; MAXMEMORY=$2;;
 
 		-x        | --index) INDEX=true;;
 		-g        | --genome) arg=true; GENOME=$2;;
