@@ -44,7 +44,7 @@ Copyleft (C) 2020, Konstantin Riege
 This will download you a copy which includes the latest developments
 
 ```bash
-git clone --recursive https://github.com/koriege/rippchen.git
+git clone --recursive https://github.com/Hoffmann-Lab/rippchen
 ```
 
 To check out the latest release (irregularly compiled) do
