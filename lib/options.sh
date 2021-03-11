@@ -60,14 +60,16 @@ options::usage() {
 		-no-dsj  | --no-diffsplicejunctions   : disables indexing for splice junction analysis when used with -x
 
 		PREPROCESSING OPTIONS
-		-no-qual | --no-qualityanalysis       : disables read quality analysis
-		-no-trim | --no-trimming              : disables quality trimming
+		-no-qual | --no-qualityanalysis       : disables intermediate read quality analyses
+		                                        NOTE: if -no-qual and unless -no-stats option, faster bulk quality analyses will be performed
+		-no-trim | --no-trimming              : disables quality trimming utilizing a conservative sliding window approach and simple 5' clipping
 		-no-clip | --no-clipping              : disables removal of poly N, mono- and di-nucleotide ends as well as adapter sequences when used with -a
+		                                      : NOTE: clipping includes simple 3' quality trimming anyways
 		-a1      | --adapter1 [string,..]     : adapter sequence(s) of single or first mate. comma seperated
 		-a2      | --adapter2 [string,..]     : adapter sequence(s) of mate pair. comma seperated (can be the same as [-a1]. no revere complement required)
 		-no-cor  | --no-correction            : disables majority based raw read error correction. recommended for bisulfite sequencing data
 		-no-rrm  | --no-rrnafilter            : disables rRNA filter
-		-no-stats| --no-statistics            : disables preprocessing statistics
+		-no-stats| --no-statistics            : disables preprocessing statistics from read quality analyses
 
 		FUSION DETECTION OPTIONS
 		-f       | --fusiondetection [string] : triggers gene fusion detection. use one of the accepted keywords [null|hg19|hg38|mm10]
@@ -83,10 +85,12 @@ options::usage() {
 		-no-sege | --no-segemehl              : disables mapping by segemehl
 		-no-star | --no-star                  : disables mapping by STAR
 		-no-bwa  | --no-bwa                   : disables mapping by BWA, when -no-split is used. default: no BWA mapping
+		-no-qual | --no-qualityanalysis       : disables intermediate alignment quality analyses
+		                                        NOTE: if -no-qual and unless -no-stats option, faster bulk quality analyses will be performed
 		-no-uniq | --no-uniqify               : disables extraction of properly paired and uniquely mapped reads
 		-no-sort | --no-sort                  : disables sorting alignments
 		-no-idx  | --no-index                 : disables indexing alignments
-		-no-stats| --no-statistics            : disables mapping statistics
+		-no-stats| --no-statistics            : disables mapping statistics from alignment quality analyses
 
 		PEAK CALLING OPTIONS
 		-n1      | --normal-fq1 [path,..]     : normal fastq input. single or first mate. comma seperated or a file with all paths
@@ -107,11 +111,11 @@ options::usage() {
 		-no-rmd  | --no-removeduplicates      : disables removing duplicates - not recommended unless reads were mapped on a transcriptome
 		-rx      | --regex [string]           : regex of read name identifier with grouped tile information. default: \S+:(\d+):(\d+):(\d+).*
 		                                        NOTE: necessary for successful optical deduplication. to disable or if unavailable, set to null
-		-cmo     | --clipmateoverlaps         : enable clipping of read mate overlaps
+		-cmo     | --clipmateoverlaps         : enables clipping of read mate overlaps
 		-no-macs | --no-macs                  : disables peak calling by macs
 		-no-gem  | --no-gem                   : disables peak calling by gem
 		-no-peaka| --no-peakachu              : disables peak calling by peakachu
-		-m6a     | --m6aviewer                : enable peak calling by m6aviewer - requieres user interaction
+		-m6a     | --m6aviewer                : enables peak calling by m6aviewer - requieres user interaction
 		-s-macs  | --strict-macs              : use a more strict macs parameterization - an alternative to IDR results
 		-s-gem   | --strict-gem               : use a more strict gem parameterization - an alternative to IDR results
 
@@ -144,7 +148,8 @@ options::usage() {
 		DIFFERENTIAL METHYLATION ANALYSIS OPTIONS
 		-b       | --bisulfite [string|value] : triggers methylation analysis. use keyword WGBS or length of RRBS diversity adapters (0 if none)
 		                                        NOTE: applies -no-cor and -no-rrm
-		-rmd     | --removeduplicates         : in case of RRBS, enable removing duplicates
+		-no-mspi | --no-mspiselection         : in case of RRBS, disables selection of MspI digested reads (use in case of multi-digestion enzymes)
+		-rmd     | --removeduplicates         : in case of RRBS, enables removing duplicates
 		-no-rmd  | --no-removeduplicates      : in case of WGBS, disables removing duplicates
 		-rx      | --regex [string]           : regex of read name identifier with grouped tile information. default: \S+:(\d+):(\d+):(\d+)\s*.*
 		                                        NOTE: necessary for successful optical deduplication. to disable or if unavailable, set to null
@@ -155,10 +160,10 @@ options::usage() {
 
 
 		DIFFERENTIAL EXPRESSION ANALYSIS OPTIONS
-		-rmd     | --removeduplicates         : enable removing duplicates
+		-rmd     | --removeduplicates         : enables removing duplicates
 		-rx      | --regex [string]           : regex of read name identifier with grouped tile information. default: \S+:(\d+):(\d+):(\d+)\s*.*
 		                                        NOTE: necessary for successful optical deduplication. to disable or if unavailable, set to null
-		-cmo     | --clipmateoverlaps         : enable clipping of read mate overlaps
+		-cmo     | --clipmateoverlaps         : enables clipping of read mate overlaps
 		-no-quant| --no-quantification        : disables per feature read quantification and TPM calculation plus downstream analyses
 		-ql      | --quantifylevel            : switch to other feature type for quantification. default: exon
 		                                        NOTE: quantifying using a different feature will break differential expression analysis
@@ -194,9 +199,10 @@ options::developer() {
 
 		DEVELOPER OPTIONS
 		md5   : check for md5sums and if necessary trigger genome indexing
-		qual  : quality analysis for input and trim, clip, cor, rrm
+		fqual : quality analysis for input, trim, clip, cor, rrm
+		mspi  : mspi cutting site selection
 		trim  : trimming
-		clip  : adapter clipping
+		clip  : adapter clipping (& simple trimming)
 		cor   : raw read correction
 		rrm   : rRNA filtering
 
@@ -206,6 +212,7 @@ options::developer() {
 		sege  : segemehl mapping
 		star  : STAR mapping
 		bwa   : BWA mapping
+		mqual : mapping, uniq, rmd, cmo
 
 		uniq  : extraction of properly paired and uniquely mapped reads
 		sort  : sorting and indexing of sam/bam files
@@ -310,7 +317,8 @@ options::checkopt (){
 
 		-c        | --comparisons) arg=true; mapfile -t -d ',' COMPARISONS < <(printf '%s' "$2");;
 
-		-b        | --bisulfite) arg=true; BISULFITE=true; DIVERSITY=$2; nocor=true; norrm=true; [[ $2 == "WGBS" ]] && normd=${normd:-false} || { normd=${normd:-true}; nomspi=false; };;
+		-b        | --bisulfite) arg=true; DIVERSITY=$2; BISULFITE=true; RRBS=false; nocor=true; norrm=true; [[ "$DIVERSITY" == "WGBS" ]] && { RRBS=false; normd=${normd:-false}; } || { RRBS=true; normd=${normd:-true}; };;
+		-no-mspi  | --no-mspiselection) nomspi=true;;
 		-no-mec   | --no-mecall) nomec=true;;
 		-no-dma   | --no-diffmeanalysis) nodma=true;;
 		-md       | --missingdata) arg=true; MISSING=$2;;
@@ -342,7 +350,7 @@ options::checkopt (){
 options::resume(){
 	local s enable=false
 	# don't Smd5, Sslice !
-	for s in qual mspi trim clip cor rrm arr sfus sege star bwa uniq sort rep rmd cmo idx stats macs gem peaka m6a mec dma quant tpm dsj dea join clust go; do
+	for s in fqual mspi trim clip cor rrm arr sfus sege star bwa mqual uniq sort rep rmd cmo idx stats macs gem peaka m6a mec dma quant tpm dsj dea join clust go; do
 		eval "\${S$s:=true}" # unless S$s already set to false by -redo, do skip
 		$enable || [[ "$1" == "$s" ]] && {
 			enable=true
@@ -356,7 +364,7 @@ options::skip(){
 	declare -a mapdata
 	mapfile -t -d ',' mapdata < <(printf '%s' "$1")
 	for x in "${mapdata[@]}"; do
-		for s in md5 qual mspi trim clip cor rrm arr sfus sege star bwa uniq sort rep slice rmd cmo idx stats macs gem peaka m6a mec dma quant tpm dsj dea join clust go; do
+		for s in md5 fqual mspi trim clip cor rrm arr sfus sege star bwa mqual uniq sort rep slice rmd cmo idx stats macs gem peaka m6a mec dma quant tpm dsj dea join clust go; do
 			[[ "$x" == "$s" ]] && eval "S$s=true"
 		done
 	done
@@ -366,13 +374,12 @@ options::redo(){
 	local x s
 	declare -a mapdata
 	mapfile -t -d ',' mapdata < <(printf '%s' "$1")
-	for s in qual mspi trim clip cor rrm arr sfus sege star bwa uniq sort rep rmd cmo idx stats macs gem peaka m6a mec dma quant tpm dsj dea join clust go; do
+	for s in fqual mspi trim clip cor rrm arr sfus sege star bwa mqual uniq sort rep rmd cmo idx stats macs gem peaka m6a mec dma quant tpm dsj dea join clust go; do
 		eval "\${S$s:=true}" # unless (no|S)$s alredy set to false by -resume, do skip
 	done
 	for x in "${mapdata[@]}"; do
-		for s in qual mspi trim clip cor rrm arr sfus sege star bwa uniq sort rep rmd cmo idx stats macs gem peaka m6a mec dma quant tpm dsj dea join clust go; do
+		for s in fqual mspi trim clip cor rrm arr sfus sege star bwa mqual uniq sort rep rmd cmo idx stats macs gem peaka m6a mec dma quant tpm dsj dea join clust go; do
 			[[ "$x" == "$s" ]] && eval "S$s=false"
 		done
 	done
 }
-
