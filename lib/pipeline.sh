@@ -87,29 +87,30 @@ pipeline::_preprocess(){
 	if [[ ! $MAPPED ]]; then
 		declare -a qualdirs
 
-		qualdirs+=("$OUTDIR/qualities/raw")
+		preprocess::add4stats -r qualdirs -a "$OUTDIR/qualities/raw" -1 FASTQ1 -2 FASTQ2
 		preprocess::fastqc \
 			-S ${noqual:=false} \
-			-s ${Squal:=false} \
+			-s ${Sfqual:=false} \
 			-t $THREADS \
 			-o $OUTDIR/qualities/raw \
 			-p $TMPDIR \
 			-1 FASTQ1 \
 			-2 FASTQ2
 
-		${nomspi:=true} || {
-			qualdirs+=("$OUTDIR/qualities/mspicut")
+		${RRBS:=false} && ! ${nomspi:=false} && {
 			bisulfite::mspicut \
 				-S ${nomspi:=false} \
 				-s ${Smspi:=false} \
 				-t $THREADS \
 				-d $DIVERSITY \
+				-c 0 \
 				-o $OUTDIR/mspicut \
 				-1 FASTQ1 \
 				-2 FASTQ2
+			preprocess::add4stats -r qualdirs -a "$OUTDIR/qualities/mspicut" -1 FASTQ1 -2 FASTQ2
 			preprocess::fastqc \
 				-S ${noqual:=false} \
-				-s ${Squal:=false} \
+				-s ${Sfqual:=false} \
 				-t $THREADS \
 				-o $OUTDIR/qualities/mspicut \
 				-p $TMPDIR \
@@ -118,18 +119,19 @@ pipeline::_preprocess(){
 		}
 
 		${notrim:=false} || {
-			qualdirs+=("$OUTDIR/qualities/trimmed")
 			preprocess::trimmomatic \
 				-S ${notrim:=false} \
 				-s ${Strim:=false} \
+				-b ${RRBS:=false} \
 				-t $THREADS \
 				-o $OUTDIR/trimmed \
 				-p $TMPDIR \
 				-1 FASTQ1 \
 				-2 FASTQ2
+			preprocess::add4stats -r qualdirs -a "$OUTDIR/qualities/trimmed" -1 FASTQ1 -2 FASTQ2
 			preprocess::fastqc \
 				-S ${noqual:=false} \
-				-s ${Squal:=false} \
+				-s ${Sfqual:=false} \
 				-t $THREADS \
 				-o $OUTDIR/qualities/trimmed \
 				-p $TMPDIR \
@@ -137,8 +139,32 @@ pipeline::_preprocess(){
 				-2 FASTQ2
 		}
 
+		if [[ $ADAPTER1 ]]; then
+			${noclip:=false} || {
+				preprocess::cutadapt \
+					-S ${noclip:=false} \
+					-s ${Sclip:=false} \
+					-a ADAPTER1 \
+					-A ADAPTER2 \
+					-b ${RRBS:=false} \
+					-t $THREADS \
+					-o $OUTDIR/adapterclipped \
+					-1 FASTQ1 \
+					-2 FASTQ2
+				preprocess::add4stats -r qualdirs -a "$OUTDIR/qualities/adapterclipped" -1 FASTQ1 -2 FASTQ2
+				preprocess::fastqc \
+					-S ${noqual:=false} \
+					-s ${Sfqual:=false} \
+					-t $THREADS \
+					-o $OUTDIR/qualities/adapterclipped \
+					-p $TMPDIR \
+					-1 FASTQ1 \
+					-2 FASTQ2
+			}
+		fi
+
+		# do after adapter clipping to not trim Ns before -U 2 in rrbs mode
 		${noclip:=false} || {
-			qualdirs+=("$OUTDIR/qualities/polyntclipped")
 			preprocess::rmpolynt \
 				-S ${noclip:=false} \
 				-s ${Sclip:=false} \
@@ -147,38 +173,16 @@ pipeline::_preprocess(){
 				-d $(${BISULFITE:=false} && echo false || echo true) \
 				-1 FASTQ1 \
 				-2 FASTQ2
+			preprocess::add4stats -r qualdirs -a "$OUTDIR/qualities/polyntclipped" -1 FASTQ1 -2 FASTQ2
 			preprocess::fastqc \
 				-S ${noqual:=false} \
-				-s ${Squal:=false} \
+				-s ${Sfqual:=false} \
 				-t $THREADS \
 				-o $OUTDIR/qualities/polyntclipped \
 				-p $TMPDIR \
 				-1 FASTQ1 \
 				-2 FASTQ2
 		}
-
-		if [[ $ADAPTER1 ]]; then
-			${noclip:=false} || {
-				qualdirs+=("$OUTDIR/qualities/adapterclipped")
-				preprocess::cutadapt \
-					-S ${noclip:=false} \
-					-s ${Sclip:=false} \
-					-a ADAPTER1 \
-					-A ADAPTER2 \
-					-t $THREADS \
-					-o $OUTDIR/adapterclipped \
-					-1 FASTQ1 \
-					-2 FASTQ2
-				preprocess::fastqc \
-					-S ${noqual:=false} \
-					-s ${Squal:=false} \
-					-t $THREADS \
-					-o $OUTDIR/qualities/adapterclipped \
-					-p $TMPDIR \
-					-1 FASTQ1 \
-					-2 FASTQ2
-			}
-		fi
 
 		preprocess::rcorrector \
 			-S ${nocor:=false} \
@@ -190,7 +194,6 @@ pipeline::_preprocess(){
 			-2 FASTQ2
 
 		${norrm:=false} || {
-			qualdirs+=("$OUTDIR/qualities/rrnafiltered")
 			preprocess::sortmerna \
 				-S ${norrm:=false} \
 				-s ${Srrm:=false} \
@@ -199,9 +202,10 @@ pipeline::_preprocess(){
 				-p $TMPDIR \
 				-1 FASTQ1 \
 				-2 FASTQ2
+			preprocess::add4stats -r qualdirs -a "$OUTDIR/qualities/rrnafiltered" -1 FASTQ1 -2 FASTQ2
 			preprocess::fastqc \
 				-S ${noqual:=false} \
-				-s ${Squal:=false} \
+				-s ${Sfqual:=false} \
 				-t $THREADS \
 				-o $OUTDIR/qualities/rrnafiltered \
 				-p $TMPDIR \
@@ -210,13 +214,14 @@ pipeline::_preprocess(){
 		}
 
 		preprocess::qcstats \
-				-S ${nostats:=false} \
-				-s ${Sstats:=false} \
-				-i qualdirs \
-				-o $OUTDIR/stats \
-				-p $TMPDIR \
-				-1 FASTQ1 \
-				-2 FASTQ2
+			-S ${nostats:=false} \
+			-s ${Sstats:=false} \
+			-t $THREADS \
+			-i qualdirs \
+			-o $OUTDIR/stats \
+			-p $TMPDIR \
+			-1 FASTQ1 \
+			-2 FASTQ2
 	fi
 
 	return 0
@@ -297,6 +302,11 @@ pipeline::_mapping(){
 	[[ ${#mapper[@]} -eq 0 ]] && return 0
 
 	alignment::add4stats -r mapper
+	alignment::bamqc \
+		-S ${noqual:=false} \
+		-s ${Smqual:=false} \
+		-t $THREADS \
+		-r mapper
 
 	alignment::postprocess \
 		-S ${nouniq:=false} \
@@ -306,7 +316,14 @@ pipeline::_mapping(){
 		-p $TMPDIR \
 		-o $OUTDIR/mapped \
 		-r mapper
-	! ${nouniq:=false} && ${nosort:=false} && alignment::add4stats -r mapper
+	! ${nouniq:=false} && ${nosort:=false} && {
+		alignment::add4stats -r mapper
+		alignment::bamqc \
+			-S ${noqual:=false} \
+			-s ${Smqual:=false} \
+			-t $THREADS \
+			-r mapper
+	}
 
 	alignment::postprocess \
 		-S ${nosort:=false} \
@@ -316,7 +333,14 @@ pipeline::_mapping(){
 		-p $TMPDIR \
 		-o $OUTDIR/mapped \
 		-r mapper
-	(${nouniq:=false} && ! ${nosort:=false}) || (! ${nouniq:=false} && ! ${nosort:=false}) && alignment::add4stats -r mapper
+	(${nouniq:=false} && ! ${nosort:=false}) || (! ${nouniq:=false} && ! ${nosort:=false}) && {
+		alignment::add4stats -r mapper
+		alignment::bamqc \
+			-S ${noqual:=false} \
+			-s ${Smqual:=false} \
+			-t $THREADS \
+			-r mapper
+	}
 
 	return 0
 }
@@ -369,31 +393,46 @@ pipeline::bs(){
 		-i $GENOME \
 		-p $TMPDIR \
 		-t $THREADS
+
 	pipeline::_slice ${normd:=false} ${Srmd:=false}
-	alignment::rmduplicates \
-		-S ${normd:=false} \
-		-s ${Srmd:=false} \
-		-t $THREADS \
-		-m $MEMORY \
-		-M $MAXMEMORY \
-		-r mapper \
-		-c slicesinfo \
-		-x "$REGEX" \
-		-p $TMPDIR \
-		-o $OUTDIR/mapped
-	${normd:=false} || alignment::add4stats -r mapper
+	${normd:=false} || {
+		alignment::rmduplicates \
+			-S ${normd:=false} \
+			-s ${Srmd:=false} \
+			-t $THREADS \
+			-m $MEMORY \
+			-M $MAXMEMORY \
+			-r mapper \
+			-c slicesinfo \
+			-x "$REGEX" \
+			-p $TMPDIR \
+			-o $OUTDIR/mapped
+		alignment::add4stats -r mapper
+		alignment::bamqc \
+			-S ${noqual:=false} \
+			-s ${Smqual:=false} \
+			-t $THREADS \
+			-r mapper
+	}
 
 	pipeline::_slice ${nocmo:=false} ${Scmo:=false}
-	alignment::clipmateoverlaps \
-		-S ${nocmo:=false} \
-		-s ${Scmo:=false} \
-		-t $THREADS \
-		-m $MEMORY \
-		-M $MAXMEMORY \
-		-r mapper \
-		-c slicesinfo \
-		-o $OUTDIR/mapped
-	${nocmo:=false} || alignment::add4stats -r mapper
+	${nocmo:=false} || {
+		alignment::clipmateoverlaps \
+			-S ${nocmo:=false} \
+			-s ${Scmo:=false} \
+			-t $THREADS \
+			-m $MEMORY \
+			-M $MAXMEMORY \
+			-r mapper \
+			-c slicesinfo \
+			-o $OUTDIR/mapped
+		alignment::add4stats -r mapper
+		alignment::bamqc \
+			-S ${noqual:=false} \
+			-s ${Smqual:=false} \
+			-t $THREADS \
+			-r mapper
+	}
 
 	alignment::postprocess \
 		-S ${noidx:=false} \
@@ -404,7 +443,7 @@ pipeline::bs(){
 		-o $OUTDIR/mapped \
 		-r mapper
 
-	alignment::bamstats \
+	alignment::qcstats \
 		-S ${nostats:=false} \
 		-s ${Sstats:=false} \
 		-r mapper \
@@ -451,31 +490,46 @@ pipeline::dea(){
 		-i $GENOME \
 		-p $TMPDIR \
 		-t $THREADS
+
 	pipeline::_slice ${normd:=true} ${Srmd:=false}
-	alignment::rmduplicates \
-		-S ${normd:=true} \
-		-s ${Srmd:=false} \
-		-t $THREADS \
-		-m $MEMORY \
-		-M $MAXMEMORY \
-		-r mapper \
-		-c slicesinfo \
-		-x "$REGEX" \
-		-p $TMPDIR \
-		-o $OUTDIR/mapped
-	${normd:=true} || alignment::add4stats -r mapper
+	${normd:=true} || {
+		alignment::rmduplicates \
+			-S ${normd:=true} \
+			-s ${Srmd:=false} \
+			-t $THREADS \
+			-m $MEMORY \
+			-M $MAXMEMORY \
+			-r mapper \
+			-c slicesinfo \
+			-x "$REGEX" \
+			-p $TMPDIR \
+			-o $OUTDIR/mapped
+		alignment::add4stats -r mapper
+		alignment::bamqc \
+			-S ${noqual:=false} \
+			-s ${Smqual:=false} \
+			-t $THREADS \
+			-r mapper
+	}
 
 	pipeline::_slice ${nocmo:=true} ${Scmo:=false}
-	alignment::clipmateoverlaps \
-		-S ${nocmo:=true} \
-		-s ${Scmo:=false} \
-		-t $THREADS \
-		-m $MEMORY \
-		-M $MAXMEMORY \
-		-r mapper \
-		-c slicesinfo \
-		-o $OUTDIR/mapped
-	${nocmo:=true} || alignment::add4stats -r mapper
+	${nocmo:=true} || {
+		alignment::clipmateoverlaps \
+			-S ${nocmo:=true} \
+			-s ${Scmo:=false} \
+			-t $THREADS \
+			-m $MEMORY \
+			-M $MAXMEMORY \
+			-r mapper \
+			-c slicesinfo \
+			-o $OUTDIR/mapped
+		alignment::add4stats -r mapper
+		alignment::bamqc \
+			-S ${noqual:=false} \
+			-s ${Smqual:=false} \
+			-t $THREADS \
+			-r mapper
+	}
 
 	alignment::postprocess \
 		-S ${noidx:=false} \
@@ -486,7 +540,7 @@ pipeline::dea(){
 		-o $OUTDIR/mapped \
 		-r mapper
 
-	alignment::bamstats \
+	alignment::qcstats \
 		-S ${nostats:=false} \
 		-s ${Sstats:=false} \
 		-r mapper \
@@ -639,31 +693,46 @@ pipeline::callpeak() {
 		-i $GENOME \
 		-p $TMPDIR \
 		-t $THREADS
+
 	pipeline::_slice ${normd:=false} ${Srmd:=false}
-	alignment::rmduplicates \
-		-S ${normd:=false} \
-		-s ${Srmd:=false} \
-		-t $THREADS \
-		-m $MEMORY \
-		-M $MAXMEMORY \
-		-r mapper \
-		-c slicesinfo \
-		-x "$REGEX" \
-		-p $TMPDIR \
-		-o $OUTDIR/mapped
-	${normd:=false} || alignment::add4stats -r mapper
+	${normd:=false} || {
+		alignment::rmduplicates \
+			-S ${normd:=false} \
+			-s ${Srmd:=false} \
+			-t $THREADS \
+			-m $MEMORY \
+			-M $MAXMEMORY \
+			-r mapper \
+			-c slicesinfo \
+			-x "$REGEX" \
+			-p $TMPDIR \
+			-o $OUTDIR/mapped
+		alignment::add4stats -r mapper
+		alignment::bamqc \
+			-S ${noqual:=false} \
+			-s ${Smqual:=false} \
+			-t $THREADS \
+			-r mapper
+	}
 
 	pipeline::_slice ${nocmo:=true} ${Scmo:=false}
-	alignment::clipmateoverlaps \
-		-S ${nocmo:=true} \
-		-s ${Scmo:=false} \
-		-t $THREADS \
-		-m $MEMORY \
-		-M $MAXMEMORY \
-		-r mapper \
-		-c slicesinfo \
-		-o $OUTDIR/mapped
-	${nocmo:=true} || alignment::add4stats -r mapper
+	${nocmo:=true} || {
+		alignment::clipmateoverlaps \
+			-S ${nocmo:=true} \
+			-s ${Scmo:=false} \
+			-t $THREADS \
+			-m $MEMORY \
+			-M $MAXMEMORY \
+			-r mapper \
+			-c slicesinfo \
+			-o $OUTDIR/mapped
+		alignment::add4stats -r mapper
+		alignment::bamqc \
+			-S ${noqual:=false} \
+			-s ${Smqual:=false} \
+			-t $THREADS \
+			-r mapper
+	}
 
 	alignment::postprocess \
 		-S ${noidx:=false} \
@@ -674,7 +743,7 @@ pipeline::callpeak() {
 		-o $OUTDIR/mapped \
 		-r mapper
 
-	alignment::bamstats \
+	alignment::qcstats \
 		-S ${nostats:=false} \
 		-s ${Sstats:=false} \
 		-r mapper \
