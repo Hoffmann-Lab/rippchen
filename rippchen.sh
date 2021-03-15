@@ -131,6 +131,11 @@ if [[ $COMPARISONS ]]; then
 	done
 fi
 
+if $RRBS; then
+	BASHBONE_ERROR="rrbs data analysis requires adapter sequence input"
+	[[ ! $ADAPTER1 ]] && false
+fi
+
 checkfile(){
 	declare -n _idx=$2 _arr=$3
 	local f ifs
