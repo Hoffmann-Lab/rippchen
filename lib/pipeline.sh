@@ -750,7 +750,7 @@ pipeline::callpeak() {
 		-t $THREADS \
 		-o $OUTDIR/stats
 
-	peaks::macs \
+	peaks::macs_idr \
 		-S ${nomacs:=false} \
 		-s ${Smacs:=false} \
 		-q ${RIPSEQ:=false} \
@@ -778,12 +778,11 @@ pipeline::callpeak() {
 		-g $GTF \
 		-p $TMPDIR
 
-	peaks::gem \
+	peaks::gem_idr \
 		-S ${nogem:=false} \
 		-s ${Sgem:=false} \
 		-q ${RIPSEQ:=false} \
 		-g $GENOME \
-		-f $GTF \
 		-a nidx \
 		-b nridx \
 		-i tidx \
@@ -800,7 +799,7 @@ pipeline::callpeak() {
 
 	${RIPSEQ:=false} || return 0
 
-	peaks::peakachu \
+	peaks::peakachu_idr \
 		-S ${nopeaka:=false} \
 		-s ${Speaka:=false} \
 		-a nidx \
@@ -812,7 +811,7 @@ pipeline::callpeak() {
 		-t $THREADS \
 		-o $OUTDIR/peaks
 
-	peaks::m6aviewer \
+	peaks::m6aviewer_idr \
 		-S ${nom6a:=true} \
 		-s ${Sm6a:=false} \
 		-a nidx \
