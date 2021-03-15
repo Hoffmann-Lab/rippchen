@@ -19,18 +19,21 @@ Rippchen leverages on bashbone, which is a bash library for workflow and pipelin
   - DNA-Seq protocols
   - Bisulfite converted DNA-Seq protocols
 - Data preprocessing (quality check, adapter clipping, quality trimming, error correction, artificial rRNA depletion)
-- Gene fusion detection
 - Read alignment and post-processing
   - knapsack problem based slicing of alignment files for parallel task execution
   - sorting, filtering, unique alignment extraction, removal of optical duplicates
   - generation of pools and pseudo-replicates
+- Gene fusion detection
 - Methyl-C calling and prediction of differentially methylated regions
-- Read quantification, TPM and Z-score normalization (automated inference of strand specific library preparation methods)
-- Inference of differential expression as well as co-expression clusters
-- Detection of differential splice junctions and differential exon usage
-- Gene ontology (GO) gene set enrichment and over representation analysis plus semantic similarity based clustering
-- Free implementation of Encode3 best-practice ChIP-Seq Peak calling (automated inference of effective genome sizes)
-- Peak calling from RIP-Seq, MeRIP-Seq, m6A-Seq and other related *IP-Seq data
+- Expression analysis
+  - Read quantification, TPM and Z-score normalization and heatmap plotting
+  - Inference of strand specific library preparation methods
+  - Inference of differential expression as well as co-expression clusters
+  - Detection of differential splice junctions and differential exon usage
+  - Gene ontology (GO) gene set enrichment and over representation analysis plus semantic similarity based clustering
+- Implementation of Encode3 best-practice ChIP-Seq Peak calling 
+  - Peak calling from RIP-Seq, MeRIP-Seq, m6A-Seq and other related *IP-Seq data
+  - Inference of effective genome sizes
 
 # License
 
@@ -159,14 +162,14 @@ Assume this input:
 And this desired output (N=2 vs N=2 each):
 
 - wt_vs_A
-- wt_vs_b
+- wt_vs_B
 - A_vs_B
 
 Then the info file should consist of:
 
 - At least 4 columns (`<name>`, `<main-factor>`, `single-end|paired-end`, `<replicate>`)
 - Optionally, additional factors
-- Unique prefixes of input fastq basenames in the first column which expand to the full file name
+- First column needs to consist of unique prefixes of input fastq basenames which can be expand to full file names
 
 |        |     |            |     |        |
 | ---    | --- | ---        | --- | ---    |
@@ -207,7 +210,7 @@ rippchen.sh -v 2 -t <threads> -g <fasta> -gtf <gtf> -o <outdir> -l <logfile> -tm
 -1 <fastq> [-2 <fastq>]
 ```
 
-Data pre-processing with Illumina universal adapter removal, mapping by segemehl and STAR and alignment post-processing (i.e. unique read extraction, sorting, indexing). Sequences can be found in the Illumina Adapter Sequences Document (<https://www.illumina.com/search.html?q=Illumina Adapter Sequences Document>) and the resource of Trimmomatic (<https://github.com/timflutre/trimmomatic/tree/master/adapters>), FastQC respectively (<https://github.com/s-andrews/FastQC/blob/master/Configuration>).
+Data pre-processing with Illumina universal adapter removal, mapping by segemehl and STAR and alignment post-processing (i.e. unique read extraction, sorting, indexing). Sequences can be found in the Illumina Adapter Sequences Document (<https://www.illumina.com/search.html?q=Illumina Adapter Sequences Document>) and the resource of Trimmomatic (<https://github.com/usadellab/Trimmomatic/tree/main/adapters>), FastQC respectively (<https://github.com/s-andrews/FastQC/blob/master/Configuration>).
 
 The following excerpt is independent of the indexing type, i.e. single, unique dual (UD) or combinatorial dual (CD).
 
@@ -215,8 +218,9 @@ Nextera (Transposase Sequence), TruSight, AmpliSeq, stranded total/mRNA Prep, Ri
 
 TruSeq (Universal) Adapter with A prefix due to 3' primer A-tailing : AGATCGGAAGAGC
 
-      - full DNA & RNA - R1: AGATCGGAAGAGCACACGTCTGAACTCCAGTCA R2: AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT
-      - full DNA MethC - R1: AGATCGGAAGAGCACACGTCTGAAC R2: AGATCGGAAGAGCGTCGTGTAGGGA
+TruSeq full length DNA & RNA R1: AGATCGGAAGAGCACACGTCTGAACTCCAGTCA R2: AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT
+
+TruSeq full length DNA MethC R1: AGATCGGAAGAGCACACGTCTGAAC R2: AGATCGGAAGAGCGTCGTGTAGGGA
 
 TruSeq Small RNA: TGGAATTCTCGGGTGCCAAGG
 
@@ -262,13 +266,14 @@ rippchen.sh -v 2 -t <threads> -g <fasta> -gtf <gtf> -o <outdir> -l <logfile> -tm
 
 ### Peak calling
 
-Infer peaks from paired datasets of normal/control and ChIP-Seq using macs2 and GEM.
+Infer peaks from paired datasets of normal/control and ChIP-Seq using macs2, GEM and Peakachu.
 
 ```bash
 source <path/of/installation/latest/rippchen/activate.sh>
 rippchen.sh -v 2 -t <threads> -g <fasta> -gtf <gtf> -o <outdir> -l <logfile> -tmp <tmpdir> \
 -n1 <fastq,fastq,...> [-n2 <fastq,fastq,...>] -t1 <fastq,fastq,...> [-t2 <fastq,fastq,...>]
 ```
+
 Infer peaks from paired datasets of normal/control and *IP-Seq with replicates and without utilizing macs2.
 
 ```bash
@@ -276,6 +281,34 @@ source <path/of/installation/latest/rippchen/activate.sh>
 rippchen.sh -v 2 -t <threads> -g <fasta> -gtf <gtf> -o <outdir> -l <logfile> -tmp <tmpdir> \
 -n1 <fastq,fastq,...> [-n2 <fastq,fastq,...>] -t1 <fastq,fastq,...> [-t2 <fastq,fastq,...>] \
 -tr1 <fastq,fastq,...> [-tr2 <fastq,fastq,...>] -no-macs
+```
+
+### Fusion detection
+
+Predict gene fusions utilizing STAR-Fusion and Arriba.
+
+```bash
+source <path/of/installation/latest/rippchen/activate.sh>
+rippchen.sh -v 2 -t <threads> -g <fasta> -gtf <gtf> -o <outdir> -l <logfile> -tmp <tmpdir> \
+-1 <fastq,fastq,...> [-2 <fastq,fastq,...>] -f
+```
+
+### Differential methylation analysis
+
+Pairwise differential methylation expression analysis from WGBS data.
+
+```bash
+source <path/of/installation/latest/rippchen/activate.sh>
+rippchen.sh -v 2 -t <threads> -g <fasta> -gtf <gtf> -o <outdir> -l <logfile> -tmp <tmpdir> \
+-1 <fastq,fastq,...> [-2 <fastq,fastq,...>] -c <sample-info> -b WGBS
+```
+
+Pairwise differential methylation expression analysis from RRBS data without diversity adapters, thus disbaled MspI cutting site filtering and just using the in place simple quality trimming along with adapter removal to address end-repair bias.
+
+```bash
+source <path/of/installation/latest/rippchen/activate.sh>
+rippchen.sh -v 2 -t <threads> -g <fasta> -gtf <gtf> -o <outdir> -l <logfile> -tmp <tmpdir> \
+-1 <fastq,fastq,...> [-2 <fastq,fastq,...>] -c <sample-info> -a1 AGATCGGAAGAGC [-a2 AGATCGGAAGAGC] -b 0 -no-mspi -no-trim
 ```
 
 ### Start, redo or resume
@@ -291,7 +324,7 @@ Use comma separated lists to e.g. skip md5 check and quality analysis.
 
 ```bash
 source <path/of/installation/latest/rippchen/activate.sh>
-rippchen.sh [...] -skip md5,qual
+rippchen.sh [...] -skip md5,fqual
 ```
 
 Example how to resume from the segemehl mapping break point after previous data pre-processing.
@@ -317,11 +350,9 @@ rippchen.sh [...] -redo quant,tpm
 - Sub-directories `vsc` and `tpm` contain clusters composed of modules plus z-score based heatmaps and log2FC trajectory footprints
 - If computed, within each cluster or module directory, GO enrichment tables and plots can be found for the main three GO categories
 
-
 ## counts
 
 - raw read counts per gene or exon as well as TPM transformed read counts, deseq variance stabilization transformed read counts (VSC) and z-score normalized values of all samples
-
 
 ## deseq
 
@@ -334,11 +365,9 @@ rippchen.sh [...] -redo quant,tpm
 
 - Pairwise test results for differential splice junctions
 
-
 ## stats
 
 - simple read count statistics of raw read quality assessing steps, multi- and uniquely mapped reads. Bars are shown in an overlayed fashion
-
 
 # Third-party software
 
