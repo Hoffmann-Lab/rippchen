@@ -119,7 +119,7 @@ options::usage() {
 		-s-macs  | --strict-macs              : use a more strict macs parameterization - an alternative to IDR results
 		-s-gem   | --strict-gem               : use a more strict gem parameterization - an alternative to IDR results
 
-		DIFFERENTIAL ANALYSIS OPTIONS
+		BASIC DIFFERENTIAL ANALYSIS OPTIONS
 		-1       | --fq1 [path,..]            : fastq input - single or first mate, comma seperated or a file with all paths
 		-2       | --fq2 [path,..]            : fastq input. mate pair, comma seperated or a file with all paths
 		-m       | --mapped [path,..]         : SAM/BAM input - comma seperated or a file with all paths (replaces fastq input)
@@ -155,8 +155,8 @@ options::usage() {
 		                                        NOTE: necessary for successful optical deduplication. to disable or if unavailable, set to null
 		-no-cmo  | --no-clipmateoverlaps      : disables clipping of read mate overlaps
 		-no-mec  | --no-mecall                : disables calling of methylated Cs plus downstream analyses
-		-no-dma  | --no-diffmeanalysis        : disables differential CpG methylation analysis
-		-md      | --missingdata              : allow for missing CpG data points in %/100 per condition (see -c). default: 0.2
+		-no-dma  | --no-diffmeanalysis        : disables differential CpG methylation analysis from minimum 10x covered CpGs
+		-md      | --min-data [value]         : require at least %/100 or an absolute value of CpG methylation rates per condition (see -c). default: 0.8
 
 
 		DIFFERENTIAL EXPRESSION ANALYSIS OPTIONS
@@ -321,7 +321,7 @@ options::checkopt (){
 		-no-mspi  | --no-mspiselection) nomspi=true;;
 		-no-mec   | --no-mecall) nomec=true;;
 		-no-dma   | --no-diffmeanalysis) nodma=true;;
-		-md       | --missingdata) arg=true; MISSING=$2;;
+		-md       | --min-data) arg=true; MINDATA=$2;;
 
 		-ql       | --quantifylevel) arg=true; QUANTIFYFLEVEL=$2;;
 		-qt       | --quantifytag) arg=true; QUANTIFYTAG=$2;;

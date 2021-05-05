@@ -59,6 +59,7 @@ pipeline::index(){
 			-x NA2 \
 			-g $GTF \
 			-c NA3 \
+			-e false \
 			-i $TMPDIR \
 			-p $TMPDIR \
 			-o $TMPDIR
@@ -465,7 +466,7 @@ pipeline::bs(){
 			-s ${Sdma:=false} \
 			-t $THREADS \
 			-c COMPARISONS \
-			-m ${MISSING:=0.2} \
+			-m ${MINDATA:=0.8} \
 			-r mapper \
 			-i $OUTDIR/mecall \
 			-o $OUTDIR/metilene \
