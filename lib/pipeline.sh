@@ -467,6 +467,7 @@ pipeline::bs(){
 			-t $THREADS \
 			-c COMPARISONS \
 			-m ${MINDATA:=0.8} \
+			-u ${MINDATACAP:=999999} \
 			-r mapper \
 			-i $OUTDIR/mecall \
 			-o $OUTDIR/metilene \
@@ -674,18 +675,20 @@ pipeline::callpeak() {
 	pipeline::_mapping
 	[[ ${#mapper[@]} -eq 0 ]] && return 0
 
-	alignment::mkreplicates \
-		-S ${norep:=false} \
-		-s ${Srep:=false} \
-		-t $THREADS \
-		-o $OUTDIR/mapped \
-		-p $TMPDIR \
-		-r mapper \
-		-n nidx \
-		-m nridx \
-		-i tidx \
-		-j ridx \
-		-k pidx
+	${noidr:=false} || {
+		alignment::mkreplicates \
+			-S ${norep:=false} \
+			-s ${Srep:=false} \
+			-t $THREADS \
+			-o $OUTDIR/mapped \
+			-p $TMPDIR \
+			-r mapper \
+			-n nidx \
+			-m nridx \
+			-i tidx \
+			-j ridx \
+			-k pidx
+	}
 
 	genome::mkdict \
 		-S ${normd:=false} \
@@ -751,78 +754,143 @@ pipeline::callpeak() {
 		-t $THREADS \
 		-o $OUTDIR/stats
 
-	peaks::macs_idr \
-		-S ${nomacs:=false} \
-		-s ${Smacs:=false} \
-		-q ${RIPSEQ:=false} \
-		-f $FRAGMENTSIZE \
-		-g $GENOME \
-		-a nidx \
-		-b nridx \
-		-i tidx \
-		-j ridx \
-		-k pidx \
-		-r mapper \
-		-t $THREADS \
-		-m $MEMORY \
-		-M $MAXMEMORY \
-		-p $TMPDIR \
-		-o $OUTDIR/peaks \
-		-z ${STRICTMACS:=false}
+	if ${noidr:=false}; then
+		peaks::macs \
+			-S ${nomacs:=false} \
+			-s ${Smacs:=false} \
+			-q ${RIPSEQ:=false} \
+			-f $FRAGMENTSIZE \
+			-g $GENOME \
+			-a nidx \
+			-i tidx \
+			-r mapper \
+			-t $THREADS \
+			-m $MEMORY \
+			-M $MAXMEMORY \
+			-p $TMPDIR \
+			-o $OUTDIR/peaks \
+			-z ${STRICTPEAKS:=false}
 
-	alignment::inferstrandness \
-		-S ${nogem:=false} \
-		-s ${Sgem:=false} \
-		-t $THREADS \
-		-r mapper \
-		-x strandness \
-		-g $GTF \
-		-p $TMPDIR
+		alignment::inferstrandness \
+			-S ${nogem:=false} \
+			-s ${Sgem:=false} \
+			-t $THREADS \
+			-r mapper \
+			-x strandness \
+			-g $GTF \
+			-p $TMPDIR
 
-	peaks::gem_idr \
-		-S ${nogem:=false} \
-		-s ${Sgem:=false} \
-		-q ${RIPSEQ:=false} \
-		-g $GENOME \
-		-a nidx \
-		-b nridx \
-		-i tidx \
-		-j ridx \
-		-k pidx \
-		-r mapper \
-		-x strandness \
-		-t $THREADS \
-		-m $MEMORY \
-		-M $MAXMEMORY \
-		-p $TMPDIR \
-		-o $OUTDIR/peaks \
-		-z ${STRICTGEM:=false}
+		peaks::gem \
+			-S ${nogem:=false} \
+			-s ${Sgem:=false} \
+			-q ${RIPSEQ:=false} \
+			-g $GENOME \
+			-a nidx \
+			-i tidx \
+			-r mapper \
+			-x strandness \
+			-t $THREADS \
+			-m $MEMORY \
+			-M $MAXMEMORY \
+			-p $TMPDIR \
+			-o $OUTDIR/peaks \
+			-y ${POINTYPEAKS:=false} \
+			-z ${STRICTPEAKS:=false}
 
-	${RIPSEQ:=false} || return 0
+		peaks::peakachu \
+			-S ${nopeaka:=false} \
+			-s ${Speaka:=false} \
+			-f $FRAGMENTSIZE \
+			-a nidx \
+			-i tidx \
+			-r mapper \
+			-t $THREADS \
+			-o $OUTDIR/peaks
 
-	peaks::peakachu_idr \
-		-S ${nopeaka:=false} \
-		-s ${Speaka:=false} \
-		-a nidx \
-		-b nridx \
-		-i tidx \
-		-j ridx \
-		-k pidx \
-		-r mapper \
-		-t $THREADS \
-		-o $OUTDIR/peaks
+		peaks::m6aviewer_idr \
+			-S ${nom6a:=true} \
+			-s ${Sm6a:=false} \
+			-f $FRAGMENTSIZE \
+			-a nidx \
+			-i tidx \
+			-r mapper \
+			-t $THREADS \
+			-o $OUTDIR/peaks
+	else
+		peaks::macs_idr \
+			-S ${nomacs:=false} \
+			-s ${Smacs:=false} \
+			-q ${RIPSEQ:=false} \
+			-f $FRAGMENTSIZE \
+			-g $GENOME \
+			-a nidx \
+			-b nridx \
+			-i tidx \
+			-j ridx \
+			-k pidx \
+			-r mapper \
+			-t $THREADS \
+			-m $MEMORY \
+			-M $MAXMEMORY \
+			-p $TMPDIR \
+			-o $OUTDIR/peaks \
+			-z ${STRICTPEAKS:=false}
 
-	peaks::m6aviewer_idr \
-		-S ${nom6a:=true} \
-		-s ${Sm6a:=false} \
-		-a nidx \
-		-b nridx \
-		-i tidx \
-		-j ridx \
-		-k pidx \
-		-r mapper \
-		-t $THREADS \
-		-o $OUTDIR/peaks
+		alignment::inferstrandness \
+			-S ${nogem:=false} \
+			-s ${Sgem:=false} \
+			-t $THREADS \
+			-r mapper \
+			-x strandness \
+			-g $GTF \
+			-p $TMPDIR
+
+		peaks::gem_idr \
+			-S ${nogem:=false} \
+			-s ${Sgem:=false} \
+			-q ${RIPSEQ:=false} \
+			-g $GENOME \
+			-a nidx \
+			-b nridx \
+			-i tidx \
+			-j ridx \
+			-k pidx \
+			-r mapper \
+			-x strandness \
+			-t $THREADS \
+			-m $MEMORY \
+			-M $MAXMEMORY \
+			-p $TMPDIR \
+			-o $OUTDIR/peaks \
+			-y ${POINTYPEAKS:=false} \
+			-z ${STRICTPEAKS:=false}
+
+		peaks::peakachu_idr \
+			-S ${nopeaka:=false} \
+			-s ${Speaka:=false} \
+			-f $FRAGMENTSIZE \
+			-a nidx \
+			-b nridx \
+			-i tidx \
+			-j ridx \
+			-k pidx \
+			-r mapper \
+			-t $THREADS \
+			-o $OUTDIR/peaks
+
+		peaks::m6aviewer_idr \
+			-S ${nom6a:=true} \
+			-s ${Sm6a:=false} \
+			-f $FRAGMENTSIZE \
+			-a nidx \
+			-b nridx \
+			-i tidx \
+			-j ridx \
+			-k pidx \
+			-r mapper \
+			-t $THREADS \
+			-o $OUTDIR/peaks
+	fi
 
 	return 0
 }
