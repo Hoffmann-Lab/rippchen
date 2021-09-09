@@ -5,28 +5,28 @@ source "$(dirname "$(readlink -e "$0")")/activate.sh" -c true -x cleanup || exit
 
 cleanup() {
 	[[ -e $TMPDIR ]] && {
-		find -L $TMPDIR -type f -name "cleanup.*" -exec rm -f {} \;
-		find -L $TMPDIR -depth -type d -name "cleanup.*" -exec rm -rf {} \;
+		find -L $TMPDIR -type f -name "cleanup.*" -exec rm -f {} \; &> /dev/null || true
+		find -L $TMPDIR -depth -type d -name "cleanup.*" -exec rm -rf {} \; &> /dev/null || true
 	}
 	[[ $1 -eq 0 ]] && ${CLEANUP:=false} && {
 		[[ -e $TMPDIR ]] && {
-			find -L $TMPDIR -type f -exec rm -f {} \;
-			find -L $TMPDIR -depth -type d -exec rm -rf {} \;
+			find -L $TMPDIR -type f -exec rm -f {} \; &> /dev/null || true
+			find -L $TMPDIR -depth -type d -exec rm -rf {} \; &> /dev/null || true
 			rm -rf $TMPDIR
 		}
 		[[ -e $OUTDIR ]] && {
-			local b
+			local b f
 			for f in "${FASTQ1[@]}"; do
 				readlink -e "$f" | file -f - | grep -qE '(gzip|bzip)' && b=$(basename $f | rev | cut -d '.' -f 3- | rev) || b=$(basename $f | rev | cut -d '.' -f 2- | rev)
-				find -L $OUTDIR -depth -type d -name "$b*._STAR*" -exec rm -rf {} \;
-				find -L $OUTDIR -type f -name "$b*.sorted.bam" -exec bash -c '[[ -s {} ]] && rm -f $(dirname {})/$(basename {} .sorted.bam).bam' \;
-				find -L $OUTDIR -type f -name "$b*.*.gz" -exec bash -c '[[ -s {} ]] && rm -f $(dirname {})/$(basename {} .gz)' \;
+				find -L $OUTDIR -depth -type d -name "$b*._STAR*" -exec rm -rf {} \; &> /dev/null || true
+				find -L $OUTDIR -type f -name "$b*.sorted.bam" -exec bash -c '[[ -s {} ]] && rm -f $(dirname {})/$(basename {} .sorted.bam).bam' \; &> /dev/null || true
+				find -L $OUTDIR -type f -name "$b*.*.gz" -exec bash -c '[[ -s {} ]] && rm -f $(dirname {})/$(basename {} .gz)' \; &> /dev/null || true
 			done
 			for f in "${MAPPED[@]}"; do
 				b=$(basename $f | rev | cut -d '.' -f 2- | rev)
-				find -L $OUTDIR -depth -type d -name "$b*._STAR*" -exec rm -rf {} \;
-				find -L $OUTDIR -type f -name "$b*.sorted.bam" -exec bash -c '[[ -s {} ]] && rm -f $(dirname {})/$(basename {} .sorted.bam).bam' \;
-				find -L $OUTDIR -type f -name "$b*.*.gz" -exec bash -c '[[ -s {} ]] && rm -f $(dirname {})/$(basename {} .gz)' \;
+				find -L $OUTDIR -depth -type d -name "$b*._STAR*" -exec rm -rf {} \; &> /dev/null || true
+				find -L $OUTDIR -type f -name "$b*.sorted.bam" -exec bash -c '[[ -s {} ]] && rm -f $(dirname {})/$(basename {} .sorted.bam).bam' \; &> /dev/null || true
+				find -L $OUTDIR -type f -name "$b*.*.gz" -exec bash -c '[[ -s {} ]] && rm -f $(dirname {})/$(basename {} .gz)' \; &> /dev/null || true
 			done
 		}
 	}
@@ -119,6 +119,9 @@ else
 			else
 				commander::warn "gtf file missing. proceeding without quantification"
 				noquant=true
+				nodsj=true
+				noclust=true
+				nogo=true
 			fi
 		fi
 	}
@@ -159,7 +162,26 @@ checkfile(){
 
 IFS=','
 i=-1
-if [[ ! $nmap ]]; then
+if [[ $tmap || $nmap ]]; then
+	for f in $nmap; do
+		BASHBONE_ERROR="alignment file does not exists $f"
+		checkfile "$f" nidx MAPPED
+	done
+	for f in $nrmap; do
+		BASHBONE_ERROR="normal replicate alignment file does not exists $f"
+		checkfile "$f" nridx MAPPED
+	done
+	BASHBONE_ERROR="unequal number of normal replicates"
+	[[ $nridx ]] && { [[ ${#nidx[@]} -eq ${#nridx[@]} ]] || false; }
+	for f in $tmap; do
+		BASHBONE_ERROR="treatment alignment file does not exists $f"
+		checkfile "$f" pidx MAPPED
+	done
+	for f in $rmap; do
+		BASHBONE_ERROR="treatment replicate alignment file does not exists $f"
+		checkfile "$f" ridx MAPPED
+	done
+else
 	for f in $nfq1; do
 		BASHBONE_ERROR="single or first mate fastq file does not exist $f"
 		checkfile "$f" nidx FASTQ1
@@ -184,33 +206,19 @@ if [[ ! $nmap ]]; then
 	done
 	BASHBONE_ERROR="unequal number of mate pairs"
 	[[ $FASTQ2 ]] && { [[ ${#FASTQ1[@]} -eq ${#FASTQ2[@]} ]] || false; }
-else
-	for f in $nmap; do
-		BASHBONE_ERROR="alignment file does not exists $f"
-		checkfile "$f" nidx MAPPED
-	done
-	for f in $nrmap; do
-		BASHBONE_ERROR="normal replicate alignment file does not exists $f"
-		checkfile "$f" nridx MAPPED
-	done
-	BASHBONE_ERROR="unequal number of normal replicates"
-	[[ $nridx ]] && { [[ ${#nidx[@]} -eq ${#nridx[@]} ]] || false; }
-	for f in $tmap; do
-		BASHBONE_ERROR="treatment alignment file does not exists $f"
-		checkfile "$f" pidx MAPPED
-	done
-	for f in $rmap; do
-		BASHBONE_ERROR="treatment replicate alignment file does not exists $f"
-		checkfile "$f" ridx MAPPED
-	done
-	[[ $ridx ]] && {
-		tidx+=("${pidx[@]}")
-		pidx=()
-		BASHBONE_ERROR="unequal number of treatment replicates"
-		[[ ${#ridx[@]} -eq ${#tidx[@]} ]] || false
-	}
 fi
 unset IFS
+
+if $noidr; then
+	tidx=("${pidx[@]}")
+fi
+
+if [[ $ridx ]]; then
+	tidx=("${pidx[@]}")
+	pidx=()
+	BASHBONE_ERROR="unequal number of treatment replicates"
+	[[ ${#ridx[@]} -eq ${#tidx[@]} ]] || false
+fi
 
 progress::log -v $VERBOSITY -o $LOG
 commander::printinfo "rippchen $VERSION utilizing bashbone $BASHBONE_VERSION started with command: $CMD" | tee -ai "$LOG"
