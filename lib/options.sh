@@ -71,13 +71,6 @@ options::usage() {
 		-no-rrm  | --no-rrnafilter            : disables rRNA filter
 		-no-stats| --no-statistics            : disables preprocessing statistics from read quality analyses
 
-		FUSION DETECTION OPTIONS
-		-f       | --fusiondetection [string] : triggers gene fusion detection. use one of the accepted keywords [null|hg19|hg38|mm10]
-		-1       | --fq1 [path,..]            : fastq input - single or first mate, comma seperated or a file with all paths
-		-2       | --fq2 [path,..]            : fastq input. mate pair, comma seperated or a file with all paths
-		-no-arr  | --no-arriba                : disables fusion detection by Arriba which requieres hg19|hg38|mm10 genome/gtf input
-		-no-sfus | --no-starfusion            : disables fusion detection by STAR-Fusion which requires CTAT resource as genome/gtf input
-
 		ALIGNMENT OPTIONS
 		-d       | --distance                 : maximum read alignment edit distance in %. default: 5
 		-i       | --insertsize               : maximum allowed insert for aligning mate pairs. default: 200000
@@ -91,6 +84,13 @@ options::usage() {
 		-no-sort | --no-sort                  : disables sorting alignments
 		-no-idx  | --no-index                 : disables indexing alignments
 		-no-stats| --no-statistics            : disables mapping statistics from alignment quality analyses
+
+		FUSION DETECTION OPTIONS
+		-f       | --fusiondetection [string] : triggers gene fusion detection. use one of the accepted keywords [null|hg19|hg38|mm10]
+		-1       | --fq1 [path,..]            : fastq input - single or first mate, comma seperated or a file with all paths
+		-2       | --fq2 [path,..]            : fastq input. mate pair, comma seperated or a file with all paths
+		-no-arr  | --no-arriba                : disables fusion detection by Arriba which requieres hg19|hg38|mm10 genome/gtf input
+		-no-sfus | --no-starfusion            : disables fusion detection by STAR-Fusion which requires CTAT resource as genome/gtf input
 
 		PEAK CALLING OPTIONS
 		-n1      | --normal-fq1 [path,..]     : normal fastq input. single or first mate. comma seperated or a file with all paths
@@ -116,8 +116,10 @@ options::usage() {
 		-no-gem  | --no-gem                   : disables peak calling by gem
 		-no-peaka| --no-peakachu              : disables peak calling by peakachu
 		-m6a     | --m6aviewer                : enables peak calling by m6aviewer - requieres user interaction
-		-s-macs  | --strict-macs              : use a more strict macs parameterization - an alternative to IDR results
-		-s-gem   | --strict-gem               : use a more strict gem parameterization - an alternative to IDR results
+		-sp      | --strict-peaks             : use a more strict macs and gem parameterization
+		-pp      | --pointy-peaks             : enables gem to report only very pointy narrow peaks. use e.g. for CLIP (see -rip) or ChIP-exo
+		-no-idr  | --no-idr                   : disregards replicates and irreproducible discovery rates. allows unpaired input (see -t1, -t2)
+		                                        NOTE: peakachu will use all files given by -n1/-n2 and -t1/-t2 as replicates
 
 		BASIC DIFFERENTIAL ANALYSIS OPTIONS
 		-1       | --fq1 [path,..]            : fastq input - single or first mate, comma seperated or a file with all paths
@@ -157,6 +159,7 @@ options::usage() {
 		-no-mec  | --no-mecall                : disables calling of methylated Cs plus downstream analyses
 		-no-dma  | --no-diffmeanalysis        : disables differential CpG methylation analysis from minimum 10x covered CpGs
 		-md      | --min-data [value]         : require at least %/100 or an absolute value of CpG methylation rates per condition (see -c). default: 0.8
+		-md-cap  | --min-data-cap [value]     : caps/upper bounds required CpG methylation rates per condition (see -md). default: no capping
 
 
 		DIFFERENTIAL EXPRESSION ANALYSIS OPTIONS
@@ -225,6 +228,8 @@ options::developer() {
 
 		macs  : peak calling by macs
 		gem   : peak calling by gem
+		peaka : peak calling by peakachu
+		m6a   : peak calling by m6aViewer
 
 		mec   : methylation calling
 		dma   : differentially methylation analysis
@@ -308,11 +313,12 @@ options::checkopt (){
 
 		-rip      | --rna-ip) RIPSEQ=true;;
 		-fs       | --fragmentsize) arg=true; FRAGMENTSIZE=$2;;
-		-s-macs   | --strict-macs) STRICTMACS=true;;
-		-s-gem    | --strict-gem) STRICTGEM=true;;
+		-sp       | --strict-peaks) STRICTPEAKS=true;;
+		-pp       | --pointy-peaks) POINTYPEAKS=true;;
 		-no-macs  | --no-macs) nomacs=true;;
 		-no-gem   | --no-gem) nogem=true;;
 		-no-peaka | --no-peakachu) nopeaka=true;;
+		-no-idr   | --no-idr) noidr=true;;
 		-m6a      | --m6aviewer) nom6a=false;;
 
 		-c        | --comparisons) arg=true; mapfile -t -d ',' COMPARISONS < <(printf '%s' "$2");;
@@ -322,6 +328,7 @@ options::checkopt (){
 		-no-mec   | --no-mecall) nomec=true;;
 		-no-dma   | --no-diffmeanalysis) nodma=true;;
 		-md       | --min-data) arg=true; MINDATA=$2;;
+		-md-cap   | --min-data-cap) arg=true; MINDATACAP=$2;;
 
 		-ql       | --quantifylevel) arg=true; QUANTIFYFLEVEL=$2;;
 		-qt       | --quantifytag) arg=true; QUANTIFYTAG=$2;;
