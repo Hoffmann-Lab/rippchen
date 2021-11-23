@@ -25,19 +25,19 @@ compile::all(){
 }
 
 compile::rippchen() {
-	local insdir threads version bashboneversion src=$(dirname $(dirname $(readlink -e ${BASH_SOURCE[0]})))
+	local insdir threads version bashboneversion src="$(dirname "$(dirname "$(readlink -e "${BASH_SOURCE[0]}")")")"
 	commander::printinfo "installing rippchen"
 	compile::_parse -r insdir -s threads "$@"
 	#source $src/bashbone/lib/version.sh
-	source $insdir/latest/bashbone/lib/version.sh
+	source "$insdir/latest/bashbone/lib/version.sh"
 	bashboneversion=$version
-	source $src/lib/version.sh
-	rm -rf $insdir/rippchen-$version
-	mkdir -p $insdir/rippchen-$version
-	cp -r $src/!(bashbone|setup*) $insdir/rippchen-$version
-	mkdir -p $insdir/latest
-	ln -sfn $insdir/rippchen-$version $insdir/latest/rippchen
-	ln -sfn $insdir/bashbone-$bashboneversion $insdir/rippchen-$version/bashbone
+	source "$src/lib/version.sh"
+	rm -rf "$insdir/rippchen-$version"
+	mkdir -p "$insdir/rippchen-$version"
+	cp -r "$src"/!(bashbone|setup*) "$insdir/rippchen-$version"
+	mkdir -p "$insdir/latest"
+	ln -sfn "$insdir/rippchen-$version" "$insdir/latest/rippchen"
+	ln -sfn "$insdir/bashbone-$bashboneversion" "$insdir/rippchen-$version/bashbone"
 
 	return 0
 }
