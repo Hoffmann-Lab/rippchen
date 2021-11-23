@@ -74,6 +74,10 @@ options::usage() {
 		ALIGNMENT OPTIONS
 		-d       | --distance                 : maximum read alignment edit distance in %. default: 5
 		-i       | --insertsize               : maximum allowed insert for aligning mate pairs. default: 200000
+		-s       | --strandness [value]       : defines library strandness for all inputs. default: automatically inferred
+		                                        0 - unstranded
+		                                        1 - stranded (fr second strand)
+		                                        2 - reversely stranded (fr first strand)
 		-no-split| --no-split                 : disables split read mapping. triggers additional mapping by BWA
 		-no-sege | --no-segemehl              : disables mapping by segemehl
 		-no-star | --no-star                  : disables mapping by STAR
@@ -95,8 +99,8 @@ options::usage() {
 		PEAK CALLING OPTIONS
 		-n1      | --normal-fq1 [path,..]     : normal fastq input. single or first mate. comma seperated or a file with all paths
 		-n2      | --normal-fq2 [path,..]     : normal fastq input. mate pair. comma seperated or a file with all paths
-		-nr1     | --normal-repfq1 [path,..]  : normal replicate fastq input. single or first mate, comma seperated or a file with all paths
-		-nr2     | --normal-repfq2 [path,..]  : normal replicate fastq input. mate pair, comma seperated or a file with all paths
+		-nr1     | --normal-repfq1 [path,..]  : normal replicate fastq input. single or first mate. comma seperated or a file with all paths
+		-nr2     | --normal-repfq2 [path,..]  : normal replicate fastq input. mate pair. comma seperated or a file with all paths
 		-t1      | --treat-fq1 [path,..]      : *IP-Seq fastq input. single or first mate. comma seperated or a file with all paths
 		-t2      | --treat-fq2 [path,..]      : *IP-Seq fastq input. mate pair. comma seperated or a file with all paths
 		-tr1     | --treat-repfq1 [path,..]   : *IP-Seq replicate fastq input. single or first mate. comma seperated or a file with all paths
@@ -122,9 +126,9 @@ options::usage() {
 		                                        NOTE: peakachu will use all files given by -n1/-n2 and -t1/-t2 as replicates
 
 		BASIC DIFFERENTIAL ANALYSIS OPTIONS
-		-1       | --fq1 [path,..]            : fastq input - single or first mate, comma seperated or a file with all paths
-		-2       | --fq2 [path,..]            : fastq input. mate pair, comma seperated or a file with all paths
-		-m       | --mapped [path,..]         : SAM/BAM input - comma seperated or a file with all paths (replaces fastq input)
+		-1       | --fq1 [path,..]            : fastq input. single or first mate. comma seperated or a file with all paths
+		-2       | --fq2 [path,..]            : fastq input. mate pair. comma seperated or a file with all paths
+		-m       | --mapped [path,..]         : SAM/BAM input. comma seperated or a file with all paths (replaces fastq input)
 		-mn      | --mapper-name [string]     : name to use for output subdirectories in case of SAM/BAM input. default: custom
 		-c       | --comparisons [path,..]    : experiment summary file(s) for pairwise analyses according to condition column (primary factor)
 		                                        format: 4 or more columns, seperated by tab or space(s)
@@ -250,12 +254,12 @@ options::checkopt (){
 	case $1 in
 		-h        | --help) (options::usage); exit 0;;
 		-dev      | --devel) options::developer;;
-		-prevtmp  | --previoustmp) arg=true; PREVIOUSTMPDIR=$2;;
+		-prevtmp  | --previoustmp) arg=true; PREVIOUSTMPDIR="$2";;
 		-resume   | --resume-from) arg=true; options::resume "$2";;
 		-skip     | --skip) arg=true; options::skip "$2";;
 		-redo     | --redo) arg=true; options::redo "$2";;
 
-		-tmp      | --tmp) arg=true; TMPDIR=$2;;
+		-tmp      | --tmp) arg=true; TMPDIR="$2";;
 		-r        | --remove) CLEANUP=true;;
 		-v        | --verbosity) arg=true; VERBOSITY=$2;;
 		-t        | --threads) arg=true; THREADS=$2;;
@@ -263,19 +267,19 @@ options::checkopt (){
 		-xmem     | --max-memory) arg=true; MAXMEMORY=$2;;
 
 		-x        | --index) INDEX=true;;
-		-g        | --genome) arg=true; GENOME=$2;;
-		-gtf      | --gtf) arg=true; GTF=$2;;
-		-o        | --out) arg=true; OUTDIR=$2;;
-		-l        | --log) arg=true; LOG=$2;;
+		-g        | --genome) arg=true; GENOME="$2";;
+		-gtf      | --gtf) arg=true; GTF="$2";;
+		-o        | --out) arg=true; OUTDIR="$2";;
+		-l        | --log) arg=true; LOG="$2";;
 
-		-1        | --fq1 | -n1 | --normal-fq1) arg=true; nfq1=$2;;
-		-2        | --fq2 | -n2 | --normal-fq2) arg=true; nfq2=$2;;
-		-nr1      | --normal-repfq1) arg=true; nrfq1=$2;;
-		-nr2      | --normal-repfq2) arg=true; nrfq2=$2;;
-		-t1       | --treat-fq1) arg=true; tfq1=$2;;
-		-t2       | --treat-fq2) arg=true; tfq2=$2;;
-		-tr1      | --treat-repfq1) arg=true; rfq1=$2;;
-		-tr2      | --treat-repfq2) arg=true; rfq2=$2;;
+		-1        | --fq1 | -n1 | --normal-fq1) arg=true; nfq1="$2";;
+		-2        | --fq2 | -n2 | --normal-fq2) arg=true; nfq2="$2";;
+		-nr1      | --normal-repfq1) arg=true; nrfq1="$2";;
+		-nr2      | --normal-repfq2) arg=true; nrfq2="$2";;
+		-t1       | --treat-fq1) arg=true; tfq1="$2";;
+		-t2       | --treat-fq2) arg=true; tfq2="$2";;
+		-tr1      | --treat-repfq1) arg=true; rfq1="$2";;
+		-tr2      | --treat-repfq2) arg=true; rfq2="$2";;
 
 		-f        | --fusiondetection) arg=true; FUSIONS=$2; [[ $FUSIONS == "null" ]] && noarr=true;;
 		-no-arr   | --no-arriba) noarr=true;;
@@ -295,15 +299,15 @@ options::checkopt (){
 		-no-star  | --no-star) nostar=true;;
 		-no-bwa   | --no-bwa) nobwa=true;;
 
-		-m        | --mapped | -nm | --normal-mapped) arg=true; nmap=$2;;
-		-nrm      | --normal-repmapped) arg=true; nrmap=$2;;
-		-tm       | --treat-mapped) arg=true; tmap=$2;;
-		-trm      | --treat-repmapped) arg=true; rmap=$2;;
-		-mn       | --mapper-name) arg=true; MAPNAME=$2;;
+		-m        | --mapped | -nm | --normal-mapped) arg=true; nmap="$2";;
+		-nrm      | --normal-repmapped) arg=true; nrmap="$2";;
+		-tm       | --treat-mapped) arg=true; tmap="$2";;
+		-trm      | --treat-repmapped) arg=true; rmap="$2";;
+		-mn       | --mapper-name) arg=true; MAPNAME="$2";;
 
 		-no-uniq  | --no-uniqify) nouniq=true;;
 		-no-sort  | --no-sort) nosort=true;;
-		-rx       | --regex) arg=true; REGEX=$2;;
+		-rx       | --regex) arg=true; REGEX="$2";;
 		-rmd      | --removeduplicates) normd=false;;
 		-no-rmd   | --no-removeduplicates) normd=true;;
 		-cmo      | --clipmateoverlaps) nocmo=false;;
@@ -323,17 +327,18 @@ options::checkopt (){
 
 		-c        | --comparisons) arg=true; mapfile -t -d ',' COMPARISONS < <(printf '%s' "$2");;
 
-		-b        | --bisulfite) arg=true; DIVERSITY=$2; BISULFITE=true; RRBS=false; nocor=true; norrm=true; [[ "$DIVERSITY" == "WGBS" ]] && { RRBS=false; normd=${normd:-false}; } || { RRBS=true; normd=${normd:-true}; };;
+		-b        | --bisulfite) arg=true; DIVERSITY="$2"; BISULFITE=true; RRBS=false; nocor=true; norrm=true; [[ "$DIVERSITY" == "WGBS" ]] && { RRBS=false; normd=${normd:-false}; } || { RRBS=true; normd=${normd:-true}; };;
 		-no-mspi  | --no-mspiselection) nomspi=true;;
 		-no-mec   | --no-mecall) nomec=true;;
 		-no-dma   | --no-diffmeanalysis) nodma=true;;
 		-md       | --min-data) arg=true; MINDATA=$2;;
 		-md-cap   | --min-data-cap) arg=true; MINDATACAP=$2;;
 
-		-ql       | --quantifylevel) arg=true; QUANTIFYFLEVEL=$2;;
-		-qt       | --quantifytag) arg=true; QUANTIFYTAG=$2;;
+		-s        | --strandness) arg=true; STRANDNESS=$2;;
+		-ql       | --quantifylevel) arg=true; QUANTIFYFLEVEL="$2";;
+		-qt       | --quantifytag) arg=true; QUANTIFYTAG="$2";;
 		-cf       | --clusterfilter) arg=true; CLUSTERFILTER=$2;;
-		-cb       | --clusterbiotype) arg=true; CLUSTERBIOTYPE=$2;;
+		-cb       | --clusterbiotype) arg=true; CLUSTERBIOTYPE="$2";;
 		-no-quant | --no-quantification) noquant=true; nodsj=true; nodea=true; noclust=true; nogo=true;;
 		-no-dsj   | --no-diffsplicejunctions) nodsj=true;;
 		-no-dea   | --no-diffexanalysis) nodea=true;;
