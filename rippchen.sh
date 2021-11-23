@@ -5,28 +5,28 @@ source "$(dirname "$(readlink -e "$0")")/activate.sh" -c true -x cleanup || exit
 
 cleanup() {
 	[[ -e $TMPDIR ]] && {
-		find -L $TMPDIR -type f -name "cleanup.*" -exec rm -f {} \; &> /dev/null || true
-		find -L $TMPDIR -depth -type d -name "cleanup.*" -exec rm -rf {} \; &> /dev/null || true
+		find -L "$TMPDIR" -type f -name "cleanup.*" -exec rm -f "{}" \; &> /dev/null || true
+		find -L "$TMPDIR" -depth -type d -name "cleanup.*" -exec rm -rf "{}" \; &> /dev/null || true
 	}
 	[[ $1 -eq 0 ]] && ${CLEANUP:=false} && {
-		[[ -e $TMPDIR ]] && {
-			find -L $TMPDIR -type f -exec rm -f {} \; &> /dev/null || true
-			find -L $TMPDIR -depth -type d -exec rm -rf {} \; &> /dev/null || true
-			rm -rf $TMPDIR
+		[[ -e "$TMPDIR" ]] && {
+			find -L "$TMPDIR" -type f -exec rm -f "{}" \; &> /dev/null || true
+			find -L "$TMPDIR" -depth -type d -exec rm -rf "{}" \; &> /dev/null || true
+			rm -rf "$TMPDIR"
 		}
-		[[ -e $OUTDIR ]] && {
+		[[ -e "$OUTDIR" ]] && {
 			local b f
 			for f in "${FASTQ1[@]}"; do
-				readlink -e "$f" | file -f - | grep -qE '(gzip|bzip)' && b=$(basename $f | rev | cut -d '.' -f 3- | rev) || b=$(basename $f | rev | cut -d '.' -f 2- | rev)
-				find -L $OUTDIR -depth -type d -name "$b*._STAR*" -exec rm -rf {} \; &> /dev/null || true
-				find -L $OUTDIR -type f -name "$b*.sorted.bam" -exec bash -c '[[ -s {} ]] && rm -f $(dirname {})/$(basename {} .sorted.bam).bam' \; &> /dev/null || true
-				find -L $OUTDIR -type f -name "$b*.*.gz" -exec bash -c '[[ -s {} ]] && rm -f $(dirname {})/$(basename {} .gz)' \; &> /dev/null || true
+				readlink -e "$f" | file -f - | grep -qE '(gzip|bzip)' && b=$(basename "$f" | rev | cut -d '.' -f 3- | rev) || b=$(basename "$f" | rev | cut -d '.' -f 2- | rev)
+				find -L "$OUTDIR" -depth -type d -name "$b*._STAR*" -exec rm -rf {} \; &> /dev/null || true
+				find -L "$OUTDIR" -type f -name "$b*.sorted.bam" -exec bash -c '[[ -s "{}" ]] && rm -f "$(dirname "{}")/$(basename "{}" .sorted.bam).bam"' \; &> /dev/null || true
+				find -L "$OUTDIR" -type f -name "$b*.*.gz" -exec bash -c '[[ -s "{}" ]] && rm -f "$(dirname "{}")/$(basename "{}" .gz)"' \; &> /dev/null || true
 			done
 			for f in "${MAPPED[@]}"; do
-				b=$(basename $f | rev | cut -d '.' -f 2- | rev)
-				find -L $OUTDIR -depth -type d -name "$b*._STAR*" -exec rm -rf {} \; &> /dev/null || true
-				find -L $OUTDIR -type f -name "$b*.sorted.bam" -exec bash -c '[[ -s {} ]] && rm -f $(dirname {})/$(basename {} .sorted.bam).bam' \; &> /dev/null || true
-				find -L $OUTDIR -type f -name "$b*.*.gz" -exec bash -c '[[ -s {} ]] && rm -f $(dirname {})/$(basename {} .gz)' \; &> /dev/null || true
+				b=$(basename "$f" | rev | cut -d '.' -f 2- | rev)
+				find -L "$OUTDIR" -depth -type d -name "$b*._STAR*" -exec rm -rf "{}" \; &> /dev/null || true
+				find -L "$OUTDIR" -type f -name "$b*.sorted.bam" -exec bash -c '[[ -s {} ]] && rm -f "$(dirname "{}")/$(basename "{}" .sorted.bam).bam"' \; &> /dev/null || true
+				find -L "$OUTDIR" -type f -name "$b*.*.gz" -exec bash -c '[[ -s {} ]] && rm -f "$(dirname "{}")/$(basename "{}" .gz)"' \; &> /dev/null || true
 			done
 		}
 	}
@@ -34,15 +34,15 @@ cleanup() {
 }
 
 VERSION=$version
-CMD="$(basename $0) $*"
+CMD="$(basename "$0") $*"
 THREADS=$(grep -cF processor /proc/cpuinfo)
 MAXMEMORY=$(grep -F -i memavailable /proc/meminfo | awk '{printf("%d",$2*0.9/1024)}')
 MEMORY=10000
 [[ MTHREADS=$((MAXMEMORY/MEMORY)) -gt $THREADS ]] && MTHREADS=$THREADS
 [[ $MTHREADS -eq 0 ]] && die "too less memory available ($MAXMEMORY)"
 VERBOSITY=0
-OUTDIR=$PWD/results
-TMPDIR=$OUTDIR
+OUTDIR="$PWD/results"
+TMPDIR="$OUTDIR"
 DISTANCE=5
 FRAGMENTSIZE=200
 FASTQ1=() # all idx of FASTQ1[.] are equal to MAPPED[.]
@@ -58,21 +58,21 @@ BASHBONE_ERROR="parameterization issue"
 options::parse "$@"
 
 BASHBONE_ERROR="cannot access $OUTDIR"
-mkdir -p $OUTDIR
-OUTDIR=$(readlink -e $OUTDIR)
-[[ ! $LOG ]] && LOG=$OUTDIR/run.log
+mkdir -p "$OUTDIR"
+OUTDIR="$(readlink -e "$OUTDIR")"
+[[ ! $LOG ]] && LOG="$OUTDIR/run.log"
 BASHBONE_ERROR="cannot access $LOG"
 mkdir -p "$(dirname "$LOG")"
 
 BASHBONE_ERROR="cannot access $TMPDIR"
 if [[ $PREVIOUSTMPDIR ]]; then
-	TMPDIR=$PREVIOUSTMPDIR
-	mkdir -p $TMPDIR
-	TMPDIR=$(readlink -e $TMPDIR)
+	TMPDIR="$PREVIOUSTMPDIR"
+	mkdir -p "$TMPDIR"
+	TMPDIR="$(readlink -e "$TMPDIR")"
 else
-	mkdir -p $TMPDIR
-	TMPDIR=$(readlink -e $TMPDIR)
-	TMPDIR=$(mktemp -d -p $TMPDIR rippchen.XXXXXXXXXX)
+	mkdir -p "$TMPDIR"
+	TMPDIR="$(readlink -e "$TMPDIR")"
+	TMPDIR="$(mktemp -d -p "$TMPDIR" rippchen.XXXXXXXXXX)"
 fi
 
 ${INDEX:=false} || {
@@ -87,9 +87,9 @@ ${INDEX:=false} || {
 
 if [[ $GENOME ]]; then
 	BASHBONE_ERROR="genome file does not exists or is compressed $GENOME"
-	readlink -e $GENOME | file -f - | grep -qF ASCII
-	[[ ! -s $GENOME.md5.sh ]] && cp $(dirname $(readlink -e $0))/bashbone/lib/md5.sh $GENOME.md5.sh
-	source $GENOME.md5.sh
+	readlink -e "$GENOME" | file -f - | grep -qF ASCII
+	[[ ! -s "$GENOME.md5.sh" ]] && cp "$(dirname "$(readlink -e "$0")")/bashbone/lib/md5.sh" "$GENOME.md5.sh"
+	source "$GENOME.md5.sh"
 else
 	BASHBONE_ERROR="genome file missing"
 	! ${INDEX:=false}
@@ -101,15 +101,17 @@ fi
 
 if [[ $GTF ]]; then
 	BASHBONE_ERROR="annotation file does not exists or is compressed $GTF"
-	readlink -e $GTF | file -f - | grep -qF ASCII
+	readlink -e "$GTF" | file -f - | grep -qF ASCII
 else
-	readlink -e $GENOME.gtf | file -f - | grep -qF ASCII && {
-		GTF=$GENOME.gtf
+	readlink -e "$GENOME.gtf" | file -f - | grep -qF ASCII && {
+		GTF="$GENOME.gtf"
 	} || {
 		if ! ${BISULFITE:=false}; then # does not require gtf, even for indexing
 			if ${INDEX:=false}; then
-				commander::warn "gtf file missing. proceeding without star"
-				nostar=true
+				commander::warn "gtf file missing. star index generation without prior knowledge"
+				#nostar=true
+				commander::warn "gtf file missing. proceeding without diego"
+				nodsj=true
 			elif [[ $FUSIONS ]]; then
 				commander::warn "gtf file missing. proceeding without arriba"
 				noarr=true
@@ -130,7 +132,7 @@ fi
 if [[ $COMPARISONS ]]; then
 	for f in "${COMPARISONS[@]}"; do
 		BASHBONE_ERROR="experiment summary file for pairwise comparisons does not exists or is compressed $f"
-		readlink -e $f | file -f - | grep -qF ASCII
+		readlink -e "$f" | file -f - | grep -qF ASCII
 	done
 fi
 
@@ -142,19 +144,19 @@ fi
 checkfile(){
 	declare -n _idx=$2 _arr=$3
 	local f ifs
-	if [[ $(readlink -e $1 | file -f - | grep ASCII) && -e $(readlink -e $(head -1 $1)) ]]; then
+	if [[ $(readlink -e "$1" | file -f - | grep ASCII) && -e "$(readlink -e $(head -1 "$1"))" ]]; then
 		ifs=$IFS
 		unset IFS
 		while read -r f; do
-			readlink -e $f &> /dev/null || return 1
-			_arr[((++i))]=$(cd -P $(dirname $f); echo $PWD/$(basename $f))
+			readlink -e "$f" &> /dev/null || return 1
+			_arr[((++i))]="$(cd -P "$(dirname "$f")"; echo "$PWD/$(basename "$f")")"
 			_idx+=($i)
 		done < $1
 		IFS=$ifs
 	else
 		f=$1
-		readlink -e $f &> /dev/null || return 1
-		_arr[((++i))]=$(cd -P $(dirname $f); echo $PWD/$(basename $f))
+		readlink -e "$f" &> /dev/null || return 1
+		_arr[((++i))]="$(cd -P "$(dirname "$f")"; echo "$PWD/$(basename "$f")")"
 		_idx+=($i)
 	fi
 	return 0
@@ -257,12 +259,14 @@ fi
 unset BASHBONE_ERROR
 
 ${Smd5:=false} || {
-	commander::printinfo "finally updating genome and annotation md5 sums" >> $LOG
-	thismd5genome=$(md5sum $GENOME | cut -d ' ' -f 1)
-	[[ "$md5genome" != "$thismd5genome" ]] && sed -i "s/md5genome=.*/md5genome=$thismd5genome/" $GENOME.md5.sh
-	thismd5gtf=$(md5sum $GTF | cut -d ' ' -f 1)
-	[[ "$md5gtf" != "$thismd5gtf" ]] && sed -i "s/md5gtf=.*/md5gtf=$thismd5gtf/" $GENOME.md5.sh
+	commander::printinfo "finally updating genome and annotation md5 sums" >> "$LOG"
+	thismd5genome=$(md5sum "$GENOME" | cut -d ' ' -f 1)
+	[[ "$md5genome" != "$thismd5genome" ]] && sed -i "s/md5genome=.*/md5genome=$thismd5genome/" "$GENOME.md5.sh"
+	[[ $GTF ]] && {
+		thismd5gtf=$(md5sum "$GTF" | cut -d ' ' -f 1)
+		[[ "$md5gtf" != "$thismd5gtf" ]] && sed -i "s/md5gtf=.*/md5gtf=$thismd5gtf/" "$GENOME.md5.sh"
+	}
 }
 
-commander::printinfo "success" >> $LOG
+commander::printinfo "success" | tee -ia "$LOG"
 exit 0
