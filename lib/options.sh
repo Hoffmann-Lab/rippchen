@@ -81,7 +81,7 @@ options::usage() {
 		-no-split| --no-split                 : disables split read mapping. triggers additional mapping by BWA
 		-no-sege | --no-segemehl              : disables mapping by segemehl
 		-no-star | --no-star                  : disables mapping by STAR
-		-no-bwa  | --no-bwa                   : disables mapping by BWA, when -no-split is used. default: no BWA mapping
+		-no-bwa  | --no-bwa                   : disables mapping by BWA, when -no-split is used or during bisulfite analysis
 		-no-qual | --no-qualityanalysis       : disables intermediate alignment quality analyses
 		                                        NOTE: if -no-qual and unless -no-stats option, faster bulk quality analyses will be performed
 		-no-uniq | --no-uniqify               : disables extraction of properly paired and uniquely mapped reads
