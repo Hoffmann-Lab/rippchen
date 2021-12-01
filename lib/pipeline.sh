@@ -14,6 +14,15 @@ pipeline::index(){
 			-o "$TMPDIR" \
 			-r NA \
 			-1 NA
+		unset NA1 NA2
+		bisulfite::bwa \
+			-S ${nobwa:=false} \
+			-s true \
+			-t $THREADS \
+			-g "$GENOME" \
+			-o "$TMPDIR" \
+			-r NA \
+			-1 NA
 	else
 		alignment::segemehl \
 			-S ${nosege:=false} \
@@ -245,6 +254,17 @@ pipeline::_mapping(){
 				-g "$GENOME" \
 				-x "$GENOME.segemehl.ctidx" \
 				-y "$GENOME.segemehl.gaidx" \
+				-r mapper
+
+			bisulfite::bwa \
+				-S ${nobwa:=false} \
+				-s ${Sbwa:=false} \
+				-5 ${Smd5:=false} \
+				-1 FASTQ1 \
+				-2 FASTQ2 \
+				-o "$OUTDIR/mapped" \
+				-t $THREADS \
+				-g "$GENOME" \
 				-r mapper
 		else
 			alignment::segemehl \
@@ -552,7 +572,7 @@ pipeline::dea(){
 	alignment::inferstrandness \
 		-S $( (${noquant:=false} && ${nodsj:=false}) && echo true || echo false) \
 		-s $([[ $STRANDNESS ]] && echo true || { (${nodsj:=false} || ${Sdsj:=false}) && (${noquant:=false} || ${Squant:=false}) && echo true || echo false; }) \
-		-d $STRANDNESS \
+		-d "$STRANDNESS" \
 		-t $THREADS \
 		-r mapper \
 		-x strandness \
