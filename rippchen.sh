@@ -1,7 +1,11 @@
 #! /usr/bin/env bash
 # (c) Konstantin Riege
 
-source "$(dirname "$(readlink -e "$0")")/activate.sh" -c true -x cleanup || exit 1
+if [[ $BASHBONE_TOOLSDIR ]]; then
+	source "$(dirname "$(readlink -e "$0")")/activate.sh" -i "$BASHBONE_TOOLSDIR" -c true -x cleanup || exit 1
+else
+	source "$(dirname "$(readlink -e "$0")")/activate.sh" -c true -x cleanup || exit 1
+fi
 
 cleanup() {
 	[[ -e $TMPDIR ]] && {
@@ -39,7 +43,8 @@ THREADS=$(grep -cF processor /proc/cpuinfo)
 MAXMEMORY=$(grep -F -i memavailable /proc/meminfo | awk '{printf("%d",$2*0.9/1024)}')
 MEMORY=10000
 [[ MTHREADS=$((MAXMEMORY/MEMORY)) -gt $THREADS ]] && MTHREADS=$THREADS
-[[ $MTHREADS -eq 0 ]] && die "too less memory available ($MAXMEMORY)"
+BASHBONE_ERROR="too less memory available ($MAXMEMORY)"
+[[ $MTHREADS -eq 0 ]] && false
 VERBOSITY=0
 OUTDIR="$PWD/results"
 TMPDIR="$OUTDIR"
@@ -97,6 +102,7 @@ else
 	nosege=true
 	nostar=true
 	nobwa=true
+	Smd5=true
 fi
 
 if [[ $GTF ]]; then
@@ -133,6 +139,8 @@ if [[ $COMPARISONS ]]; then
 	for f in "${COMPARISONS[@]}"; do
 		BASHBONE_ERROR="experiment summary file for pairwise comparisons does not exists or is compressed $f"
 		readlink -e "$f" | file -f - | grep -qF ASCII
+		BASHBONE_ERROR="experiment summary file for pairwise comparisons is not tab separated $f"
+		perl -F'\t' -lanE 'if($#F>=3){$m{$#F}=1}; END{@m=(keys %m); if($#m!=0){exit 1}}' "$f"
 	done
 fi
 
@@ -222,8 +230,7 @@ if [[ $ridx ]]; then
 	[[ ${#ridx[@]} -eq ${#tidx[@]} ]] || false
 fi
 
-progress::log -v $VERBOSITY -o $LOG
-commander::printinfo "rippchen $VERSION utilizing bashbone $BASHBONE_VERSION started with command: $CMD" | tee -ai "$LOG"
+commander::printinfo "rippchen $VERSION utilizing bashbone $BASHBONE_VERSION started with command: $CMD" | tee -i "$LOG"
 commander::printinfo "temporary files go to: $HOSTNAME:$TMPDIR" | tee -ia "$LOG"
 commander::printinfo "date: $(date)" | tee -ia "$LOG"
 x=$(ulimit -Hn)
@@ -235,31 +242,31 @@ x=$(ulimit -Hn)
 
 if ${INDEX:=false}; then
 	BASHBONE_ERROR="indexing failed"
-	progress::observe -v $VERBOSITY -o "$LOG" -f pipeline::index
+	progress::log -v $VERBOSITY -o "$LOG" -f pipeline::index
 else
 	if [[ $tfq1 || $tmap ]]; then
 		${RIPSEQ:=false} || nosplit=true
 		BASHBONE_ERROR="peak calling pipeline failed"
-		progress::observe -v $VERBOSITY -o "$LOG" -f pipeline::callpeak
+		progress::log -v $VERBOSITY -o "$LOG" -f pipeline::callpeak
 	elif [[ $FUSIONS ]]; then
 		BASHBONE_ERROR="fusion detection pipeline failed"
-		progress::observe -v $VERBOSITY -o "$LOG" -f pipeline::fusions
+		progress::log -v $VERBOSITY -o "$LOG" -f pipeline::fusions
 	elif ${BISULFITE:=false}; then
 		BASHBONE_ERROR="methylation analysis pipeline failed"
-		progress::observe -v $VERBOSITY -o "$LOG" -f pipeline::bs
+		progress::log -v $VERBOSITY -o "$LOG" -f pipeline::bs
 	else
 		[[ ${#nidx[@]} -lt 2 && "$noclust" != "true" ]] && {
 			commander::warn "too few samples. proceeding without clustering"
 			noclust=true
 		}
 		BASHBONE_ERROR="expression analysis pipeline failed"
-		progress::observe -v $VERBOSITY -o "$LOG" -f pipeline::dea
+		progress::log -v $VERBOSITY -o "$LOG" -f pipeline::dea
 	fi
 fi
 unset BASHBONE_ERROR
 
 ${Smd5:=false} || {
-	commander::printinfo "finally updating genome and annotation md5 sums" >> "$LOG"
+	commander::printinfo "finally updating genome and annotation md5 sums" | tee -ia "$LOG"
 	thismd5genome=$(md5sum "$GENOME" | cut -d ' ' -f 1)
 	[[ "$md5genome" != "$thismd5genome" ]] && sed -i "s/md5genome=.*/md5genome=$thismd5genome/" "$GENOME.md5.sh"
 	[[ $GTF ]] && {
