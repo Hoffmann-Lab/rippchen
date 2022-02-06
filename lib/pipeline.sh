@@ -660,7 +660,8 @@ pipeline::dea(){
 			-c COMPARISONS \
 			-l coexpressions \
 			-g "$GTF.go" \
-			-i "$OUTDIR/deseq"
+			-i "$OUTDIR/deseq" \
+			-j "$OUTDIR/counted"
 	else
 		cluster::coexpression \
 			-S ${noclust:=false} \
@@ -682,7 +683,8 @@ pipeline::dea(){
 			-t $THREADS \
 			-r mapper \
 			-l coexpressions \
-			-g "$GTF.go"
+			-g "$GTF.go" \
+			-j "$OUTDIR/counted"
 	fi
 
 	return 0
