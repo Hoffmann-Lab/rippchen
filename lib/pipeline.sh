@@ -12,6 +12,8 @@ pipeline::index(){
 			-x "$GENOME.segemehl.ctidx" \
 			-y "$GENOME.segemehl.gaidx" \
 			-o "$TMPDIR" \
+			-p "$TMPDIR" \
+			-F \
 			-r NA \
 			-1 NA
 		unset NA1 NA2
@@ -21,6 +23,7 @@ pipeline::index(){
 			-t $THREADS \
 			-g "$GENOME" \
 			-o "$TMPDIR" \
+			-F \
 			-r NA \
 			-1 NA
 	else
@@ -31,6 +34,7 @@ pipeline::index(){
 			-g "$GENOME" \
 			-x "$GENOME.segemehl.idx" \
 			-o "$TMPDIR" \
+			-F \
 			-r NA1 \
 			-1 NA2
 		unset NA1 NA2
@@ -43,6 +47,7 @@ pipeline::index(){
 			-f "$GTF" \
 			-o "$TMPDIR" \
 			-p "$TMPDIR" \
+			-F \
 			-r NA1 \
 			-1 NA2
 		unset NA1 NA2
@@ -53,9 +58,11 @@ pipeline::index(){
 			-g "$GENOME" \
 			-x "$GENOME.bwa.idx/bwa" \
 			-o "$TMPDIR" \
+			-F \
 			-r NA1 \
 			-1 NA2
 		genome::mkdict \
+			-F \
 			-t $THREADS \
 			-i "$GENOME" \
 			-p "$TMPDIR"
@@ -71,7 +78,8 @@ pipeline::index(){
 			-e false \
 			-i "$TMPDIR" \
 			-p "$TMPDIR" \
-			-o "$TMPDIR"
+			-o "$TMPDIR" \
+			-F
 	fi
 
 	return 0
@@ -424,6 +432,7 @@ pipeline::bs(){
 			-m $MEMORY \
 			-M $MAXMEMORY \
 			-r mapper \
+			-3 FASTQ3 \
 			-c slicesinfo \
 			-x "$REGEX" \
 			-p "$TMPDIR" \
@@ -471,16 +480,28 @@ pipeline::bs(){
 		-t $THREADS \
 		-o "$OUTDIR/stats"
 
-	bisulfite::mecall \
-		-S ${nomec:=false} \
-		-s ${Smec:=false} \
+	bisulfite::methyldackel \
+		-S ${nomedl:=false} \
+		-s ${Smedl:=false} \
 		-t $THREADS \
 		-g "$GENOME" \
 		-r mapper \
 		-o "$OUTDIR/mecall" \
 		-p "$TMPDIR"
 
-	if ! ${nomec:=false} && [[ $COMPARISONS ]]; then
+	bisulfite::haarz \
+		-S ${nohaarz:=false} \
+		-s ${Shaarz:=false} \
+		-t $THREADS \
+		-g "$GENOME" \
+		-r mapper \
+		-o "$OUTDIR/mecall" \
+		-p "$TMPDIR"
+
+	if ! ${nomedl:=false} || ! ${nohaarz:=false} && [[ $COMPARISONS ]]; then
+		local params=""
+		${nomedl:=false} && params+=" -d methyldackel"
+		${nohaarz:=false} && params+=" -d haarz"
 		bisulfite::metilene \
 			-S ${nodma:=false} \
 			-s ${Sdma:=false} \
@@ -491,7 +512,8 @@ pipeline::bs(){
 			-r mapper \
 			-i "$OUTDIR/mecall" \
 			-o "$OUTDIR/metilene" \
-			-p "$TMPDIR"
+			-p "$TMPDIR" \
+			$params
 	fi
 
 	return 0
@@ -522,6 +544,7 @@ pipeline::dea(){
 			-m $MEMORY \
 			-M $MAXMEMORY \
 			-r mapper \
+			-3 FASTQ3 \
 			-c slicesinfo \
 			-x "$REGEX" \
 			-p "$TMPDIR" \
@@ -639,7 +662,7 @@ pipeline::dea(){
 		cluster::coexpression_deseq \
 			-S ${noclust:=false} \
 			-s ${Sclust:=false} \
-			-f ${CLUSTERFILTER:=0} \
+			-f ${CLUSTERFILTER:=04} \
 			-b ${CLUSTERBIOTYPE:="."} \
 			-g "$GTF" \
 			-t $THREADS \
@@ -666,7 +689,7 @@ pipeline::dea(){
 		cluster::coexpression \
 			-S ${noclust:=false} \
 			-s ${Sclust:=false} \
-			-f ${CLUSTERFILTER:=0} \
+			-f ${CLUSTERFILTER:=4} \
 			-b ${CLUSTERBIOTYPE:="."} \
 			-g "$GTF" \
 			-t $THREADS \
@@ -730,6 +753,7 @@ pipeline::callpeak() {
 			-m $MEMORY \
 			-M $MAXMEMORY \
 			-r mapper \
+			-3 FASTQ3 \
 			-c slicesinfo \
 			-x "$REGEX" \
 			-p "$TMPDIR" \
@@ -792,17 +816,20 @@ pipeline::callpeak() {
 			-M $MAXMEMORY \
 			-p "$TMPDIR" \
 			-o "$OUTDIR/peaks" \
+			-y ${POINTYPEAKS:=false} \
 			-z ${STRICTPEAKS:=false}
 
-		alignment::inferstrandness \
-			-S ${nogem:=false} \
-			-s $([[ $STRANDNESS ]] && echo true || echo ${Sgem:=false}) \
-			-d "$STRANDNESS" \
-			-t $THREADS \
-			-r mapper \
-			-x strandness \
-			-g "$GTF" \
-			-p "$TMPDIR"
+		${RIPSEQ:=false} && {
+			alignment::inferstrandness \
+				-S ${nogem:=false} \
+				-s $([[ $STRANDNESS ]] && echo true || echo ${Sgem:=false}) \
+				-d "$STRANDNESS" \
+				-t $THREADS \
+				-r mapper \
+				-x strandness \
+				-g "$GTF" \
+				-p "$TMPDIR"
+		}
 
 		peaks::gem \
 			-S ${nogem:=false} \
@@ -829,7 +856,8 @@ pipeline::callpeak() {
 			-i tidx \
 			-r mapper \
 			-t $THREADS \
-			-o "$OUTDIR/peaks"
+			-o "$OUTDIR/peaks" \
+			-z ${STRICTPEAKS:=false}
 
 		peaks::m6aviewer \
 			-S ${nom6a:=true} \
@@ -858,17 +886,20 @@ pipeline::callpeak() {
 			-M $MAXMEMORY \
 			-p "$TMPDIR" \
 			-o "$OUTDIR/peaks" \
+			-y ${POINTYPEAKS:=false} \
 			-z ${STRICTPEAKS:=false}
 
-		alignment::inferstrandness \
-			-S ${nogem:=false} \
-			-s $([[ $STRANDNESS ]] && echo true || echo ${Sgem:=false}) \
-			-d "$STRANDNESS" \
-			-t $THREADS \
-			-r mapper \
-			-x strandness \
-			-g "$GTF" \
-			-p "$TMPDIR"
+		${RIPSEQ:=false} && {
+			alignment::inferstrandness \
+				-S ${nogem:=false} \
+				-s $([[ $STRANDNESS ]] && echo true || echo ${Sgem:=false}) \
+				-d "$STRANDNESS" \
+				-t $THREADS \
+				-r mapper \
+				-x strandness \
+				-g "$GTF" \
+				-p "$TMPDIR"
+		}
 
 		peaks::gem_idr \
 			-S ${nogem:=false} \
@@ -901,7 +932,8 @@ pipeline::callpeak() {
 			-k pidx \
 			-r mapper \
 			-t $THREADS \
-			-o "$OUTDIR/peaks"
+			-o "$OUTDIR/peaks" \
+			-z ${STRICTPEAKS:=false}
 
 		peaks::m6aviewer_idr \
 			-S ${nom6a:=true} \

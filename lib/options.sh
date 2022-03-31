@@ -25,6 +25,7 @@ options::usage() {
 		-l       | --log [path]               : output directory. default: $OUTDIR/run.log
 		-tmp     | --tmp                      : temporary directory. default: $TMPDIR/rippchen.XXXXXXXXXX
 		-r       | --remove                   : remove temporary and unnecessary files upon succesful termination
+		-rr      | --remove-remove            : remove temporary and unnecessary files upon termination
 		-t       | --threads [value]          : number of threads. default: $THREADS
 		-xmem    | --max-memory [value]       : total amount of allocatable memory in MB. default: $MAXMEMORY MB i.e. currently available memory
 		-mem     | --memory [value]           : allocatable memory per instance of memory greedy tools in MB. defines internal number of parallel instances
@@ -38,8 +39,8 @@ options::usage() {
 		INDEXING OPTIONS
 		-x       | --index                    : triggers creation of all requiered genome and annotation indices plus md5 sums
 		-b       | --bisulfite [string]       : triggers indices for for methylation analyses. use keyword WGBS
-		-g       | --genome [path]            : genome fasta input. without, only preprocessing is performed (see dlgenome.sh)
-		-gtf     | --gtf [path]               : annotation gtf input. default: [-g].gtf (see dlgenome.sh)
+		-g       | --genome [path]            : genome fasta input. without, only preprocessing is performed
+		-gtf     | --gtf [path]               : annotation gtf input. default: [-g].gtf
 		-no-sege | --no-segemehl              : disables indexing for segemehl
 		-no-star | --no-star                  : disables indexing for STAR. use this option for indexing of plug-n-play CTAT resource
 		                                        NOTE: md5 sum of CTAT [-g].star.idx/SA file needs to be manually added to [-g].md5.sh file afterwards
@@ -51,12 +52,13 @@ options::usage() {
 		DIFFERENTIAL EXPRESSION ANALYSIS OPTIONS
 		-c       | --comparisons [path,..]    : triggers differential expression analysis. tabular descriptor file(s) for pairwise comparisons
 		                                        NOTE: no file implies -no-dsj -no-dea -no-go -no-clust. see below for format information
-		-g       | --genome [path]            : genome fasta input. without, only preprocessing is performed (see dlgenome.sh)
+		-g       | --genome [path]            : genome fasta input. without, only preprocessing is performed
 		                                        NOTE: no fasta file implies -no-map
-		-gtf     | --gtf [path]               : annotation gtf input. default: [-g].gtf (see dlgenome.sh)
+		-gtf     | --gtf [path]               : annotation gtf input. default: [-g].gtf
 		                                        NOTE: no gtf file implies -no-quant
 		-1       | --fq1 [path,..]            : fastq input. single or first mate. comma seperated or a file with all paths
 		-2       | --fq2 [path,..]            : fastq input. mate pair. comma seperated or a file with all paths
+		-3       | --fq3 [path,..]            : fastq input. UMI sequences. comma seperated or a file with all paths
 		-no-trim | --no-trimming              : disables quality trimming utilizing a conservative sliding window approach and simple 5' clipping
 		-no-clip | --no-clipping              : disables removal of poly N, mono- and di-nucleotide ends as well as adapter sequences when used with -a
 		                                      : NOTE: clipping includes simple 3' quality trimming anyways
@@ -95,17 +97,15 @@ options::usage() {
 		-no-dea  | --no-diffexanalysis        : disables differential feature expression analysis plus downstream analyses
 		-no-go   | --no-geneontology          : disables gene ontology enrichment analyses for differentially expressed features and co-expression clusters
 		-no-clust| --no-clustering            : disables feature co-expression clustering
-		-cf      | --clusterfilter [value]    : decide for a set of features by to be clustered for co-expression. default: 0
+		-cf      | --clusterfilter [value(s)] : decide for a set of features by to be clustered for co-expression. default: 04
+		                                        NOTE: filters can be turned off by the value null or combined. e.g 01 (equals 10) or 023 or ..
 		                                        0 - padj <= 0.05 in at least one comparison defined in experiment summary file (see -c)
 		                                        	to take effect, this filter requires upstream performed differential expression analysis
 		                                        1 - log2foldchange difference >= 0.5 in at least one comparison defined in experiment summary file (see -c)
 		                                        	to take effect, this filter requires upstream performed differential expression analysis
-		                                        2 - basemean/TPM >=5 in at least one comparison/sample
-		                                        	to take effect, this filter requires either
-		                                        	- upstream performed differential expression analysis as defined in experiment summary file (see -c)
-		                                        	- upstream performed quantification and TPM calculation
+		                                        2 - basemean >=5 in at least one comparison defined in experiment summary file (see -c)
 		                                        3 - discard features within the lower 30% percentile of expression values
-		                                        NOTE: filter values can be combined. e.g 01 (equals 10) or 023 or ..
+		                                        4 - TPM >=5 in at least one sample
 		-cb      | --clusterbiotype [string]  : regex of features with a gene_(bio)type tag (see -gtf) to be clustered. default: .
 
 
@@ -113,10 +113,11 @@ options::usage() {
 		-b       | --bisulfite [string|value] : triggers methylation analysis. use keyword WGBS or length of RRBS diversity adapters (0 if none)
 		-c       | --comparisons [path,..]    : triggers differential methylation analysis. tabular descriptor file(s) for pairwise comparisons
 		                                        NOTE: no file implies -no-dma. see below for format information
-		-g       | --genome [path]            : genome fasta input. without, only preprocessing is performed (see dlgenome.sh)
+		-g       | --genome [path]            : genome fasta input. without, only preprocessing is performed
 		                                        NOTE: no fasta file implies -no-map
 		-1       | --fq1 [path,..]            : fastq input. single or first mate. comma seperated or a file with all paths
 		-2       | --fq2 [path,..]            : fastq input. mate pair. comma seperated or a file with all paths
+		-3       | --fq3 [path,..]            : fastq input. UMI sequences. comma seperated or a file with all paths
 		-no-mspi | --no-mspiselection         : in case of RRBS, disables selection of MspI digested reads (use in case of multi-digestion enzymes)
 		-no-trim | --no-trimming              : disables quality trimming utilizing a conservative sliding window approach and simple 5' clipping
 		-no-clip | --no-clipping              : disables removal of poly N, mono- and di-nucleotide ends as well as adapter sequences when used with -a
@@ -141,7 +142,9 @@ options::usage() {
 		-no-qual | --no-qualityanalysis       : disables intermediate read and alignment quality analyses
 		                                        NOTE: given -no-qual and unless -no-stats option, intermediate per file analyses replaced by bulk analysis
 		-no-stats| --no-statistics            : disables statistics from read and alignment quality analyses
-		-no-mec  | --no-mecall                : disables calling of methylated Cs plus downstream analyses
+		-no-mec  | --no-mecall                : disables calling of methylated CpGs plus downstream analyses
+		-no-medl | --no-methyldackel          : disables calling of methylated CpGs by methyldackel
+		-no-haarz| --no-haarz                 : disables calling of methylated CpGs by haarz
 		-no-dma  | --no-diffmeanalysis        : disables differential CpG methylation analysis from minimum 10x covered CpGs
 		-md      | --min-data [value]         : require at least %/100 or an absolute value of CpG methylation rates per condition (see -c). default: 0.8
 		-md-cap  | --min-data-cap [value]     : caps/upper bounds required CpG methylation rates per condition (see -md). default: no capping
@@ -149,8 +152,7 @@ options::usage() {
 
 		FUSION DETECTION OPTIONS
 		-f       | --fusiondetection [string] : triggers gene fusion detection. use one of the accepted keywords [null|hg19|hg38|mm10]
-		-g       | --genome [path]            : genome fasta input. without, only preprocessing is performed (see dlgenome.sh)
-
+		-g       | --genome [path]            : genome fasta input. without, only preprocessing is performed
 		-1       | --fq1 [path,..]            : fastq input. single or first mate. comma seperated or a file with all paths
 		-2       | --fq2 [path,..]            : fastq input. mate pair. comma seperated or a file with all paths
 		-no-trim | --no-trimming              : disables quality trimming utilizing a conservative sliding window approach and simple 5' clipping
@@ -158,7 +160,7 @@ options::usage() {
 		                                      : NOTE: clipping includes simple 3' quality trimming anyways
 		-a1      | --adapter1 [string,..]     : adapter sequence(s) of single or first mate. comma seperated
 		-a2      | --adapter2 [string,..]     : adapter sequence(s) of mate pair. comma seperated (can be the same as [-a1]. no revere complement required)
-		-no-cor  | --no-correction            : disables majority based raw read error correction. recommended for bisulfite sequencing data
+		-no-cor  | --no-correction            : disables majority based raw read error correction
 		-no-rrm  | --no-rrnafilter            : disables rRNA filter
 		-no-qual | --no-qualityanalysis       : disables intermediate read and alignment quality analyses
 		                                        NOTE: given -no-qual and unless -no-stats option, intermediate per file analyses replaced by bulk analysis
@@ -168,30 +170,39 @@ options::usage() {
 
 
 		PEAK CALLING OPTIONS
+		-g       | --genome [path]            : genome fasta input. without, only preprocessing is performed
+		                                        NOTE: no fasta file implies -no-map
+		-gtf     | --gtf [path]               : annotation gtf input. default: [-g].gtf
+		                                        NOTE: required by gem for RNA based *IP-Seq (see -rip) unless given -s
 		-n1      | --normal-fq1 [path,..]     : normal fastq input. single or first mate. comma seperated or a file with all paths
 		-n2      | --normal-fq2 [path,..]     : normal fastq input. mate pair. comma seperated or a file with all paths
+		-n3      | --normal-fq3 [path,..]     : normal fastq input. UMI sequences. comma seperated or a file with all paths
 		-nr1     | --normal-repfq1 [path,..]  : normal replicate fastq input. single or first mate. comma seperated or a file with all paths
 		-nr2     | --normal-repfq2 [path,..]  : normal replicate fastq input. mate pair. comma seperated or a file with all paths
+		-nr3     | --normal-repfq3 [path,..]  : normal replicate fastq input. UMI sequences. comma seperated or a file with all paths
 		-t1      | --treat-fq1 [path,..]      : *IP-Seq fastq input. single or first mate. comma seperated or a file with all paths
 		-t2      | --treat-fq2 [path,..]      : *IP-Seq fastq input. mate pair. comma seperated or a file with all paths
+		-t3      | --treat-fq3 [path,..]      : *IP-Seq fastq input. UMI sequences. comma seperated or a file with all paths
 		-tr1     | --treat-repfq1 [path,..]   : *IP-Seq replicate fastq input. single or first mate. comma seperated or a file with all paths
 		-tr2     | --treat-repfq2 [path,..]   : *IP-Seq replicate fastq input. mate pair. comma seperated or a file with all paths
+		-tr3     | --treat-repfq3 [path,..]   : *IP-Seq replicate fastq input. UMI sequences. comma seperated or a file with all paths
 		-no-trim | --no-trimming              : disables quality trimming utilizing a conservative sliding window approach and simple 5' clipping
 		-no-clip | --no-clipping              : disables removal of poly N, mono- and di-nucleotide ends as well as adapter sequences when used with -a
 		                                      : NOTE: clipping includes simple 3' quality trimming anyways
 		-a1      | --adapter1 [string,..]     : adapter sequence(s) of single or first mate. comma seperated
 		-a2      | --adapter2 [string,..]     : adapter sequence(s) of mate pair. comma seperated (can be the same as [-a1]. no revere complement required)
-		-no-cor  | --no-correction            : disables majority based raw read error correction. recommended for bisulfite sequencing data
+		-no-cor  | --no-correction            : disables majority based raw read error correction
 		-no-rrm  | --no-rrnafilter            : disables rRNA filter
 		-no-map  | --no-mapping               : disables read alignment and downstream analyses
 		-d       | --distance                 : maximum read alignment edit distance in %. default: 5
 		-i       | --insertsize               : maximum allowed insert for aligning mate pairs. default: 200000
-		-rip     | --rna-ip                   : switch type of *IP-Seq experiment to RNA based *IP-Seq (e.g. meRIP, m6A, CLIP). default: ChIP
-		                                        NOTE: implies split read mapping
+		-no-split| --no-split                 : disables split read mapping
+		-rip     | --rna-ip                   : switch from ChIP to parameterization for RNA based (meRIP, m6A, CLIP) or other *IP-Seq like experiments (ATAC, DNase)
+		                                        NOTE: may be used together with -s and -no-split option
 		-no-map  | --no-mapping               : disables read alignment and downstream analyses
 		-no-sege | --no-segemehl              : disables mapping by segemehl
 		-no-star | --no-star                  : disables mapping by STAR
-		-no-bwa  | --no-bwa                   : disables mapping by BWA given -no-split option
+		-no-bwa  | --no-bwa                   : disables mapping by BWA unless given -split option
 		-nm      | --normal-map [path,..]     : normal SAM/BAM input. comma seperated or a file with all paths (replaces fastq input and processing)
 		-nrm     | --normal-repmap [path,..]  : normal replicate SAM/BAM input. comma seperated or a file with all paths (replaces fastq input and processing)
 		-tm      | --treat-map [path,..]      : *IP-Seq SAM/BAM input. comma seperated or a file with all paths (replaces fastq input and processing)
@@ -205,13 +216,18 @@ options::usage() {
 		-cmo     | --clipmateoverlaps         : enables clipping of read mate overlaps
 		-no-idx  | --no-index                 : disables indexing alignments
 		-fs      | --fragmentsize [value]     : estimated size of sequenced fragments. default: 200
+		-s       | --strandness [value]       : defines library strandness for all inputs. default: automatically inferred
+		                                        0 - unstranded
+		                                        1 - stranded (fr second strand)
+		                                        2 - reversely stranded (fr first strand)
+		-no-call | --no-call                  : disables peak calling and downstream analyses
 		-no-macs | --no-macs                  : disables peak calling by macs
 		-no-gem  | --no-gem                   : disables peak calling by gem
 		-no-peaka| --no-peakachu              : disables peak calling by peakachu
 		-m6a     | --m6aviewer                : enables peak calling by m6aviewer - not fully tested yet and requieres user interaction
-		-sp      | --strict-peaks             : use a more strict macs and gem parameterization
-		-pp      | --pointy-peaks             : enables gem to report only very pointy narrow peaks. use e.g. for CLIP (see -rip) or ChIP-exo
-		-no-idr  | --no-idr                   : disregards replicates and irreproducible discovery rates. allows unpaired input (see -t1, -t2)
+		-sp      | --strict-peaks             : use a more strict peak caller parameterization. recommended to use with -no-idr
+		-pp      | --pointy-peaks             : enables macs and gem to report more pointy narrow peaks. recommended for ChIP-exo, CLIP-Seq and RNA based *IP-Seq experiments
+		-no-idr  | --no-idr                   : disregards replicates and irreproducible discovery rates. allows unpaired input by using only -t1/-t2
 		                                        NOTE: peakachu will use all files given by -n1/-n2 and -t1/-t2 as replicates
 
 
@@ -239,6 +255,12 @@ options::usage() {
 		trA_2    tr   NA   N2   PE   A    male
 		trB.n1   tr   NA   N3   SE   B    female
 		trB.n2   tr   NA   N4   PE   B    male
+
+
+		ADDITIONAL INFORMATION
+		Chromosome order for all input files (genome, annotation) must be identical.
+	    If possible, please provide them in karyotypic order and following naming schema: chrM,chr1,chr2,..,chrX,chrY
+		To obtain human or mouse genome along with its annotation see the supplied dlgenome.sh script.
 
 
 		REFERENCES
@@ -273,7 +295,7 @@ options::developer() {
 		uniq  : extraction of properly paired and uniquely mapped reads
 		sort  : sorting and indexing of sam/bam files
 		rep   : pooling/generating replicates
-		slice : better dont touch! slicing of bams for parallelization, needs -prevtmp | --previoustmp [path]
+		slice : better dont touch! slicing of bams for parallelization, needs -prevtmp | --previoustmp [path to rippchen.XXXXXXXXXX]
 		rmd   : removing duplicates
 		cmo   : clipping mate overlaps
 		idx   : intermediate and final bam indexing
@@ -284,7 +306,8 @@ options::developer() {
 		peaka : peak calling by peakachu
 		m6a   : peak calling by m6aViewer
 
-		mec   : methylation calling
+		medl  : methylation calling by methyldackel
+		haarz : methylation calling by haarz
 		dma   : differentially methylation analysis
 
 		quant : read quantification
@@ -313,6 +336,7 @@ options::checkopt (){
 
 		-tmp      | --tmp) arg=true; TMPDIR="$2";;
 		-r        | --remove) CLEANUP=true;;
+		-rr       | --remove-remove) FORCECLEANUP=true;;
 		-v        | --verbosity) arg=true; VERBOSITY=$2;;
 		-t        | --threads) arg=true; THREADS=$2;;
 		-mem      | --memory) arg=true; MEMORY=$2;;
@@ -326,12 +350,16 @@ options::checkopt (){
 
 		-1        | --fq1 | -n1 | --normal-fq1) arg=true; nfq1="$2";;
 		-2        | --fq2 | -n2 | --normal-fq2) arg=true; nfq2="$2";;
+		-3        | --fq3 | -n3 | --normal-fq3) arg=true; nfq3="$2";;
 		-nr1      | --normal-repfq1) arg=true; nrfq1="$2";;
 		-nr2      | --normal-repfq2) arg=true; nrfq2="$2";;
+		-nr3      | --normal-repfq3) arg=true; nrfq3="$2";;
 		-t1       | --treat-fq1) arg=true; tfq1="$2";;
 		-t2       | --treat-fq2) arg=true; tfq2="$2";;
+		-t3       | --treat-fq3) arg=true; tfq3="$2";;
 		-tr1      | --treat-repfq1) arg=true; rfq1="$2";;
 		-tr2      | --treat-repfq2) arg=true; rfq2="$2";;
+		-tr3      | --treat-repfq3) arg=true; rfq3="$2";;
 
 		-f        | --fusiondetection) arg=true; FUSIONS=$2; [[ $FUSIONS == "null" ]] && noarr=true;;
 		-no-arr   | --no-arriba) noarr=true;;
@@ -372,6 +400,7 @@ options::checkopt (){
 		-fs       | --fragmentsize) arg=true; FRAGMENTSIZE=$2;;
 		-sp       | --strict-peaks) STRICTPEAKS=true;;
 		-pp       | --pointy-peaks) POINTYPEAKS=true;;
+		-no-call  | --no-call) nomacs=true; nogem=true; nopeaka=true; nom6a=true; noidr=true;;
 		-no-macs  | --no-macs) nomacs=true;;
 		-no-gem   | --no-gem) nogem=true;;
 		-no-peaka | --no-peakachu) nopeaka=true;;
@@ -382,7 +411,9 @@ options::checkopt (){
 
 		-b        | --bisulfite) arg=true; DIVERSITY="$2"; BISULFITE=true; RRBS=false; nocor=true; norrm=true; [[ "$DIVERSITY" == "WGBS" ]] && { RRBS=false; normd=${normd:-false}; } || { RRBS=true; normd=${normd:-true}; };;
 		-no-mspi  | --no-mspiselection) nomspi=true;;
-		-no-mec   | --no-mecall) nomec=true;;
+		-no-mec   | --no-mecall) nohaarz=true; nomedl=true;;
+		-no-medl  | --no-methyldackel) nomedl=true;;
+		-no-haarz | --no-haarz) nohaarz=true;;
 		-no-dma   | --no-diffmeanalysis) nodma=true;;
 		-md       | --min-data) arg=true; MINDATA=$2;;
 		-md-cap   | --min-data-cap) arg=true; MINDATACAP=$2;;
@@ -415,7 +446,7 @@ options::checkopt (){
 options::resume(){
 	local s enable=false
 	# don't Smd5, Sslice !
-	for s in fqual mspi trim clip cor rrm arr sfus sege star bwa mqual uniq sort rep rmd cmo idx stats macs gem peaka m6a mec dma quant tpm dsj dea join clust go; do
+	for s in fqual mspi trim clip cor rrm arr sfus sege star bwa mqual uniq sort rep rmd cmo idx stats macs gem peaka m6a medl haarz dma quant tpm dsj dea join clust go; do
 		eval "\${S$s:=true}" # unless S$s already set to false by -redo, do skip
 		$enable || [[ "$1" == "$s" ]] && {
 			enable=true
@@ -429,7 +460,7 @@ options::skip(){
 	declare -a mapdata
 	mapfile -t -d ',' mapdata < <(printf '%s' "$1")
 	for x in "${mapdata[@]}"; do
-		for s in md5 fqual mspi trim clip cor rrm arr sfus sege star bwa mqual uniq sort rep slice rmd cmo idx stats macs gem peaka m6a mec dma quant tpm dsj dea join clust go; do
+		for s in md5 fqual mspi trim clip cor rrm arr sfus sege star bwa mqual uniq sort rep slice rmd cmo idx stats macs gem peaka m6a medl haarz dma quant tpm dsj dea join clust go; do
 			[[ "$x" == "$s" ]] && eval "S$s=true"
 		done
 	done
@@ -439,11 +470,11 @@ options::redo(){
 	local x s
 	declare -a mapdata
 	mapfile -t -d ',' mapdata < <(printf '%s' "$1")
-	for s in fqual mspi trim clip cor rrm arr sfus sege star bwa mqual uniq sort rep rmd cmo idx stats macs gem peaka m6a mec dma quant tpm dsj dea join clust go; do
+	for s in fqual mspi trim clip cor rrm arr sfus sege star bwa mqual uniq sort rep rmd cmo idx stats macs gem peaka m6a medl haarz dma quant tpm dsj dea join clust go; do
 		eval "\${S$s:=true}" # unless (no|S)$s alredy set to false by -resume, do skip
 	done
 	for x in "${mapdata[@]}"; do
-		for s in fqual mspi trim clip cor rrm arr sfus sege star bwa mqual uniq sort rep rmd cmo idx stats macs gem peaka m6a mec dma quant tpm dsj dea join clust go; do
+		for s in fqual mspi trim clip cor rrm arr sfus sege star bwa mqual uniq sort rep rmd cmo idx stats macs gem peaka m6a medl haarz dma quant tpm dsj dea join clust go; do
 			[[ "$x" == "$s" ]] && eval "S$s=false"
 		done
 	done

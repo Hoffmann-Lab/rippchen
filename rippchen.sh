@@ -8,11 +8,15 @@ else
 fi
 
 cleanup() {
+	[[ -e "$LOG" ]] && {
+		commander::printinfo "date: $(date)" | tee -ia "$LOG"
+		[[ $1 -eq 0 ]] && commander::printinfo "success" | tee -ia "$LOG" || commander::printinfo "failed" | tee -ia "$LOG"
+	}
 	[[ -e $TMPDIR ]] && {
 		find -L "$TMPDIR" -type f -name "cleanup.*" -exec rm -f "{}" \; &> /dev/null || true
 		find -L "$TMPDIR" -depth -type d -name "cleanup.*" -exec rm -rf "{}" \; &> /dev/null || true
 	}
-	[[ $1 -eq 0 ]] && ${CLEANUP:=false} && {
+	${FORCECLEANUP:=false} || [[ $1 -eq 0 ]] && ${CLEANUP:=false} && {
 		[[ -e "$TMPDIR" ]] && {
 			find -L "$TMPDIR" -type f -exec rm -f "{}" \; &> /dev/null || true
 			find -L "$TMPDIR" -depth -type d -exec rm -rf "{}" \; &> /dev/null || true
@@ -52,6 +56,7 @@ DISTANCE=5
 FRAGMENTSIZE=200
 FASTQ1=() # all idx of FASTQ1[.] are equal to MAPPED[.]
 FASTQ2=()
+FASTQ3=()
 MAPPED=()
 nidx=() #normal idx
 nridx=() #normal replicate idx
@@ -144,11 +149,6 @@ if [[ $COMPARISONS ]]; then
 	done
 fi
 
-if [[ $FASTQ1 ]] && ${RRBS:=false}; then
-	BASHBONE_ERROR="rrbs data analysis requires adapter sequence input"
-	[[ ! $ADAPTER1 ]] && false
-fi
-
 checkfile(){
 	declare -n _idx=$2 _arr=$3
 	local f ifs
@@ -201,7 +201,7 @@ else
 		checkfile "$f" nridx FASTQ1
 	done
 	for f in $tfq1; do
-		BASHBONE_ERROR="single or first mate normal replicate fastq file does not exists $f"
+		BASHBONE_ERROR="single or first mate treatment fastq file does not exists $f"
 		#idx depends on available replicates - i.e. trigger pooling or make pseudo-replicates
 		checkfile "$f" $([[ $rfq1 ]] && echo tidx || echo pidx) FASTQ1
 	done
@@ -216,6 +216,13 @@ else
 	done
 	BASHBONE_ERROR="unequal number of mate pairs"
 	[[ $FASTQ2 ]] && { [[ ${#FASTQ1[@]} -eq ${#FASTQ2[@]} ]] || false; }
+	i=-1
+	for f in {$nfq3,$nrfq3,$tfq3,$rfq3}; do
+		BASHBONE_ERROR="umi fastq file does not exists $f"
+		checkfile "$f" foo FASTQ3
+	done
+	BASHBONE_ERROR="unequal number of read and umi fastq files"
+	[[ $FASTQ3 ]] && { [[ ${#FASTQ1[@]} -eq ${#FASTQ3[@]} ]] || false; }
 fi
 unset IFS
 
@@ -228,6 +235,15 @@ if [[ $ridx ]]; then
 	pidx=()
 	BASHBONE_ERROR="unequal number of treatment replicates"
 	[[ ${#ridx[@]} -eq ${#tidx[@]} ]] || false
+fi
+
+if [[ $FASTQ1 ]] && ${RRBS:=false}; then
+	BASHBONE_ERROR="rrbs data analysis requires adapter sequence input"
+	[[ ! $ADAPTER1 ]] && false
+fi
+
+if [[ $FASTQ3 ]]; then
+	normd=false
 fi
 
 commander::printinfo "rippchen $VERSION utilizing bashbone $BASHBONE_VERSION started with command: $CMD" | tee -i "$LOG"
@@ -245,7 +261,7 @@ if ${INDEX:=false}; then
 	progress::log -v $VERBOSITY -o "$LOG" -f pipeline::index
 else
 	if [[ $tfq1 || $tmap ]]; then
-		${RIPSEQ:=false} || nosplit=true
+		${RIPSEQ:=false} && nosplitreads=${nosplitreads:-false} || nosplitreads=${nosplitreads:-true}
 		BASHBONE_ERROR="peak calling pipeline failed"
 		progress::log -v $VERBOSITY -o "$LOG" -f pipeline::callpeak
 	elif [[ $FUSIONS ]]; then
@@ -275,5 +291,4 @@ ${Smd5:=false} || {
 	}
 }
 
-commander::printinfo "success" | tee -ia "$LOG"
 exit 0
