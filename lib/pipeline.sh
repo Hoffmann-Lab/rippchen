@@ -61,6 +61,12 @@ pipeline::index(){
 			-F \
 			-r NA1 \
 			-1 NA2
+		if [[ -s "$GTF.go" ]]; then
+			genome::mkgodb \
+				-S ${nogo:=false} \
+				-p "$TMPDIR" \
+				-g "$GTF.go"
+		fi
 		genome::mkdict \
 			-F \
 			-t $THREADS \
@@ -272,6 +278,7 @@ pipeline::_mapping(){
 				-2 FASTQ2 \
 				-o "$OUTDIR/mapped" \
 				-t $THREADS \
+				-a $((100-DISTANCE)) \
 				-g "$GENOME" \
 				-r mapper
 		else

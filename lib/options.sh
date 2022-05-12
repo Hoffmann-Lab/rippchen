@@ -46,6 +46,7 @@ options::usage() {
 		                                        NOTE: md5 sum of CTAT [-g].star.idx/SA file needs to be manually added to [-g].md5.sh file afterwards
 		-no-bwa  | --no-bwa                   : disables indexing for BWA
 		-no-dsj  | --no-diffsplicejunctions   : disables indexing for splice junction analysis
+		-no-go   | --no-geneontology          : disables indexing for gene ontology enrichment analyses
 
 
 
