@@ -135,6 +135,7 @@ else
 		fi
 	}
 fi
+[[ -s "$GTF.go" ]] || nogo=true
 
 if [[ $COMPARISONS ]]; then
 	for f in "${COMPARISONS[@]}"; do
