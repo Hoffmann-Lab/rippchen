@@ -64,6 +64,7 @@ pipeline::index(){
 		if [[ -s "$GTF.go" ]]; then
 			genome::mkgodb \
 				-S ${nogo:=false} \
+				-t $THREADS \
 				-p "$TMPDIR" \
 				-g "$GTF.go"
 		fi
@@ -116,6 +117,7 @@ pipeline::_preprocess(){
 			-S ${noqual:=false} \
 			-s ${Sfqual:=false} \
 			-t "$THREADS" \
+			-M $MAXMEMORY \
 			-o "$OUTDIR/qualities/raw" \
 			-p "$TMPDIR" \
 			-1 FASTQ1 \
@@ -136,6 +138,7 @@ pipeline::_preprocess(){
 				-S ${noqual:=false} \
 				-s ${Sfqual:=false} \
 				-t $THREADS \
+				-M $MAXMEMORY \
 				-o "$OUTDIR/qualities/mspicut" \
 				-p "$TMPDIR" \
 				-1 FASTQ1 \
@@ -148,6 +151,7 @@ pipeline::_preprocess(){
 				-s ${Strim:=false} \
 				-b ${RRBS:=false} \
 				-t "$THREADS" \
+				-M $MAXMEMORY \
 				-o "$OUTDIR/trimmed" \
 				-p "$TMPDIR" \
 				-1 FASTQ1 \
@@ -157,6 +161,7 @@ pipeline::_preprocess(){
 				-S ${noqual:=false} \
 				-s ${Sfqual:=false} \
 				-t $THREADS \
+				-M $MAXMEMORY \
 				-o "$OUTDIR/qualities/trimmed" \
 				-p "$TMPDIR" \
 				-1 FASTQ1 \
@@ -180,6 +185,7 @@ pipeline::_preprocess(){
 					-S ${noqual:=false} \
 					-s ${Sfqual:=false} \
 					-t $THREADS \
+					-M $MAXMEMORY \
 					-o "$OUTDIR/qualities/adapterclipped" \
 					-p "$TMPDIR" \
 					-1 FASTQ1 \
@@ -202,6 +208,7 @@ pipeline::_preprocess(){
 				-S ${noqual:=false} \
 				-s ${Sfqual:=false} \
 				-t $THREADS \
+				-M $MAXMEMORY \
 				-o "$OUTDIR/qualities/polyntclipped" \
 				-p "$TMPDIR" \
 				-1 FASTQ1 \
@@ -231,6 +238,7 @@ pipeline::_preprocess(){
 				-S ${noqual:=false} \
 				-s ${Sfqual:=false} \
 				-t $THREADS \
+				-M $MAXMEMORY \
 				-o "$OUTDIR/qualities/rrnafiltered" \
 				-p "$TMPDIR" \
 				-1 FASTQ1 \
@@ -500,6 +508,7 @@ pipeline::bs(){
 		-S ${nohaarz:=false} \
 		-s ${Shaarz:=false} \
 		-t $THREADS \
+		-M $MAXMEMORY \
 		-g "$GENOME" \
 		-r mapper \
 		-o "$OUTDIR/mecall" \

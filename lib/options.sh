@@ -39,14 +39,14 @@ options::usage() {
 		INDEXING OPTIONS
 		-x       | --index                    : triggers creation of all requiered genome and annotation indices plus md5 sums
 		-b       | --bisulfite [string]       : triggers indices for for methylation analyses. use keyword WGBS
-		-g       | --genome [path]            : genome fasta input. without, only preprocessing is performed
+		-g       | --genome [path]            : genome fasta input
 		-gtf     | --gtf [path]               : annotation gtf input. default: [-g].gtf
+		                                        NOTE: no gtf file implies star index creation without splice junctions database
 		-no-sege | --no-segemehl              : disables indexing for segemehl
-		-no-star | --no-star                  : disables indexing for STAR. use this option for indexing of plug-n-play CTAT resource
-		                                        NOTE: md5 sum of CTAT [-g].star.idx/SA file needs to be manually added to [-g].md5.sh file afterwards
+		-no-star | --no-star                  : disables indexing for STAR
 		-no-bwa  | --no-bwa                   : disables indexing for BWA
 		-no-dsj  | --no-diffsplicejunctions   : disables indexing for splice junction analysis
-		-no-go   | --no-geneontology          : disables indexing for gene ontology enrichment analyses
+		-no-go   | --no-geneontology          : disables org.db creation for gene ontology enrichment analyses
 
 
 
