@@ -2,7 +2,7 @@
 
 ...are tasty! Acquire a taste for peak calling from *IP-Seq experiments or for differential expression- and ontology analysis from RNA-Seq data
 
-Rippchen leverages on bashbone, which is a bash library for workflow and pipeline design within but not restricted to the scope of Next Generation Sequencing (NGS) data analyses. Rippchen makes use of bashbones best-practice parameterized and run-time tweaked software wrappers and compiles them into a multi-threaded pipeline for analyses of model AND non-model organisms.
+Rippchen leverages on bashbone, which is a bash/biobash library for workflow and pipeline design within but not restricted to the scope of Next Generation Sequencing (NGS) data analyses. Rippchen makes use of bashbones best-practice parameterized and run-time tweaked software wrappers and compiles them into a multi-threaded pipeline for analyses of model AND non-model organisms.
 
 ## Features
 
@@ -94,10 +94,10 @@ The setup routine will always install the latest software via conda, which can b
 ./setup.sh -i conda_tools -d <path/of/installation>
 ```
 
-Trimmomatic, segemehl, STAR-Fusion, GEM and mdless will be installed next to the conda environments. If new releases are available, they will be automatically fetched and installed upon running the related setup functions again.
+Trimmomatic, segemehl, STAR-Fusion, GEM, mdless and gztool will be installed next to the conda environments. If new releases are available, they will be automatically fetched and installed upon running the related setup functions again.
 
 ```bash
-./setup.sh -i trimmomatic,segemehl,starfusion,gem,mdless -d <path/of/installation>
+./setup.sh -i trimmomatic,segemehl,starfusion,gem,mdless,gztool -d <path/of/installation>
 ```
 
 # Usage
@@ -108,10 +108,13 @@ source <path/of/installation/latest/rippchen/activate.sh>
 bashbone -h
 ```
 
-In order to get all function work properly, enable rippchen via bashbone to use conda environments. Conda can be disabled analogously.
+In order to get all function work properly, enable bashbone to use conda environments. Conda and bashbone it self can be disabled analogously.
 ```bash
 bashbone -c
+# disable conda
 bashbone -s
+# disable bashbone
+bashbone -x
 ```
 
 Shortcut:
@@ -132,7 +135,7 @@ sra-dump.sh -h
 
 ## Retrieve genomes
 
-Use the enclosed script to fetch human hg19/hg38 or mouse mm9/mm10 genomes and annotations. Plug-n-play CTAT genome resource made for gene fusion detection and shipped with STAR index can be selected optionally.
+Use the enclosed script to fetch human hg19/hg38 or mouse mm9/mm10/mm11 genomes and annotations. Plug-n-play CTAT genome resource made for gene fusion detection and shipped with STAR index can be selected optionally.
 
 ```bash
 source <path/of/installation/latest/rippchen/activate.sh> -c true
@@ -167,18 +170,18 @@ And this desired output (N=2 vs N=2 each):
 
 Then the info file should consist of:
 
-- At least 4 columns (`<name>`, `<main-factor>`, `single-end|paired-end`, `<replicate>`)
+- At least 4 columns (`<name>`, `<main-factor>`, `NA`, `<replicate>`)
 - Optionally, additional factors
 - First column needs to consist of unique prefixes of input fastq basenames which can be expand to full file names
 
-|        |     |            |     |        |
-| ---    | --- | ---        | --- | ---    |
-| wt1    | wt  | single-end | N1  | female |
-| wt2    | wt  | single-end | N2  | male   |
-| trA_1  | A   | single-end | N1  | female |
-| trA_2  | A   | single-end | N2  | male   |
-| trB.n1 | B   | single-end | N1  | female |
-| trB.n2 | B   | single-end | N2  | male   |
+|        |     |     |     |        |
+| ---    | --- | --- | --- | ---    |
+| wt1    | wt  | NA  | N1  | female |
+| wt2    | wt  | NA  | N2  | male   |
+| trA_1  | A   | NA  | N1  | female |
+| trA_2  | A   | NA  | N2  | male   |
+| trB.n1 | B   | NA  | N1  | female |
+| trB.n2 | B   | NA  | N2  | male   |
 
 ## Examples
 
@@ -380,13 +383,15 @@ rippchen.sh [...] -redo quant,tpm
 | BEDTools      | <https://bedtools.readthedocs.io>                                   | 10.1093/bioinformatics/btq033 |
 | BWA           | <https://github.com/lh3/bwa>                                        | 10.1093/bioinformatics/btp324 |
 | Cutadapt      | <https://cutadapt.readthedocs.io/en/stable>                         | 10.14806/ej.17.1.200 |
-| DESeq2        | <https://bioconductor.org/packages/release/bioc/html/DESeq2.html>   | 10.1186/s13059-014-0550-8 |
+| DESeq2        | <https://bioconductor.org/packages/release/bioc/html/DESeq2.html>   | 10.1186/s13059-014-0550-8 <br> 10.1093/biostatistics/kxw041|
 | DEXSeq        | <https://bioconductor.org/packages/release/bioc/html/DEXSeq.html>   | 10.1101/gr.133744.111 |
 | DIEGO         | <http://www.bioinf.uni-leipzig.de/Software/DIEGO>                   | 10.1093/bioinformatics/btx690 |
 | DGCA          | <https://github.com/andymckenzie/DGCA>                              | 10.1186/s12918-016-0349-1 |
 | fastqc        | <https://www.bioinformatics.babraham.ac.uk/projects/fastqc>         | NA |
 | featureCounts | <http://subread.sourceforge.net>                                    | 10.1093/bioinformatics/btt656  |
 | GEM           | <https://groups.csail.mit.edu/cgs/gem>                              | 10.1371/journal.pcbi.1002638 |
+| GNU Parallel  | <https://www.gnu.org/software/parallel/>                            | 10.5281/zenodo.1146014 |
+| GoSemSim      | <http://bioconductor.org/packages/release/bioc/html/GOSemSim.html>  | 10.1093/bioinformatics/btq064 |
 | GSEABase      | <https://bioconductor.org/packages/release/bioc/html/GSEABase.html> | NA |
 | HTSeq         | <https://htseq.readthedocs.io>                                      | 10.1093/bioinformatics/btu638 |
 | IDR           | <https://github.com/kundajelab/idr>                                 | 10.1214/11-AOAS466 |
@@ -414,7 +419,7 @@ rippchen.sh [...] -redo quant,tpm
 
 # Supplementary information
 
-Rippchen can be executed in parallel instances and thus is able to be submitted as a job into a queuing system like a Sun Grid Engine (SGE). This could be easily done by using scripts written via here-documents or via the bashbone builtin `commander::qsubcmd`. The latter makes use of array jobs, which enables to wait for completion of all jobs, handle single exit codes and amend used resources via `qalter -tc <instances> <jobname>`.
+Rippchen can be executed in parallel instances and thus are able to be submitted as jobs into a queuing system like a Sun Grid Engine (SGE). This could be easily done by utilizing `commander::qsubcmd`. This function makes use of array jobs, which further allows to wait for completion of all jobs, handle single exit codes and alter used resources via `commander::qalter.
 
 ```bash
 source <path/of/installation/latest/rippchen/activate.sh>
@@ -425,17 +430,18 @@ for i in *R1.fastq.gz; do
 	commander::makecmd -a cmd1 -c {COMMANDER[0]}<<- CMD
 		rippchen.sh -v 2 -t <threads> -g <fasta> -gtf <gtf> -o <outdir> -l <logfile> -tmp <tmpdir> -1 $i -2 $j
 	CMD
+  # or simply cmds+=("rippchen.sh [...]")
 done
-commander::qsubcmd -r -l h=<hosts> -p <env> -t <threads> -i <instances> -n <jobname> -o <logdir> -a cmds
-# analogously: echo job.\$SGE_TASK_ID.sh | qsub -sync n -pe <env> <threads> -t 1-<#jobs> -tc <instances> -l h="<hostname>|<hostname>" -S /bin/bash -N <jobname> -o <logfile> -j y -V -cwd
+commander::qsubcmd -r -p <env> -t <threads> -i <instances> -n <jobname> -o <logdir> -a cmds
+commander::qstat
+commander::qalter -p <jobname|jobid> -i <instances>
 ```
 
-In some cases a glibc pthreads bug (<https://sourceware.org/bugzilla/show_bug.cgi?id=23275>) may cause pigz failures (`internal threads error`) and premature termination of tools leveraging on it e.g. Cutadapt. One can circumvent this by e.g. making use of an alternative pthreads library via `LD_PRELOAD`
+In some rare cases a glibc pthreads bug (<https://sourceware.org/bugzilla/show_bug.cgi?id=23275>) may cause pigz failures (`internal threads error`) and premature termination of tools leveraging on it e.g. Cutadapt and pigz. One can circumvent this by e.g. making use of an alternative pthreads library e.g. compiled without lock elision via `LD_PRELOAD`
 
 ```bash
-source <path/of/installation/latest/rippchen/activate.sh>
-LD_PRELOAD=/lib64/noelision/libpthread.so.0 rippchen.sh
-LD_PRELOAD=/gsc/biosw/src/glibc-2.32/lib/libpthread.so.0 rippchen.sh
+source <path/of/installation/latest/bashbone/activate.sh>
+LD_PRELOAD=</path/to/no-elision/libpthread.so.0> <command>
 ```
 
 # Closing remarks
