@@ -63,8 +63,8 @@ options::usage() {
 		-no-trim | --no-trimming              : disables quality trimming utilizing a conservative sliding window approach and simple 5' clipping
 		-no-clip | --no-clipping              : disables removal of poly N, mono- and di-nucleotide ends as well as adapter sequences when used with -a
 		                                      : NOTE: clipping includes simple 3' quality trimming anyways
-		-a1      | --adapter1 [string,..]     : adapter sequence(s) of single or first mate. comma seperated
-		-a2      | --adapter2 [string,..]     : adapter sequence(s) of mate pair. comma seperated (can be the same as [-a1]. no revere complement required)
+		-a1      | --adapter1 [string,..]     : adapter sequence(s) of single or first mate. comma seperated. default: automatically inferred
+		-a2      | --adapter2 [string,..]     : adapter sequence(s) of mate pair (don't reverse complement). comma seperated. default: automatically inferred
 		-no-cor  | --no-correction            : disables majority based raw read error correction. recommended for bisulfite sequencing data
 		-no-rrm  | --no-rrnafilter            : disables rRNA filter
 		-no-map  | --no-mapping               : disables read alignment and downstream analyses
@@ -82,14 +82,12 @@ options::usage() {
 		-rx      | --regex [string]           : regex of read name identifier with grouped tile information. default: \S+:(\d+):(\d+):(\d+)\s*.*
 		                                        NOTE: necessary for successful optical deduplication. to disable or if unavailable, set to null
 		-cmo     | --clipmateoverlaps         : enables clipping of read mate overlaps
-		-no-idx  | --no-index                 : disables indexing alignments
-		-no-qual | --no-qualityanalysis       : disables intermediate read and alignment quality analyses
+		-no-qual | --no-qualityanalysis       : disables intermediate read and alignment quality analyses and thus adapter inference
 		                                        NOTE: given -no-qual and unless -no-stats option, intermediate per file analyses replaced by bulk analysis
 		-no-stats| --no-statistics            : disables statistics from read and alignment quality analyses
 		-no-quant| --no-quantification        : disables per feature read quantification and TPM calculation plus downstream analyses
-		-ql      | --quantifylevel            : switch to other feature type for quantification. default: exon
-		                                        NOTE: quantifying using a different feature will break differential expression analysis
-		-qt      | --quantifytag              : switch to other feature tag for quantification. default: gene_id
+		-qf      | --quantifyfeature [string] : switch to other feature with [string]_id tag in gtf for quantification. default: gene, with tag gene_id
+		-ql      | --quantifylevel [string]   : switch to other feature level for quantification. default: exon
 		-s       | --strandness [value]       : defines library strandness for all inputs. default: automatically inferred
 		                                        0 - unstranded
 		                                        1 - stranded (fr second strand)
@@ -107,7 +105,7 @@ options::usage() {
 		                                        2 - basemean >=5 in at least one comparison defined in experiment summary file (see -c)
 		                                        3 - discard features within the lower 30% percentile of expression values
 		                                        4 - TPM >=5 in at least one sample
-		-cb      | --clusterbiotype [string]  : regex of features with a gene_(bio)type tag (see -gtf) to be clustered. default: .
+		-cb      | --clusterbiotype [string]  : regex of features with matching [-qf]_(bio)type tag in gtf to be clustered. default: .
 
 
 		DIFFERENTIAL METHYLATION ANALYSIS OPTIONS
@@ -123,8 +121,8 @@ options::usage() {
 		-no-trim | --no-trimming              : disables quality trimming utilizing a conservative sliding window approach and simple 5' clipping
 		-no-clip | --no-clipping              : disables removal of poly N, mono- and di-nucleotide ends as well as adapter sequences when used with -a
 		                                      : NOTE: clipping includes simple 3' quality trimming anyways
-		-a1      | --adapter1 [string,..]     : adapter sequence(s) of single or first mate. comma seperated
-		-a2      | --adapter2 [string,..]     : adapter sequence(s) of mate pair. comma seperated (can be the same as [-a1]. no revere complement required)
+		-a1      | --adapter1 [string,..]     : adapter sequence(s) of single or first mate. comma seperated. default: automatically inferred
+		-a2      | --adapter2 [string,..]     : adapter sequence(s) of mate pair (don't reverse complement). comma seperated. default: automatically inferred
 		-no-map  | --no-mapping               : disables read alignment and downstream analyses
 		-d       | --distance                 : maximum read alignment edit distance in %. default: 5
 		-i       | --insertsize               : maximum allowed insert for aligning mate pairs. default: 200000
@@ -139,8 +137,7 @@ options::usage() {
 		                                        NOTE: necessary for successful optical deduplication. to disable or if unavailable, set to null
 		-no-rmd  | --no-removeduplicates      : in case of WGBS, disables removing duplicates
 		-no-cmo  | --no-clipmateoverlaps      : disables clipping of read mate overlaps
-		-no-idx  | --no-index                 : disables indexing alignments
-		-no-qual | --no-qualityanalysis       : disables intermediate read and alignment quality analyses
+		-no-qual | --no-qualityanalysis       : disables intermediate read and alignment quality analyses and thus adapter inference
 		                                        NOTE: given -no-qual and unless -no-stats option, intermediate per file analyses replaced by bulk analysis
 		-no-stats| --no-statistics            : disables statistics from read and alignment quality analyses
 		-no-mec  | --no-mecall                : disables calling of methylated CpGs plus downstream analyses
@@ -152,18 +149,18 @@ options::usage() {
 
 
 		FUSION DETECTION OPTIONS
-		-f       | --fusiondetection [string] : triggers gene fusion detection. use one of the accepted keywords [null|hg19|hg38|mm10]
+		-f       | --fusiondetection [string] : triggers gene fusion detection. configure blacklist filter by one of the accepted keywords [null|hg19|hg38|mm10|mm39]
 		-g       | --genome [path]            : genome fasta input. without, only preprocessing is performed
 		-1       | --fq1 [path,..]            : fastq input. single or first mate. comma seperated or a file with all paths
 		-2       | --fq2 [path,..]            : fastq input. mate pair. comma seperated or a file with all paths
 		-no-trim | --no-trimming              : disables quality trimming utilizing a conservative sliding window approach and simple 5' clipping
 		-no-clip | --no-clipping              : disables removal of poly N, mono- and di-nucleotide ends as well as adapter sequences when used with -a
 		                                      : NOTE: clipping includes simple 3' quality trimming anyways
-		-a1      | --adapter1 [string,..]     : adapter sequence(s) of single or first mate. comma seperated
-		-a2      | --adapter2 [string,..]     : adapter sequence(s) of mate pair. comma seperated (can be the same as [-a1]. no revere complement required)
+		-a1      | --adapter1 [string,..]     : adapter sequence(s) of single or first mate. comma seperated. default: automatically inferred
+		-a2      | --adapter2 [string,..]     : adapter sequence(s) of mate pair (don't reverse complement). comma seperated. default: automatically inferred
 		-no-cor  | --no-correction            : disables majority based raw read error correction
 		-no-rrm  | --no-rrnafilter            : disables rRNA filter
-		-no-qual | --no-qualityanalysis       : disables intermediate read and alignment quality analyses
+		-no-qual | --no-qualityanalysis       : disables intermediate read and alignment quality analyses and thus adapter inference
 		                                        NOTE: given -no-qual and unless -no-stats option, intermediate per file analyses replaced by bulk analysis
 		-no-stats| --no-statistics            : disables statistics from read and alignment quality analyses
 		-no-arr  | --no-arriba                : disables fusion detection by Arriba which requieres hg19|hg38|mm10 genome/gtf input
@@ -190,16 +187,16 @@ options::usage() {
 		-no-trim | --no-trimming              : disables quality trimming utilizing a conservative sliding window approach and simple 5' clipping
 		-no-clip | --no-clipping              : disables removal of poly N, mono- and di-nucleotide ends as well as adapter sequences when used with -a
 		                                      : NOTE: clipping includes simple 3' quality trimming anyways
-		-a1      | --adapter1 [string,..]     : adapter sequence(s) of single or first mate. comma seperated
-		-a2      | --adapter2 [string,..]     : adapter sequence(s) of mate pair. comma seperated (can be the same as [-a1]. no revere complement required)
+		-a1      | --adapter1 [string,..]     : adapter sequence(s) of single or first mate. comma seperated. default: automatically inferred
+		-a2      | --adapter2 [string,..]     : adapter sequence(s) of mate pair (don't reverse complement). comma seperated. default: automatically inferred
 		-no-cor  | --no-correction            : disables majority based raw read error correction
 		-no-rrm  | --no-rrnafilter            : disables rRNA filter
 		-no-map  | --no-mapping               : disables read alignment and downstream analyses
 		-d       | --distance                 : maximum read alignment edit distance in %. default: 5
 		-i       | --insertsize               : maximum allowed insert for aligning mate pairs. default: 200000
-		-no-split| --no-split                 : disables split read mapping
+		-no-split| --no-split                 : disables split read mapping. default: true
 		-rip     | --rna-ip                   : switch from ChIP to parameterization for RNA based (meRIP, m6A, CLIP) or other *IP-Seq like experiments (ATAC, DNase)
-		                                        NOTE: may be used together with -s and -no-split option
+		                                        NOTE: enables split read mapping. may be used together with -s and -no-split option
 		-no-map  | --no-mapping               : disables read alignment and downstream analyses
 		-no-sege | --no-segemehl              : disables mapping by segemehl
 		-no-star | --no-star                  : disables mapping by STAR
@@ -215,7 +212,6 @@ options::usage() {
 		-rx      | --regex [string]           : regex of read name identifier with grouped tile information. default: \S+:(\d+):(\d+):(\d+).*
 		                                        NOTE: necessary for successful optical deduplication. to disable or if unavailable, set to null
 		-cmo     | --clipmateoverlaps         : enables clipping of read mate overlaps
-		-no-idx  | --no-index                 : disables indexing alignments
 		-fs      | --fragmentsize [value]     : estimated size of sequenced fragments. default: 200
 		-s       | --strandness [value]       : defines library strandness for all inputs. default: automatically inferred
 		                                        0 - unstranded
@@ -225,7 +221,8 @@ options::usage() {
 		-no-macs | --no-macs                  : disables peak calling by macs
 		-no-gem  | --no-gem                   : disables peak calling by gem
 		-no-peaka| --no-peakachu              : disables peak calling by peakachu
-		-m6a     | --m6aviewer                : enables peak calling by m6aviewer - not fully tested yet and requieres user interaction
+		-matk    | --matk                     : enables m6a peak calling by matk/deeprip
+		-m6a     | --m6aviewer                : enables m6a peak calling by m6aviewer - requieres user interaction
 		-sp      | --strict-peaks             : use a more strict peak caller parameterization. recommended to use with -no-idr
 		-pp      | --pointy-peaks             : enables macs and gem to report more pointy narrow peaks. recommended for ChIP-exo, CLIP-Seq and RNA based *IP-Seq experiments
 		-no-idr  | --no-idr                   : disregards replicates and irreproducible discovery rates. allows unpaired input by using only -t1/-t2
@@ -305,6 +302,7 @@ options::developer() {
 		macs  : peak calling by macs
 		gem   : peak calling by gem
 		peaka : peak calling by peakachu
+		matk  : peak calling by matk
 		m6a   : peak calling by m6aViewer
 
 		medl  : methylation calling by methyldackel
@@ -362,7 +360,7 @@ options::checkopt (){
 		-tr2      | --treat-repfq2) arg=true; rfq2="$2";;
 		-tr3      | --treat-repfq3) arg=true; rfq3="$2";;
 
-		-f        | --fusiondetection) arg=true; FUSIONS=$2; [[ $FUSIONS == "null" ]] && noarr=true;;
+		-f        | --fusiondetection) arg=true; FUSIONS=$2;;
 		-no-arr   | --no-arriba) noarr=true;;
 		-no-sfus  | --no-starfusion) nosfus=true;;
 
@@ -401,11 +399,12 @@ options::checkopt (){
 		-fs       | --fragmentsize) arg=true; FRAGMENTSIZE=$2;;
 		-sp       | --strict-peaks) STRICTPEAKS=true;;
 		-pp       | --pointy-peaks) POINTYPEAKS=true;;
-		-no-call  | --no-call) nomacs=true; nogem=true; nopeaka=true; nom6a=true; noidr=true;;
+		-no-call  | --no-call) nomacs=true; nogem=true; nopeaka=true; nom6a=true; nomatk=true; noidr=true;;
 		-no-macs  | --no-macs) nomacs=true;;
 		-no-gem   | --no-gem) nogem=true;;
 		-no-peaka | --no-peakachu) nopeaka=true;;
 		-no-idr   | --no-idr) noidr=true;;
+		-matk     | --matk) nomatk=false;;
 		-m6a      | --m6aviewer) nom6a=false;;
 
 		-c        | --comparisons) arg=true; mapfile -t -d ',' COMPARISONS < <(printf '%s' "$2");;
@@ -421,12 +420,12 @@ options::checkopt (){
 
 		-s        | --strandness) arg=true; STRANDNESS=$2;;
 		-ql       | --quantifylevel) arg=true; QUANTIFYFLEVEL="$2";;
-		-qt       | --quantifytag) arg=true; QUANTIFYTAG="$2";;
+		-qf       | --quantifyfeature) arg=true; QUANTIFYFEATURE="$2";;
 		-cf       | --clusterfilter) arg=true; CLUSTERFILTER=$2;;
 		-cb       | --clusterbiotype) arg=true; CLUSTERBIOTYPE="$2";;
 		-no-quant | --no-quantification) noquant=true; nodsj=true; nodea=true; noclust=true; nogo=true;;
 		-no-dsj   | --no-diffsplicejunctions) nodsj=true;;
-		-no-dea   | --no-diffexanalysis) nodea=true;;
+		-no-dea   | --no-diffexanalysis) nodea=true; noclust=true; nogo=true;;
 		-no-clust | --no-clustering) noclust=true;;
 		-no-go    | --no-geneontology) nogo=true;;
 
@@ -447,7 +446,7 @@ options::checkopt (){
 options::resume(){
 	local s enable=false
 	# don't Smd5, Sslice !
-	for s in fqual mspi trim clip cor rrm arr sfus sege star bwa mqual uniq sort rep rmd cmo idx stats macs gem peaka m6a medl haarz dma quant tpm dsj dea join clust go; do
+	for s in fqual mspi trim clip cor rrm arr sfus sege star bwa mqual uniq sort rep rmd cmo idx stats macs gem peaka matk m6a medl haarz dma quant tpm dsj dea join clust go; do
 		eval "\${S$s:=true}" # unless S$s already set to false by -redo, do skip
 		$enable || [[ "$1" == "$s" ]] && {
 			enable=true
@@ -461,7 +460,7 @@ options::skip(){
 	declare -a mapdata
 	mapfile -t -d ',' mapdata < <(printf '%s' "$1")
 	for x in "${mapdata[@]}"; do
-		for s in md5 fqual mspi trim clip cor rrm arr sfus sege star bwa mqual uniq sort rep slice rmd cmo idx stats macs gem peaka m6a medl haarz dma quant tpm dsj dea join clust go; do
+		for s in md5 fqual mspi trim clip cor rrm arr sfus sege star bwa mqual uniq sort rep slice rmd cmo idx stats macs gem peaka matk m6a medl haarz dma quant tpm dsj dea join clust go; do
 			[[ "$x" == "$s" ]] && eval "S$s=true"
 		done
 	done
@@ -471,11 +470,11 @@ options::redo(){
 	local x s
 	declare -a mapdata
 	mapfile -t -d ',' mapdata < <(printf '%s' "$1")
-	for s in fqual mspi trim clip cor rrm arr sfus sege star bwa mqual uniq sort rep rmd cmo idx stats macs gem peaka m6a medl haarz dma quant tpm dsj dea join clust go; do
+	for s in fqual mspi trim clip cor rrm arr sfus sege star bwa mqual uniq sort rep rmd cmo idx stats macs gem peaka matk m6a medl haarz dma quant tpm dsj dea join clust go; do
 		eval "\${S$s:=true}" # unless (no|S)$s alredy set to false by -resume, do skip
 	done
 	for x in "${mapdata[@]}"; do
-		for s in fqual mspi trim clip cor rrm arr sfus sege star bwa mqual uniq sort rep rmd cmo idx stats macs gem peaka m6a medl haarz dma quant tpm dsj dea join clust go; do
+		for s in fqual mspi trim clip cor rrm arr sfus sege star bwa mqual uniq sort rep rmd cmo idx stats macs gem peaka matk m6a medl haarz dma quant tpm dsj dea join clust go; do
 			[[ "$x" == "$s" ]] && eval "S$s=false"
 		done
 	done

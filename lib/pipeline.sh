@@ -2,6 +2,25 @@
 # (c) Konstantin Riege
 
 pipeline::index(){
+	genome::mkdict \
+		-F \
+		-t $THREADS \
+		-i "$GENOME" \
+		-p "$TMPDIR"
+	if [[ -s "$GTF.go" ]]; then
+		genome::mkgodb \
+			-S ${nogo:=false} \
+			-t $THREADS \
+			-p "$TMPDIR" \
+			-g "$GTF.go"
+	fi
+	if [[ -s "$GTF" ]]; then
+		genome::indexgtf \
+			-t $THREADS \
+			-i "$GTF" \
+			-F
+	fi
+
 	unset NA1 NA2
 	if ${BISULFITE:=false}; then
 		bisulfite::segemehl \
@@ -61,18 +80,6 @@ pipeline::index(){
 			-F \
 			-r NA1 \
 			-1 NA2
-		if [[ -s "$GTF.go" ]]; then
-			genome::mkgodb \
-				-S ${nogo:=false} \
-				-t $THREADS \
-				-p "$TMPDIR" \
-				-g "$GTF.go"
-		fi
-		genome::mkdict \
-			-F \
-			-t $THREADS \
-			-i "$GENOME" \
-			-p "$TMPDIR"
 		unset NA1 NA2 NA3
 		expression::diego \
 			-S ${nodsj:=false} \
@@ -112,6 +119,8 @@ pipeline::_preprocess(){
 	if [[ ! $MAPPED ]]; then
 		declare -a qualdirs
 
+		local params=""
+		[[ $ADAPTER1 ]] || params="-a ADAPTER1 -A ADAPTER2"
 		preprocess::add4stats -r qualdirs -a "$OUTDIR/qualities/raw" -1 FASTQ1 -2 FASTQ2
 		preprocess::fastqc \
 			-S ${noqual:=false} \
@@ -121,7 +130,8 @@ pipeline::_preprocess(){
 			-o "$OUTDIR/qualities/raw" \
 			-p "$TMPDIR" \
 			-1 FASTQ1 \
-			-2 FASTQ2
+			-2 FASTQ2 \
+			$params
 
 		${RRBS:=false} && ! ${nomspi:=false} && {
 			bisulfite::mspicut \
@@ -377,6 +387,14 @@ pipeline::_mapping(){
 		-p "$TMPDIR" \
 		-o "$OUTDIR/mapped" \
 		-r mapper
+	alignment::postprocess \
+		-S ${nosort:=false} \
+		-s ${Ssort:=false} \
+		-j index \
+		-t $THREADS \
+		-p "$TMPDIR" \
+		-o "$OUTDIR/mapped" \
+		-r mapper
 	(${nouniq:=false} && ! ${nosort:=false}) || (! ${nouniq:=false} && ! ${nosort:=false}) && {
 		alignment::add4stats -r mapper
 		alignment::bamqc \
@@ -400,7 +418,7 @@ pipeline::fusions(){
 			-5 ${Smd5:=false} \
 			-t $THREADS \
 			-g "$GENOME" \
-			-v $FUSIONS \
+			-v "$FUSIONS" \
 			-a "$GTF" \
 			-o "$OUTDIR/fusions" \
 			-p "$TMPDIR" \
@@ -452,6 +470,14 @@ pipeline::bs(){
 			-x "$REGEX" \
 			-p "$TMPDIR" \
 			-o "$OUTDIR/mapped"
+		alignment::postprocess \
+			-S ${normd:=false} \
+			-s ${Srmd:=false} \
+			-j index \
+			-t $THREADS \
+			-p "$TMPDIR" \
+			-o "$OUTDIR/mapped" \
+			-r mapper
 		alignment::add4stats -r mapper
 		alignment::bamqc \
 			-S ${noqual:=false} \
@@ -471,6 +497,14 @@ pipeline::bs(){
 			-r mapper \
 			-c slicesinfo \
 			-o "$OUTDIR/mapped"
+		alignment::postprocess \
+			-S ${nocmo:=false} \
+			-s ${Scmo:=false} \
+			-j index \
+			-t $THREADS \
+			-p "$TMPDIR" \
+			-o "$OUTDIR/mapped" \
+			-r mapper
 		alignment::add4stats -r mapper
 		alignment::bamqc \
 			-S ${noqual:=false} \
@@ -478,15 +512,6 @@ pipeline::bs(){
 			-t $THREADS \
 			-r mapper
 	}
-
-	alignment::postprocess \
-		-S ${noidx:=false} \
-		-s ${Sidx:=false} \
-		-j index \
-		-t $THREADS \
-		-p "$TMPDIR" \
-		-o "$OUTDIR/mapped" \
-		-r mapper
 
 	alignment::qcstats \
 		-S ${nostats:=false} \
@@ -501,8 +526,7 @@ pipeline::bs(){
 		-t $THREADS \
 		-g "$GENOME" \
 		-r mapper \
-		-o "$OUTDIR/mecall" \
-		-p "$TMPDIR"
+		-o "$OUTDIR/mecall"
 
 	bisulfite::haarz \
 		-S ${nohaarz:=false} \
@@ -516,8 +540,8 @@ pipeline::bs(){
 
 	if ! ${nomedl:=false} || ! ${nohaarz:=false} && [[ $COMPARISONS ]]; then
 		local params=""
-		${nomedl:=false} && params+=" -d methyldackel"
-		${nohaarz:=false} && params+=" -d haarz"
+		${nomedl:=false} || params+=" -d methyldackel"
+		${nohaarz:=false} || params+=" -d haarz"
 		bisulfite::metilene \
 			-S ${nodma:=false} \
 			-s ${Sdma:=false} \
@@ -565,6 +589,14 @@ pipeline::dea(){
 			-x "$REGEX" \
 			-p "$TMPDIR" \
 			-o "$OUTDIR/mapped"
+		alignment::postprocess \
+			-S ${normd:=true} \
+			-s ${Srmd:=false} \
+			-j index \
+			-t $THREADS \
+			-p "$TMPDIR" \
+			-o "$OUTDIR/mapped" \
+			-r mapper
 		alignment::add4stats -r mapper
 		alignment::bamqc \
 			-S ${noqual:=false} \
@@ -584,6 +616,14 @@ pipeline::dea(){
 			-r mapper \
 			-c slicesinfo \
 			-o "$OUTDIR/mapped"
+		alignment::postprocess \
+			-S ${nocmo:=true} \
+			-s ${Scmo:=false} \
+			-j index \
+			-t $THREADS \
+			-p "$TMPDIR" \
+			-o "$OUTDIR/mapped" \
+			-r mapper
 		alignment::add4stats -r mapper
 		alignment::bamqc \
 			-S ${noqual:=false} \
@@ -591,15 +631,6 @@ pipeline::dea(){
 			-t $THREADS \
 			-r mapper
 	}
-
-	alignment::postprocess \
-		-S ${noidx:=false} \
-		-s ${Sidx:=false} \
-		-j index \
-		-t $THREADS \
-		-p "$TMPDIR" \
-		-o "$OUTDIR/mapped" \
-		-r mapper
 
 	alignment::qcstats \
 		-S ${nostats:=false} \
@@ -616,6 +647,7 @@ pipeline::dea(){
 		-r mapper \
 		-x strandness \
 		-g "$GTF" \
+		-l ${QUANTIFYFLEVEL:=exon} \
 		-p "$TMPDIR"
 
 	quantify::featurecounts \
@@ -625,7 +657,7 @@ pipeline::dea(){
 		-p "$TMPDIR" \
 		-g "$GTF" \
 		-l ${QUANTIFYFLEVEL:=exon} \
-		-f ${QUANTIFYTAG:=gene_id} \
+		-f ${QUANTIFYFEATURE:=gene} \
 		-o "$OUTDIR/counted" \
 		-r mapper \
 		-x strandness
@@ -635,11 +667,22 @@ pipeline::dea(){
 		-s ${Stpm:=false} \
 		-t $THREADS \
 		-g "$GTF" \
+		-l ${QUANTIFYFLEVEL:=exon} \
+		-f ${QUANTIFYFEATURE:=gene} \
 		-i "$OUTDIR/counted" \
 		-r mapper
 
-
 	if [[ $COMPARISONS ]]; then
+		expression::join \
+			-S $(${nodea:=false} && echo false || echo true) \
+			-s ${Sjoin:=false} \
+			-t $THREADS \
+			-r mapper \
+			-c COMPARISONS \
+			-f ${QUANTIFYFEATURE:=gene} \
+			-i "$OUTDIR/counted" \
+			-o "$OUTDIR/counted"
+
 		expression::diego \
 			-S ${nodsj:=false} \
 			-s ${Sdsj:=false} \
@@ -659,17 +702,19 @@ pipeline::dea(){
 			-t $THREADS \
 			-r mapper \
 			-g "$GTF" \
+			-f ${QUANTIFYFEATURE:=gene} \
 			-c COMPARISONS \
 			-i "$OUTDIR/counted" \
 			-o "$OUTDIR/deseq"
 
-		expression::join \
-			-S ${noquant:=false} \
+		expression::join_deseq \
+			-S ${nodea:=false} \
 			-s ${Sjoin:=false} \
 			-t $THREADS \
 			-r mapper \
 			-c COMPARISONS \
 			-g "$GTF" \
+			-f ${QUANTIFYFEATURE:=gene} \
 			-i "$OUTDIR/counted" \
 			-j "$OUTDIR/deseq" \
 			-o "$OUTDIR/counted" \
@@ -681,6 +726,7 @@ pipeline::dea(){
 			-f ${CLUSTERFILTER:=04} \
 			-b ${CLUSTERBIOTYPE:="."} \
 			-g "$GTF" \
+			-f ${QUANTIFYFEATURE:=gene} \
 			-t $THREADS \
 			-M $MAXMEMORY \
 			-r mapper \
@@ -708,6 +754,7 @@ pipeline::dea(){
 			-f ${CLUSTERFILTER:=4} \
 			-b ${CLUSTERBIOTYPE:="."} \
 			-g "$GTF" \
+			-f ${QUANTIFYFEATURE:=gene} \
 			-t $THREADS \
 			-M $MAXMEMORY \
 			-r mapper \
@@ -774,6 +821,14 @@ pipeline::callpeak() {
 			-x "$REGEX" \
 			-p "$TMPDIR" \
 			-o "$OUTDIR/mapped"
+		alignment::postprocess \
+			-S ${normd:=false} \
+			-s ${Srmd:=false} \
+			-j index \
+			-t $THREADS \
+			-p "$TMPDIR" \
+			-o "$OUTDIR/mapped" \
+			-r mapper
 		alignment::add4stats -r mapper
 		alignment::bamqc \
 			-S ${noqual:=false} \
@@ -793,6 +848,14 @@ pipeline::callpeak() {
 			-r mapper \
 			-c slicesinfo \
 			-o "$OUTDIR/mapped"
+		alignment::postprocess \
+			-S ${nocmo:=true} \
+			-s ${Scmo:=false} \
+			-j index \
+			-t $THREADS \
+			-p "$TMPDIR" \
+			-o "$OUTDIR/mapped" \
+			-r mapper
 		alignment::add4stats -r mapper
 		alignment::bamqc \
 			-S ${noqual:=false} \
@@ -800,15 +863,6 @@ pipeline::callpeak() {
 			-t $THREADS \
 			-r mapper
 	}
-
-	alignment::postprocess \
-		-S ${noidx:=false} \
-		-s ${Sidx:=false} \
-		-j index \
-		-t $THREADS \
-		-p "$TMPDIR" \
-		-o "$OUTDIR/mapped" \
-		-r mapper
 
 	alignment::qcstats \
 		-S ${nostats:=false} \
@@ -875,15 +929,31 @@ pipeline::callpeak() {
 			-o "$OUTDIR/peaks" \
 			-z ${STRICTPEAKS:=false}
 
-		peaks::m6aviewer \
-			-S ${nom6a:=true} \
-			-s ${Sm6a:=false} \
-			-f $FRAGMENTSIZE \
-			-a nidx \
-			-i tidx \
-			-r mapper \
-			-t $THREADS \
-			-o "$OUTDIR/peaks"
+		${RIPSEQ:=false} && [[ $tidx ]] && {
+			peaks::matk \
+				-S ${nomatk:=true} \
+				-s ${Smatk:=false} \
+				-a nidx \
+				-i tidx \
+				-r mapper \
+				-t $THREADS \
+				-M $MAXMEMORY \
+				-p "$TMPDIR" \
+				-o "$OUTDIR/peaks"
+
+			peaks::m6aviewer \
+				-S ${nom6a:=true} \
+				-s ${Sm6a:=false} \
+				-f $FRAGMENTSIZE \
+				-a nidx \
+				-i tidx \
+				-r mapper \
+				-t $THREADS \
+				-m $MEMORY \
+				-M $MAXMEMORY \
+				-p "$TMPDIR" \
+				-o "$OUTDIR/peaks"
+		}
 	else
 		peaks::macs_idr \
 			-S ${nomacs:=false} \
@@ -951,18 +1021,37 @@ pipeline::callpeak() {
 			-o "$OUTDIR/peaks" \
 			-z ${STRICTPEAKS:=false}
 
-		peaks::m6aviewer_idr \
-			-S ${nom6a:=true} \
-			-s ${Sm6a:=false} \
-			-f $FRAGMENTSIZE \
-			-a nidx \
-			-b nridx \
-			-i tidx \
-			-j ridx \
-			-k pidx \
-			-r mapper \
-			-t $THREADS \
-			-o "$OUTDIR/peaks"
+		${RIPSEQ:=false} && {
+			peaks::matk_idr \
+				-S ${nomatk:=true} \
+				-s ${Smatk:=false} \
+				-a nidx \
+				-b nridx \
+				-i tidx \
+				-j ridx \
+				-k pidx \
+				-r mapper \
+				-t $THREADS \
+				-M $MAXMEMORY \
+				-p "$TMPDIR" \
+				-o "$OUTDIR/peaks"
+
+			peaks::m6aviewer_idr \
+				-S ${nom6a:=true} \
+				-s ${Sm6a:=false} \
+				-f $FRAGMENTSIZE \
+				-a nidx \
+				-b nridx \
+				-i tidx \
+				-j ridx \
+				-k pidx \
+				-r mapper \
+				-t $THREADS \
+				-m $MEMORY \
+				-M $MAXMEMORY \
+				-p "$TMPDIR" \
+				-o "$OUTDIR/peaks"
+		}
 	fi
 
 	return 0
