@@ -23,7 +23,8 @@ options::usage() {
 		                                        2 - get full output
 		-o       | --out [path]               : output directory. default: $OUTDIR
 		-l       | --log [path]               : output directory. default: $OUTDIR/run.log
-		-tmp     | --tmp                      : temporary directory. default: $TMPDIR/rippchen.XXXXXXXXXX
+		-tmp     | --tmp                      : temporary directory. default: ${TMPDIR-/tmp}/rippchen.XXXXXXXXXX
+		                                        NOTE: respects TMPDIR environment variable
 		-r       | --remove                   : remove temporary and unnecessary files upon succesful termination
 		-rr      | --remove-remove            : remove temporary and unnecessary files upon termination
 		-t       | --threads [value]          : number of threads. default: $THREADS
@@ -32,8 +33,8 @@ options::usage() {
 		                                        default: $MEMORY which allows for $MTHREADS instances and $MTHREADS SAM/BAM slices according to -xmem
 		                                        NOTE: needs to be raised in case of GCThreads, HeapSize or OutOfMemory errors
 		-resume  | --resume-from [string]     : resume from a specific pipeline step (see -dev)
-		-skip    | --skip [string,..]         : skip specific pipeline step(s). comma seperated (see -dev)
-		-redo    | --redo [string,..]         : redo specific pipeline step(s). comma seperated (see -dev)
+		-skip    | --skip [string,..]         : skip specific pipeline step(s). comma separated (see -dev)
+		-redo    | --redo [string,..]         : redo specific pipeline step(s). comma separated (see -dev)
 
 
 		INDEXING OPTIONS
@@ -57,14 +58,14 @@ options::usage() {
 		                                        NOTE: no fasta file implies -no-map
 		-gtf     | --gtf [path]               : annotation gtf input. default: [-g].gtf
 		                                        NOTE: no gtf file implies -no-quant
-		-1       | --fq1 [path,..]            : fastq input. single or first mate. comma seperated or a file with all paths
-		-2       | --fq2 [path,..]            : fastq input. mate pair. comma seperated or a file with all paths
-		-3       | --fq3 [path,..]            : fastq input. UMI sequences. comma seperated or a file with all paths
+		-1       | --fq1 [path,..]            : fastq input. single or first mate. comma separated or a file with all paths
+		-2       | --fq2 [path,..]            : fastq input. mate pair. comma separated or a file with all paths
+		-3       | --fq3 [path,..]            : fastq input. UMI sequences. comma separated or a file with all paths
 		-no-trim | --no-trimming              : disables quality trimming utilizing a conservative sliding window approach and simple 5' clipping
 		-no-clip | --no-clipping              : disables removal of poly N, mono- and di-nucleotide ends as well as adapter sequences when used with -a
 		                                      : NOTE: clipping includes simple 3' quality trimming anyways
-		-a1      | --adapter1 [string,..]     : adapter sequence(s) of single or first mate. comma seperated. default: automatically inferred
-		-a2      | --adapter2 [string,..]     : adapter sequence(s) of mate pair (don't reverse complement). comma seperated. default: automatically inferred
+		-a1      | --adapter1 [string,..]     : adapter sequence(s) of single or first mate. comma separated. default: automatically inferred
+		-a2      | --adapter2 [string,..]     : adapter sequence(s) of mate pair (don't reverse complement). comma separated. default: automatically inferred
 		-no-cor  | --no-correction            : disables majority based raw read error correction. recommended for bisulfite sequencing data
 		-no-rrm  | --no-rrnafilter            : disables rRNA filter
 		-no-map  | --no-mapping               : disables read alignment and downstream analyses
@@ -74,7 +75,7 @@ options::usage() {
 		-no-sege | --no-segemehl              : disables mapping by segemehl
 		-no-star | --no-star                  : disables mapping by STAR
 		-no-bwa  | --no-bwa                   : disables mapping by BWA given -no-split option
-		-m       | --mapped [path,..]         : SAM/BAM input. comma seperated or a file with all paths (replaces fastq input and processing)
+		-m       | --mapped [path,..]         : SAM/BAM input. comma separated or a file with all paths (replaces fastq input and processing)
 		-mn      | --mapper-name [string]     : name to use for output subdirectories in case of SAM/BAM input. default: custom
 		-no-uniq | --no-uniqify               : disables extraction of properly paired and uniquely mapped reads
 		-no-sort | --no-sort                  : disables sorting alignments
@@ -114,21 +115,21 @@ options::usage() {
 		                                        NOTE: no file implies -no-dma. see below for format information
 		-g       | --genome [path]            : genome fasta input. without, only preprocessing is performed
 		                                        NOTE: no fasta file implies -no-map
-		-1       | --fq1 [path,..]            : fastq input. single or first mate. comma seperated or a file with all paths
-		-2       | --fq2 [path,..]            : fastq input. mate pair. comma seperated or a file with all paths
-		-3       | --fq3 [path,..]            : fastq input. UMI sequences. comma seperated or a file with all paths
+		-1       | --fq1 [path,..]            : fastq input. single or first mate. comma separated or a file with all paths
+		-2       | --fq2 [path,..]            : fastq input. mate pair. comma separated or a file with all paths
+		-3       | --fq3 [path,..]            : fastq input. UMI sequences. comma separated or a file with all paths
 		-no-mspi | --no-mspiselection         : in case of RRBS, disables selection of MspI digested reads (use in case of multi-digestion enzymes)
 		-no-trim | --no-trimming              : disables quality trimming utilizing a conservative sliding window approach and simple 5' clipping
 		-no-clip | --no-clipping              : disables removal of poly N, mono- and di-nucleotide ends as well as adapter sequences when used with -a
 		                                      : NOTE: clipping includes simple 3' quality trimming anyways
-		-a1      | --adapter1 [string,..]     : adapter sequence(s) of single or first mate. comma seperated. default: automatically inferred
-		-a2      | --adapter2 [string,..]     : adapter sequence(s) of mate pair (don't reverse complement). comma seperated. default: automatically inferred
+		-a1      | --adapter1 [string,..]     : adapter sequence(s) of single or first mate. comma separated. default: automatically inferred
+		-a2      | --adapter2 [string,..]     : adapter sequence(s) of mate pair (don't reverse complement). comma separated. default: automatically inferred
 		-no-map  | --no-mapping               : disables read alignment and downstream analyses
 		-d       | --distance                 : maximum read alignment edit distance in %. default: 5
 		-i       | --insertsize               : maximum allowed insert for aligning mate pairs. default: 200000
 		-no-sege | --no-segemehl              : disables mapping by segemehl
 		-no-bwa  | --no-bwa                   : disables mapping by BWA
-		-m       | --mapped [path,..]         : SAM/BAM input. comma seperated or a file with all paths (replaces fastq input and processing)
+		-m       | --mapped [path,..]         : SAM/BAM input. comma separated or a file with all paths (replaces fastq input and processing)
 		-mn      | --mapper-name [string]     : name to use for output subdirectories in case of SAM/BAM input. default: custom
 		-no-uniq | --no-uniqify               : disables extraction of properly paired and uniquely mapped reads
 		-no-sort | --no-sort                  : disables sorting alignments
@@ -151,13 +152,13 @@ options::usage() {
 		FUSION DETECTION OPTIONS
 		-f       | --fusiondetection [string] : triggers gene fusion detection. configure blacklist filter by one of the accepted keywords [null|hg19|hg38|mm10|mm39]
 		-g       | --genome [path]            : genome fasta input. without, only preprocessing is performed
-		-1       | --fq1 [path,..]            : fastq input. single or first mate. comma seperated or a file with all paths
-		-2       | --fq2 [path,..]            : fastq input. mate pair. comma seperated or a file with all paths
+		-1       | --fq1 [path,..]            : fastq input. single or first mate. comma separated or a file with all paths
+		-2       | --fq2 [path,..]            : fastq input. mate pair. comma separated or a file with all paths
 		-no-trim | --no-trimming              : disables quality trimming utilizing a conservative sliding window approach and simple 5' clipping
 		-no-clip | --no-clipping              : disables removal of poly N, mono- and di-nucleotide ends as well as adapter sequences when used with -a
 		                                      : NOTE: clipping includes simple 3' quality trimming anyways
-		-a1      | --adapter1 [string,..]     : adapter sequence(s) of single or first mate. comma seperated. default: automatically inferred
-		-a2      | --adapter2 [string,..]     : adapter sequence(s) of mate pair (don't reverse complement). comma seperated. default: automatically inferred
+		-a1      | --adapter1 [string,..]     : adapter sequence(s) of single or first mate. comma separated. default: automatically inferred
+		-a2      | --adapter2 [string,..]     : adapter sequence(s) of mate pair (don't reverse complement). comma separated. default: automatically inferred
 		-no-cor  | --no-correction            : disables majority based raw read error correction
 		-no-rrm  | --no-rrnafilter            : disables rRNA filter
 		-no-qual | --no-qualityanalysis       : disables intermediate read and alignment quality analyses and thus adapter inference
@@ -172,39 +173,39 @@ options::usage() {
 		                                        NOTE: no fasta file implies -no-map
 		-gtf     | --gtf [path]               : annotation gtf input. default: [-g].gtf
 		                                        NOTE: required by gem for RNA based *IP-Seq (see -rip) unless given -s
-		-n1      | --normal-fq1 [path,..]     : normal fastq input. single or first mate. comma seperated or a file with all paths
-		-n2      | --normal-fq2 [path,..]     : normal fastq input. mate pair. comma seperated or a file with all paths
-		-n3      | --normal-fq3 [path,..]     : normal fastq input. UMI sequences. comma seperated or a file with all paths
-		-nr1     | --normal-repfq1 [path,..]  : normal replicate fastq input. single or first mate. comma seperated or a file with all paths
-		-nr2     | --normal-repfq2 [path,..]  : normal replicate fastq input. mate pair. comma seperated or a file with all paths
-		-nr3     | --normal-repfq3 [path,..]  : normal replicate fastq input. UMI sequences. comma seperated or a file with all paths
-		-t1      | --treat-fq1 [path,..]      : *IP-Seq fastq input. single or first mate. comma seperated or a file with all paths
-		-t2      | --treat-fq2 [path,..]      : *IP-Seq fastq input. mate pair. comma seperated or a file with all paths
-		-t3      | --treat-fq3 [path,..]      : *IP-Seq fastq input. UMI sequences. comma seperated or a file with all paths
-		-tr1     | --treat-repfq1 [path,..]   : *IP-Seq replicate fastq input. single or first mate. comma seperated or a file with all paths
-		-tr2     | --treat-repfq2 [path,..]   : *IP-Seq replicate fastq input. mate pair. comma seperated or a file with all paths
-		-tr3     | --treat-repfq3 [path,..]   : *IP-Seq replicate fastq input. UMI sequences. comma seperated or a file with all paths
+		-n1      | --normal-fq1 [path,..]     : normal fastq input. single or first mate. comma separated or a file with all paths
+		-n2      | --normal-fq2 [path,..]     : normal fastq input. mate pair. comma separated or a file with all paths
+		-n3      | --normal-fq3 [path,..]     : normal fastq input. UMI sequences. comma separated or a file with all paths
+		-nr1     | --normal-repfq1 [path,..]  : normal replicate fastq input. single or first mate. comma separated or a file with all paths
+		-nr2     | --normal-repfq2 [path,..]  : normal replicate fastq input. mate pair. comma separated or a file with all paths
+		-nr3     | --normal-repfq3 [path,..]  : normal replicate fastq input. UMI sequences. comma separated or a file with all paths
+		-t1      | --treat-fq1 [path,..]      : *IP-Seq fastq input. single or first mate. comma separated or a file with all paths
+		-t2      | --treat-fq2 [path,..]      : *IP-Seq fastq input. mate pair. comma separated or a file with all paths
+		-t3      | --treat-fq3 [path,..]      : *IP-Seq fastq input. UMI sequences. comma separated or a file with all paths
+		-tr1     | --treat-repfq1 [path,..]   : *IP-Seq replicate fastq input. single or first mate. comma separated or a file with all paths
+		-tr2     | --treat-repfq2 [path,..]   : *IP-Seq replicate fastq input. mate pair. comma separated or a file with all paths
+		-tr3     | --treat-repfq3 [path,..]   : *IP-Seq replicate fastq input. UMI sequences. comma separated or a file with all paths
 		-no-trim | --no-trimming              : disables quality trimming utilizing a conservative sliding window approach and simple 5' clipping
 		-no-clip | --no-clipping              : disables removal of poly N, mono- and di-nucleotide ends as well as adapter sequences when used with -a
 		                                      : NOTE: clipping includes simple 3' quality trimming anyways
-		-a1      | --adapter1 [string,..]     : adapter sequence(s) of single or first mate. comma seperated. default: automatically inferred
-		-a2      | --adapter2 [string,..]     : adapter sequence(s) of mate pair (don't reverse complement). comma seperated. default: automatically inferred
+		-a1      | --adapter1 [string,..]     : adapter sequence(s) of single or first mate. comma separated. default: automatically inferred
+		-a2      | --adapter2 [string,..]     : adapter sequence(s) of mate pair (don't reverse complement). comma separated. default: automatically inferred
 		-no-cor  | --no-correction            : disables majority based raw read error correction
 		-no-rrm  | --no-rrnafilter            : disables rRNA filter
 		-no-map  | --no-mapping               : disables read alignment and downstream analyses
 		-d       | --distance                 : maximum read alignment edit distance in %. default: 5
 		-i       | --insertsize               : maximum allowed insert for aligning mate pairs. default: 200000
 		-no-split| --no-split                 : disables split read mapping. default: true
-		-rip     | --rna-ip                   : switch from ChIP to parameterization for RNA based (meRIP, m6A, CLIP) or other *IP-Seq like experiments (ATAC, DNase)
-		                                        NOTE: enables split read mapping. may be used together with -s and -no-split option
+		-rip     | --read-ip                  : switch to parameterization for experiments that require to call up reads, not fragments (RNA: meRIP/m6A/CLIP or DNA: ATAC/DNase)
+		                                        NOTE: initially designed for RNA data, this option enables split read mapping. may be used together with -s or -no-split
 		-no-map  | --no-mapping               : disables read alignment and downstream analyses
 		-no-sege | --no-segemehl              : disables mapping by segemehl
 		-no-star | --no-star                  : disables mapping by STAR
 		-no-bwa  | --no-bwa                   : disables mapping by BWA unless given -split option
-		-nm      | --normal-map [path,..]     : normal SAM/BAM input. comma seperated or a file with all paths (replaces fastq input and processing)
-		-nrm     | --normal-repmap [path,..]  : normal replicate SAM/BAM input. comma seperated or a file with all paths (replaces fastq input and processing)
-		-tm      | --treat-map [path,..]      : *IP-Seq SAM/BAM input. comma seperated or a file with all paths (replaces fastq input and processing)
-		-trm     | --treat-repmap [path,..]   : *IP-Seq replicate SAM/BAM input. comma seperated or a file with all paths (replaces fastq input and processing)
+		-nm      | --normal-map [path,..]     : normal SAM/BAM input. comma separated or a file with all paths (replaces fastq input and processing)
+		-nrm     | --normal-repmap [path,..]  : normal replicate SAM/BAM input. comma separated or a file with all paths (replaces fastq input and processing)
+		-tm      | --treat-map [path,..]      : *IP-Seq SAM/BAM input. comma separated or a file with all paths (replaces fastq input and processing)
+		-trm     | --treat-repmap [path,..]   : *IP-Seq replicate SAM/BAM input. comma separated or a file with all paths (replaces fastq input and processing)
 		-mn      | --mapper-name [string]     : name to use for output subdirectories in case of SAM/BAM input. default: custom
 		-no-uniq | --no-uniqify               : disables extraction of properly paired and uniquely mapped reads
 		-no-sort | --no-sort                  : disables sorting alignments
@@ -221,18 +222,19 @@ options::usage() {
 		-no-macs | --no-macs                  : disables peak calling by macs
 		-no-gem  | --no-gem                   : disables peak calling by gem
 		-no-peaka| --no-peakachu              : disables peak calling by peakachu
+		-no-rich | --no-genrich               : disables peak calling by genrich
 		-matk    | --matk                     : enables m6a peak calling by matk/deeprip
 		-m6a     | --m6aviewer                : enables m6a peak calling by m6aviewer - requieres user interaction
 		-sp      | --strict-peaks             : use a more strict peak caller parameterization. recommended to use with -no-idr
 		-pp      | --pointy-peaks             : enables macs and gem to report more pointy narrow peaks. recommended for ChIP-exo, CLIP-Seq and RNA based *IP-Seq experiments
 		-no-idr  | --no-idr                   : disregards replicates and irreproducible discovery rates. allows unpaired input by using only -t1/-t2
-		                                        NOTE: peakachu will use all files given by -n1/-n2 and -t1/-t2 as replicates
+		                                        NOTE: genrich and peakachu will use all files given by -n1/-n2 and -t1/-t2 as replicates
 
 
 		DIFFERENTIAL ANALYSES DESCRIPTOR FILE FOR OPTION
 		-c       | --comparisons [path,..]    : tabular descriptor file(s) for pairwise comparisons
 
-		this file requires 4 or more tab seperated columns without header: sample condition info replicate [factor ..]
+		this file requires 4 or more tab separated columns without header: sample condition info replicate [factor ..]
 		sample names must match unique prefixes of input fastq or SAM/BAM basenames
 		pairwise analyses will be performed according to condition column, the primary factor
 
@@ -302,6 +304,7 @@ options::developer() {
 		macs  : peak calling by macs
 		gem   : peak calling by gem
 		peaka : peak calling by peakachu
+		rich  : peak calling by genrich
 		matk  : peak calling by matk
 		m6a   : peak calling by m6aViewer
 
@@ -395,7 +398,7 @@ options::checkopt (){
 		-no-idx   | --no-index) noidx=true;;
 		-no-stats | --no-statistics) nostats=true;;
 
-		-rip      | --rna-ip) RIPSEQ=true;;
+		-rip      | --read-ip) RIPSEQ=true;;
 		-fs       | --fragmentsize) arg=true; FRAGMENTSIZE=$2;;
 		-sp       | --strict-peaks) STRICTPEAKS=true;;
 		-pp       | --pointy-peaks) POINTYPEAKS=true;;
@@ -446,7 +449,7 @@ options::checkopt (){
 options::resume(){
 	local s enable=false
 	# don't Smd5, Sslice !
-	for s in fqual mspi trim clip cor rrm arr sfus sege star bwa mqual uniq sort rep rmd cmo idx stats macs gem peaka matk m6a medl haarz dma quant tpm dsj dea join clust go; do
+	for s in fqual mspi trim clip cor rrm arr sfus sege star bwa mqual uniq sort rep rmd cmo idx stats macs gem peaka rich matk m6a medl haarz dma quant tpm dsj dea join clust go; do
 		eval "\${S$s:=true}" # unless S$s already set to false by -redo, do skip
 		$enable || [[ "$1" == "$s" ]] && {
 			enable=true
@@ -460,7 +463,7 @@ options::skip(){
 	declare -a mapdata
 	mapfile -t -d ',' mapdata < <(printf '%s' "$1")
 	for x in "${mapdata[@]}"; do
-		for s in md5 fqual mspi trim clip cor rrm arr sfus sege star bwa mqual uniq sort rep slice rmd cmo idx stats macs gem peaka matk m6a medl haarz dma quant tpm dsj dea join clust go; do
+		for s in md5 fqual mspi trim clip cor rrm arr sfus sege star bwa mqual uniq sort rep slice rmd cmo idx stats macs gem peaka rich matk m6a medl haarz dma quant tpm dsj dea join clust go; do
 			[[ "$x" == "$s" ]] && eval "S$s=true"
 		done
 	done
@@ -470,11 +473,11 @@ options::redo(){
 	local x s
 	declare -a mapdata
 	mapfile -t -d ',' mapdata < <(printf '%s' "$1")
-	for s in fqual mspi trim clip cor rrm arr sfus sege star bwa mqual uniq sort rep rmd cmo idx stats macs gem peaka matk m6a medl haarz dma quant tpm dsj dea join clust go; do
+	for s in fqual mspi trim clip cor rrm arr sfus sege star bwa mqual uniq sort rep rmd cmo idx stats macs gem peaka rich matk m6a medl haarz dma quant tpm dsj dea join clust go; do
 		eval "\${S$s:=true}" # unless (no|S)$s alredy set to false by -resume, do skip
 	done
 	for x in "${mapdata[@]}"; do
-		for s in fqual mspi trim clip cor rrm arr sfus sege star bwa mqual uniq sort rep rmd cmo idx stats macs gem peaka matk m6a medl haarz dma quant tpm dsj dea join clust go; do
+		for s in fqual mspi trim clip cor rrm arr sfus sege star bwa mqual uniq sort rep rmd cmo idx stats macs gem peaka rich matk m6a medl haarz dma quant tpm dsj dea join clust go; do
 			[[ "$x" == "$s" ]] && eval "S$s=false"
 		done
 	done
