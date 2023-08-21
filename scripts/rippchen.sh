@@ -1,12 +1,12 @@
 #! /usr/bin/env bash
 # (c) Konstantin Riege
 
-source "$(dirname "$(readlink -e "$0")")/activate.sh" -c true -x cleanup -a "$@" || exit 1
+source "$(dirname "$(dirname "$(readlink -e "$0")")")/activate.sh" -c false -r true -x cleanup -a "$@" || exit 1
 
 cleanup() {
 	[[ -e "$LOG" ]] && {
-		commander::printinfo "date: $(date)" | tee -ia "$LOG"
-		[[ $1 -eq 0 ]] && commander::printinfo "success" | tee -ia "$LOG" || commander::printinfo "failed" | tee -ia "$LOG"
+		echo "date: $(date)" | tee -ia "$LOG"
+		[[ $1 -eq 0 ]] && echo "success" | tee -ia "$LOG" || echo "failed" | tee -ia "$LOG"
 	}
 	[[ -e "$CLEANUP_TMPDIR" ]] && {
 		find -L "$CLEANUP_TMPDIR" -type f -name "cleanup.*" -exec rm -f "{}" \; &> /dev/null || true
@@ -23,14 +23,14 @@ cleanup() {
 			for f in "${FASTQ1[@]}"; do
 				readlink -e "$f" | file -f - | grep -qE '(gzip|bzip)' && b=$(basename "$f" | rev | cut -d '.' -f 3- | rev) || b=$(basename "$f" | rev | cut -d '.' -f 2- | rev)
 				find -L "$OUTDIR" -depth -type d -name "$b*._STAR*" -exec rm -rf {} \; &> /dev/null || true
-				find -L "$OUTDIR" -type f -name "$b*.sorted.bam" -exec bash -c '[[ -s "{}" ]] && rm -f "$(dirname "{}")/$(basename "{}" .sorted.bam).bam"' \; &> /dev/null || true
-				find -L "$OUTDIR" -type f -name "$b*.*.gz" -exec bash -c '[[ -s "{}" ]] && rm -f "$(dirname "{}")/$(basename "{}" .gz)"' \; &> /dev/null || true
+				find -L "$OUTDIR" -type f -name "$b*.sorted.bam" -exec bash -c '[[ -s "$1" ]] && rm -f "$(dirname "$1")/$(basename "$1" .sorted.bam).bam"' bash {} \; &> /dev/null || true
+				find -L "$OUTDIR" -type f -name "$b*.*.gz" -exec bash -c '[[ -s "$1" ]] && rm -f "$(dirname "$1")/$(basename "$1" .gz)"' bash {} \; &> /dev/null || true
 			done
 			for f in "${MAPPED[@]}"; do
 				b=$(basename "$f" | rev | cut -d '.' -f 2- | rev)
 				find -L "$OUTDIR" -depth -type d -name "$b*._STAR*" -exec rm -rf "{}" \; &> /dev/null || true
-				find -L "$OUTDIR" -type f -name "$b*.sorted.bam" -exec bash -c '[[ -s {} ]] && rm -f "$(dirname "{}")/$(basename "{}" .sorted.bam).bam"' \; &> /dev/null || true
-				find -L "$OUTDIR" -type f -name "$b*.*.gz" -exec bash -c '[[ -s {} ]] && rm -f "$(dirname "{}")/$(basename "{}" .gz)"' \; &> /dev/null || true
+				find -L "$OUTDIR" -type f -name "$b*.sorted.bam" -exec bash -c '[[ -s "$1" ]] && rm -f "$(dirname "$1")/$(basename "$1" .sorted.bam).bam"' bash {} \; &> /dev/null || true
+				find -L "$OUTDIR" -type f -name "$b*.*.gz" -exec bash -c '[[ -s "$1" ]] && rm -f "$(dirname "$1")/$(basename "$1" .gz)"' bash {} \; &> /dev/null || true
 			done
 		}
 	}
@@ -40,7 +40,7 @@ cleanup() {
 VERSION=$version
 CMD="$(basename "$0") $*"
 THREADS=$(grep -cF processor /proc/cpuinfo)
-MAXMEMORY=$(grep -F MemTotal /proc/meminfo | awk '{printf("%d",$2*0.95/1024)}')
+MAXMEMORY=$(grep -F MemTotal /proc/meminfo | awk '{printf("%d",$2/1024*0.95)}')
 MEMORY=10000
 [[ MTHREADS=$((MAXMEMORY/MEMORY)) -gt $THREADS ]] && MTHREADS=$THREADS
 BASHBONE_ERROR="too less memory available ($MAXMEMORY)"
@@ -62,6 +62,7 @@ pidx=() #pool (2x0.5 pseudoppol and 2x1 fullpool) idx
 
 BASHBONE_ERROR="parameterization issue"
 options::parse "$@"
+bashbone -c
 
 BASHBONE_ERROR="cannot access $OUTDIR"
 mkdir -p "$OUTDIR"
@@ -93,7 +94,7 @@ ${INDEX:=false} || {
 if [[ $GENOME ]]; then
 	BASHBONE_ERROR="genome file does not exists or is compressed $GENOME"
 	readlink -e "$GENOME" | file -f - | grep -qF ASCII
-	[[ ! -s "$GENOME.md5.sh" ]] && cp "$(dirname "$(readlink -e "$0")")/bashbone/lib/md5.sh" "$GENOME.md5.sh"
+	[[ ! -s "$GENOME.md5.sh" ]] && cp "$BASHBONE_DIR/lib/md5.sh" "$GENOME.md5.sh"
 	source "$GENOME.md5.sh"
 else
 	BASHBONE_ERROR="genome file missing"
@@ -147,21 +148,19 @@ fi
 
 checkfile(){
 	declare -n _idx=$2 _arr=$3
-	local f ifs
+	local f
 	if [[ $(readlink -e "$1" | file -f - | grep ASCII) && -e "$(readlink -e $(head -1 "$1"))" ]]; then
-		ifs=$IFS
 		unset IFS
 		while read -r f; do
 			readlink -e "$f" &> /dev/null || return 1
 			_arr[((++i))]="$(cd -P "$(dirname "$f")"; echo "$PWD/$(basename "$f")")"
 			_idx+=($i)
-		done < $1
-		IFS=$ifs
+		done < "$1"
 	else
-		f=$1
+		f="$1"
 		readlink -e "$f" &> /dev/null || return 1
 		_arr[((++i))]="$(cd -P "$(dirname "$f")"; echo "$PWD/$(basename "$f")")"
-		_idx+=($i)
+		_idx+=("$i")
 	fi
 	return 0
 }
@@ -222,11 +221,10 @@ else
 fi
 unset IFS
 
-if $noidr; then
-	tidx=("${pidx[@]}")
-fi
-
-if [[ $ridx ]]; then
+if ${noidr:-false}; then
+	[[ $pidx ]] && tidx=("${pidx[@]}")
+	pidx=()
+elif [[ $ridx ]]; then
 	tidx=("${pidx[@]}")
 	pidx=()
 	BASHBONE_ERROR="unequal number of treatment replicates"
@@ -257,7 +255,9 @@ if ${INDEX:=false}; then
 	progress::log -v $VERBOSITY -o "$LOG" -f pipeline::index
 else
 	if [[ $tfq1 || $tmap ]]; then
-		${RIPSEQ:=false} && nosplitreads=${nosplitreads:-false} || nosplitreads=${nosplitreads:-true}
+		if ! ${PEAKS:=false}; then
+			${RIPSEQ:=false} && nosplitreads=${nosplitreads:-false} || nosplitreads=${nosplitreads:-true}
+		fi
 		BASHBONE_ERROR="peak calling pipeline failed"
 		progress::log -v $VERBOSITY -o "$LOG" -f pipeline::callpeak
 	elif [[ $FUSIONS ]]; then
