@@ -6,11 +6,11 @@ function pipeline::index(){
 		-F \
 		-t $THREADS \
 		-i "$GENOME"
-	if [[ -s "$GTF.go" ]]; then
+	if [[ -s "$GO" ]]; then
 		genome::mkgodb \
 			-S ${nogo:=false} \
 			-t $THREADS \
-			-g "$GTF.go"
+			-g "$GO"
 	fi
 	if [[ -s "$GTF" ]]; then
 		genome::indexgtf \
@@ -717,7 +717,7 @@ function pipeline::dea(){
 			-r mapper \
 			-c COMPARISONS \
 			-l coexpressions \
-			-g "$GTF.go" \
+			-g "$GO" \
 			-i "$OUTDIR/deseq" \
 			-j "$OUTDIR/counted"
 	else
@@ -741,7 +741,7 @@ function pipeline::dea(){
 			-t $THREADS \
 			-r mapper \
 			-l coexpressions \
-			-g "$GTF.go" \
+			-g "$GO" \
 			-j "$OUTDIR/counted"
 	fi
 

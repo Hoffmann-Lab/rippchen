@@ -32,6 +32,8 @@ cleanup() {
 				find -L "$OUTDIR" -type f -name "$b*.sorted.bam" -exec bash -c '[[ -s "$1" ]] && rm -f "$(dirname "$1")/$(basename "$1" .sorted.bam).bam"' bash {} \; &> /dev/null || true
 				find -L "$OUTDIR" -type f -name "$b*.*.gz" -exec bash -c '[[ -s "$1" ]] && rm -f "$(dirname "$1")/$(basename "$1" .gz)"' bash {} \; &> /dev/null || true
 			done
+			# find -L . "$OUTDIR" -type f -name "*.annotated.*" -exec bash -c 'rm -f "$(sed -E "s@(.*)\.annotated@\1@" <<< "$1")"' bash {} \;
+			# find -L . "$OUTDIR" -type f -name "*.ps" -exec bash -c '[[ -s "${1%.*}.pdf" ]] && rm -f "$1"' bash {} \;
 		}
 	}
 	return 0
@@ -135,7 +137,14 @@ else
 		fi
 	# }
 fi
-[[ -s "$GTF.go" ]] || nogo=true
+
+if [[ $GO ]]; then
+	BASHBONE_ERROR="go file does not exists or is compressed $GO"
+	readlink -e "$GO" | file -f - | grep -qF ASCII
+else
+	commander::warn "go file missing. proceeding without gene ontology enrichment tests"
+	nogo=true
+fi
 
 if [[ $COMPARISONS ]]; then
 	for f in "${COMPARISONS[@]}"; do
