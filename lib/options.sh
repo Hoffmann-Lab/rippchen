@@ -42,14 +42,14 @@ function options::usage(){
 		-x       | --index                    : triggers creation of all requiered genome and annotation indices plus md5 sums
 		-b       | --bisulfite [string]       : triggers indices for for methylation analyses. use keyword WGBS
 		-g       | --genome [path]            : genome fasta input
-		-gtf     | --gtf [path]               : annotation gtf input. default: [-g].gtf
+		-gtf     | --gtf [path]               : annotation gtf input
 		                                        NOTE: no gtf file implies star index creation without splice junctions database
+		-go      | --go [path]                : annotation go input
+		                                        NOTE: no go file implies disabled creation of org.db from semantically clustered gene ontology terms
 		-no-sege | --no-segemehl              : disables indexing for segemehl
 		-no-star | --no-star                  : disables indexing for STAR
 		-no-bwa  | --no-bwa                   : disables indexing for BWA
 		-no-dsj  | --no-diffsplicejunctions   : disables indexing for splice junction analysis
-		-no-go   | --no-geneontology          : disables org.db creation for gene ontology enrichment analyses
-
 
 
 		DIFFERENTIAL EXPRESSION ANALYSIS OPTIONS
@@ -57,8 +57,10 @@ function options::usage(){
 		                                        NOTE: no file implies -no-dsj -no-dea -no-go -no-clust. see below for format information
 		-g       | --genome [path]            : genome fasta input. without, only preprocessing is performed
 		                                        NOTE: no fasta file implies -no-map
-		-gtf     | --gtf [path]               : annotation gtf input. default: [-g].gtf
+		-gtf     | --gtf [path]               : annotation gtf input
 		                                        NOTE: no gtf file implies -no-quant
+		-go      | --go [path]                : annotation go input
+		                                        NOTE: no go file implies -no-go
 		-1       | --fq1 [path,..]            : fastq input. single or first mate. comma separated or a file with all paths
 		-2       | --fq2 [path,..]            : fastq input. mate pair. comma separated or a file with all paths
 		-3       | --fq3 [path,..]            : fastq input. UMI sequences. comma separated or a file with all paths
@@ -187,7 +189,7 @@ function options::usage(){
 		                                        NOTE: -nr* and -tr* options ignored. genrich and peakachu will use all given files as replicates
 		-g       | --genome [path]            : genome fasta input. without, only preprocessing is performed
 		                                        NOTE: no fasta file implies -no-map
-		-gtf     | --gtf [path]               : annotation gtf input. default: [-g].gtf
+		-gtf     | --gtf [path]               : annotation gtf input
 		                                        NOTE: required by gem for RNA based *IP-Seq experiments unless given by -s option
 		-n1      | --normal-fq1 [path,..]     : optional, normal fastq input. single or first mate. comma separated or a file with all paths
 		-n2      | --normal-fq2 [path,..]     : optional, normal fastq input. mate pair. comma separated or a file with all paths
@@ -251,7 +253,6 @@ function options::usage(){
 		-pp      | --pointy-peaks             : enables macs and gem to report more pointy narrow peaks. recommended for ChIP-exo, CLIP-Seq and RNA based *IP-Seq experiments
 
 
-
 		DIFFERENTIAL ANALYSES DESCRIPTOR FILE FOR OPTION
 		-c       | --comparisons [path,..]    : tabular descriptor file(s) for pairwise comparisons
 
@@ -261,27 +262,38 @@ function options::usage(){
 
         assume the folling input: wt1.R1.fq wt1.R2.fq wt2.fq trA_1.fq trA_2.fq trB.n1.fq trB.n2_1.fq trB.n2_2.fq
 
-        example1 to get the following output: wt_vs_A wt_vs_b A_vs_B (N=2 vs N=2 each)
-		wt1      wt   NA   N1   PE   female
-		wt2      wt   NA   N2   SE   male
-		trA_1    A    NA   N1   PE   female
-		trA_2    A    NA   N2   PE   male
-		trB.n1   B    NA   N1   SE   female
-		trB.n2   B    NA   N2   PE   male
+        example to get the following output: wt_vs_A wt_vs_b A_vs_B (N=2 vs N=2 each)
+		wt1      wt   NA   N1
+		wt2      wt   NA   N2
+		trA_1    A    NA   N1
+		trA_2    A    NA   N2
+		trB.n1   B    NA   N1
+		trB.n2   B    NA   N2
 
-        example1 to get the following output: wt_vs_tr (N=2 vs N=4)
-		wt1      wt   NA   N1   PE   wt   female
-		wt2      wt   NA   N2   SE   wt   male
-		trA_1    tr   NA   N1   PE   A    female
-		trA_2    tr   NA   N2   PE   A    male
-		trB.n1   tr   NA   N3   SE   B    female
-		trB.n2   tr   NA   N4   PE   B    male
+        example to get the following output with sex as confounding factor: wt_vs_tr (N=2 vs N=4)
+		wt1      wt   NA   N1   female
+		wt2      wt   NA   N2   male
+		trA_1    tr   NA   N1   female
+		trA_2    tr   NA   N2   male
+		trB.n1   tr   NA   N3   female
+		trB.n2   tr   NA   N4   male
+
+
+		GENE ONTOLOGY DESCRIPTOR FILE FOR OPTION
+		-go      | --go [path]                : annotation go input
+
+		this file requires 4 tab separated columns without header: gene_id go_id [biological_process|cellular_component|molecular_function] description
+		...
+		ENSG00000199065   GO:0005615   cellular_component   extracellular space
+		ENSG00000199065   GO:1903231   molecular_function   mRNA binding involved in posttranscriptional gene silencing
+		ENSG00000199065   GO:0035195   biological_process   gene silencing by miRNA
+		...
 
 
 		ADDITIONAL INFORMATION
 		Chromosome order for all input files (genome, annotation) must be identical.
-	    If possible, please provide them in karyotypic order and following naming schema: chrM,chr1,chr2,..,chrX,chrY
-		To obtain human or mouse genome along with its annotation see the supplied dlgenome.sh script.
+	    If possible, please provide them in karyotypic order and following naming schema: chrM,chr1,chr2,..,chrX,chrY.
+		To obtain human or mouse genome along with its annotation and gene ontology information see the supplied dlgenome.sh script.
 
 
 		REFERENCES
@@ -370,6 +382,7 @@ function options::checkopt(){
 		-x        | --index) INDEX=true;;
 		-g        | --genome) arg=true; GENOME="$2";;
 		-gtf      | --gtf) arg=true; GTF="$2";;
+		-go       | --go) arg=true; GO="$2";;
 		-o        | --out) arg=true; OUTDIR="$2";;
 		-l        | --log) arg=true; LOG="$2";;
 
