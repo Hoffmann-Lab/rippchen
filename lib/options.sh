@@ -76,7 +76,8 @@ function options::usage(){
 		-no-rrm  | --no-rrnafilter            : disables rRNA filter
 		-no-map  | --no-mapping               : disables read alignment and downstream analyses
 		-d       | --distance                 : maximum read alignment edit distance in %. default: 5
-		-i       | --insertsize               : maximum allowed insert for aligning mate pairs. default: 200000
+		-i       | --insertsize               : maximum allowed insert size for aligning mate pairs. default: 200000
+		                                      : NOTE: does not affect bwa. for segemehl, only multiple alignments are filtered
 		-no-split| --no-split                 : disables split read mapping
 		-no-sege | --no-segemehl              : disables mapping by segemehl
 		-no-star | --no-star                  : disables mapping by STAR
@@ -85,6 +86,8 @@ function options::usage(){
 		-mn      | --mapper-name [string]     : name to use for output subdirectories in case of SAM/BAM input. default: custom
 		-no-uniq | --no-uniqify               : disables extraction of properly paired and uniquely mapped reads
 		-no-sort | --no-sort                  : disables sorting alignments
+		-bl      | --blacklist [path|string]  : bedfile of regions or reference/chromosome name to filter alignments for
+		-sf      | --sizefilter [value:value] : fragment size filtering of alignments by a given range
 		-rmd     | --removeduplicates         : enables removing duplicates
 		-rx      | --regex [string]           : regex of read name identifier with grouped tile information. default: \S+:(\d+):(\d+):(\d+)\s*.*
 		                                        NOTE: necessary for successful optical deduplication. to disable or if unavailable, set to null
@@ -137,12 +140,15 @@ function options::usage(){
 		-no-map  | --no-mapping               : disables read alignment and downstream analyses
 		-d       | --distance                 : maximum read alignment edit distance in %. default: 5
 		-i       | --insertsize               : maximum allowed insert for aligning mate pairs. default: 200000
+		                                      : NOTE: does not affect bwa. for segemehl, only multiple alignments are filtered
 		-no-sege | --no-segemehl              : disables mapping by segemehl
 		-no-bwa  | --no-bwa                   : disables mapping by BWA
 		-m       | --mapped [path,..]         : SAM/BAM input. comma separated or a file with all paths (replaces fastq input and processing)
 		-mn      | --mapper-name [string]     : name to use for output subdirectories in case of SAM/BAM input. default: custom
 		-no-uniq | --no-uniqify               : disables extraction of properly paired and uniquely mapped reads
 		-no-sort | --no-sort                  : disables sorting alignments
+		-bl      | --blacklist [path|string]  : bedfile of regions or reference/chromosome name to filter alignments for
+		-sf      | --sizefilter [value:value] : fragment size filtering of alignments by a given range
 		-rmd     | --removeduplicates         : in case of RRBS, enables removing duplicates
 		-rx      | --regex [string]           : regex of read name identifier with grouped tile information. default: \S+:(\d+):(\d+):(\d+)\s*.*
 		                                        NOTE: necessary for successful optical deduplication. to disable or if unavailable, set to null
@@ -182,6 +188,7 @@ function options::usage(){
 		PEAK CALLING OPTIONS
 		-p       | --peakcalling [string]     : triggers peak calling. configure rippchen by keyword
 		                                        CHIP - search for asymmetry between sense/antisense mapped reads of a fragment
+		                                        CHIB - CHIP analysis for broad peaks like H3K27Ac/H3K4me1. affects macs and gopeaks
 		                                        ATAC - leads to calls up reads instead of fragments
 		                                        RIP  - calls up split-aligned reads from RNA *IP-Seq experiments (CLIP/m6a/meRIP) in a more narrow peak detection fashion
 		                                        NOTE: to detect peaks from more pointy DNA derived experiments like ChIP-exo see also -pp option
@@ -216,6 +223,7 @@ function options::usage(){
 		-no-map  | --no-mapping               : disables read alignment and downstream analyses
 		-d       | --distance                 : maximum read alignment edit distance in %. default: 5
 		-i       | --insertsize               : maximum allowed insert for aligning mate pairs. default: 200000
+		                                      : NOTE: does not affect bwa. for segemehl, only multiple alignments are filtered
 		-no-sege | --no-segemehl              : disables mapping by segemehl
 		-no-star | --no-star                  : disables mapping by STAR
 		-no-bwa  | --no-bwa                   : disables mapping by BWA unless given -split option
@@ -226,7 +234,7 @@ function options::usage(){
 		-mn      | --mapper-name [string]     : name to use for output subdirectories in case of SAM/BAM input. default: custom
 		-no-uniq | --no-uniqify               : disables extraction of properly paired and uniquely mapped reads
 		-no-sort | --no-sort                  : disables sorting alignments
-		-bl      | --blacklist [path]         : bedfile of regions to filter alignments
+		-bl      | --blacklist [path|string]  : bedfile of regions or reference/chromosome name to filter alignments for
 		-sf      | --sizefilter [value:value] : fragment size filtering of alignments by a given range
 		-no-rmd  | --no-removeduplicates      : disables removing duplicates - not recommended unless reads were mapped on a transcriptome
 		-rx      | --regex [string]           : regex of read name identifier with grouped tile information. default: \S+:(\d+):(\d+):(\d+).*
@@ -242,6 +250,9 @@ function options::usage(){
 		-no-gem  | --no-gem                   : disables peak calling by gem
 		-no-peaka| --no-peakachu              : disables peak calling by peakachu
 		-no-rich | --no-genrich               : disables peak calling by genrich
+		-no-seacr| --no-seacr                 : disables peak calling by seacr
+		-gopeaks | --gopeaks                  : enables peak calling by gopeaks
+		                                        NOTE: not applicable for idr
 		-matk    | --matk                     : enables m6a peak calling by matk/deeprip
 		-m6a     | --m6aviewer                : enables m6a peak calling by m6aviewer - requieres user interaction
 
@@ -330,11 +341,11 @@ function options::developer(){
 		sort  : sorting and indexing of sam/bam files
 		blist : blacklist based alignment filtering
 		fsel  : fragment size based alignment selection
-		rep   : pooling/generating replicates
 		slice : better dont touch! slicing of bams for parallelization, needs -prevtmp | --previoustmp [path to rippchen.XXXXXXXXXX]
 		rmd   : removing duplicates
 		cmo   : clipping mate overlaps
 		stats : fastq preprocessing and mapping statistics
+		rep   : pooling/generating replicates
 
 		macs  : peak calling by macs
 		gem   : peak calling by gem
@@ -438,6 +449,7 @@ function options::checkopt(){
 		-p        | --peakcalling) arg=true; PEAKS=true;
 					case $2 in
 						CHIP) RIPSEQ=false;;
+						CHIB) RIPSEQ=false; BROAD=true;;
 						ATAC) RIPSEQ=true;;
 						RIP) RIPSEQ=true; POINTYPEAKS=true; nosplitreads=false;;
 						*) commander::printerr "illegal argument $2 for option $1"; return 1;;
@@ -453,9 +465,12 @@ function options::checkopt(){
 		-no-macs  | --no-macs) nomacs=true;;
 		-no-gem   | --no-gem) nogem=true;;
 		-no-peaka | --no-peakachu) nopeaka=true;;
-		-no-idr   | --no-idr) noidr=true; STRICTPEAKS=true;;
+		-no-rich  | --no-genrich) norich=true;;
+		-no-seacr | --no-seacr) noseacr=true;;
+		-gopeaks  | --gopeaks) nogopeaks=false;;
 		-matk     | --matk) nomatk=false;;
 		-m6a      | --m6aviewer) nom6a=false;;
+		-no-idr   | --no-idr) noidr=true; STRICTPEAKS=true;;
 
 		-c        | --comparisons) arg=true; mapfile -t -d ',' COMPARISONS < <(printf '%s' "$2");;
 
@@ -496,7 +511,7 @@ function options::checkopt(){
 function options::resume(){
 	local s enable=false
 	# don't Smd5, Sslice !
-	for s in fqual mspi trim clip pclip cor rrm arr sfus sege star bwa mqual uniq sort blist fsel rep rmd cmo idx stats macs gem peaka rich matk m6a medl haarz dma quant tpm dsj dea join clust go; do
+	for s in fqual mspi trim clip pclip cor rrm arr sfus sege star bwa mqual uniq sort blist fsel rmd cmo stats rep macs gem peaka rich seacr gopeaks matk m6a medl haarz dma quant tpm dsj dea join clust go; do
 		eval "\${S$s:=true}" # unless S$s already set to false by -redo, do skip
 		$enable || [[ "$1" == "$s" ]] && {
 			enable=true
@@ -510,7 +525,7 @@ function options::skip(){
 	declare -a mapdata
 	mapfile -t -d ',' mapdata < <(printf '%s' "$1")
 	for x in "${mapdata[@]}"; do
-		for s in md5 fqual mspi trim clip pclip cor rrm arr sfus sege star bwa mqual uniq sort blist fsel rep slice rmd cmo idx stats macs gem peaka rich matk m6a medl haarz dma quant tpm dsj dea join clust go; do
+		for s in md5 fqual mspi trim clip pclip cor rrm arr sfus sege star bwa mqual uniq sort blist fsel slice rmd cmo rep stats macs gem peaka rich seacr gopeaks matk m6a medl haarz dma quant tpm dsj dea join clust go; do
 			[[ "$x" == "$s" ]] && eval "S$s=true"
 		done
 	done
@@ -520,11 +535,11 @@ function options::redo(){
 	local x s
 	declare -a mapdata
 	mapfile -t -d ',' mapdata < <(printf '%s' "$1")
-	for s in fqual mspi trim clip pclip cor rrm arr sfus sege star bwa mqual uniq sort blist fsel rep rmd cmo idx stats macs gem peaka rich matk m6a medl haarz dma quant tpm dsj dea join clust go; do
+	for s in fqual mspi trim clip pclip cor rrm arr sfus sege star bwa mqual uniq sort blist fsel rmd cmo rep stats macs gem peaka rich seacr gopeaks matk m6a medl haarz dma quant tpm dsj dea join clust go; do
 		eval "\${S$s:=true}" # unless (no|S)$s already set to false by -resume, do skip
 	done
 	for x in "${mapdata[@]}"; do
-		for s in fqual mspi trim clip pclip cor rrm arr sfus sege star bwa mqual uniq sort blist fsel rep rmd cmo idx stats macs gem peaka rich matk m6a medl haarz dma quant tpm dsj dea join clust go; do
+		for s in fqual mspi trim clip pclip cor rrm arr sfus sege star bwa mqual uniq sort blist fsel rmd cmo rep stats macs gem peaka rich seacr gopeaks matk m6a medl haarz dma quant tpm dsj dea join clust go; do
 			[[ "$x" == "$s" ]] && eval "S$s=false"
 		done
 	done
