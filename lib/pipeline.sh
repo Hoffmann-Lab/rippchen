@@ -383,6 +383,54 @@ function pipeline::_mapping(){
 			-r mapper
 	}
 
+	${noblist:=true} || {
+		alignment::postprocess \
+			-S ${noblist:=false} \
+			-s ${Sblist:=false} \
+			-j blacklist \
+			-f "$BLACKLIST" \
+			-t $THREADS \
+			-o "$OUTDIR/mapped" \
+			-r mapper
+		alignment::postprocess \
+			-S ${noblist:=false} \
+			-s ${Sblist:=false} \
+			-j index \
+			-t $THREADS \
+			-o "$OUTDIR/mapped" \
+			-r mapper
+		alignment::add4stats -r mapper
+		alignment::bamqc \
+			-S ${noqual:=false} \
+			-s ${Sblist:=false} \
+			-t $THREADS \
+			-r mapper
+	}
+
+	${nofsel:=true} || {
+		alignment::postprocess \
+			-S ${nofsel:=false} \
+			-s ${Sfsel:=false} \
+			-j sizeselect \
+			-f "$FRAGMENTSIZERANGE" \
+			-t $THREADS \
+			-o "$OUTDIR/mapped" \
+			-r mapper
+		alignment::postprocess \
+			-S ${nofsel:=false} \
+			-s ${Sfsel:=false} \
+			-j index \
+			-t $THREADS \
+			-o "$OUTDIR/mapped" \
+			-r mapper
+		alignment::add4stats -r mapper
+		alignment::bamqc \
+			-S ${noqual:=false} \
+			-s ${Sfsel:=false} \
+			-t $THREADS \
+			-r mapper
+	}
+
 	return 0
 }
 
@@ -424,13 +472,6 @@ function pipeline::bs(){
 	pipeline::_preprocess
 	pipeline::_mapping
 	[[ ${#mapper[@]} -eq 0 ]] && return 0
-
-	genome::mkdict \
-		-S ${normd:=true} \
-		-s ${Srmd:=false} \
-		-5 ${Smd5:=false} \
-		-i "$GENOME" \
-		-t $THREADS
 
 	pipeline::_slice ${normd:=false} ${Srmd:=false}
 	${normd:=false} || {
@@ -548,13 +589,6 @@ function pipeline::dea(){
 	pipeline::_preprocess
 	pipeline::_mapping
 	[[ ${#mapper[@]} -eq 0 ]] && return 0
-
-	genome::mkdict \
-		-S ${normd:=true} \
-		-s ${Srmd:=false} \
-		-5 ${Smd5:=false} \
-		-i "$GENOME" \
-		-t $THREADS
 
 	pipeline::_slice ${normd:=true} ${Srmd:=false}
 	${normd:=true} || {
@@ -756,75 +790,6 @@ function pipeline::callpeak(){
 	pipeline::_mapping
 	[[ ${#mapper[@]} -eq 0 ]] && return 0
 
-	${noblist:=true} || {
-		alignment::postprocess \
-			-S ${noblist:=false} \
-			-s ${Sblist:=false} \
-			-j blacklist \
-			-f "$BLACKLIST" \
-			-t $THREADS \
-			-o "$OUTDIR/mapped" \
-			-r mapper
-		alignment::postprocess \
-			-S ${noblist:=false} \
-			-s ${Sblist:=false} \
-			-j index \
-			-t $THREADS \
-			-o "$OUTDIR/mapped" \
-			-r mapper
-		alignment::add4stats -r mapper
-		alignment::bamqc \
-			-S ${noqual:=false} \
-			-s ${Sblist:=false} \
-			-t $THREADS \
-			-r mapper
-	}
-
-	${nofsel:=true} || {
-		alignment::postprocess \
-			-S ${nofsel:=false} \
-			-s ${Sfsel:=false} \
-			-j sizeselect \
-			-f "$FRAGMENTSIZERANGE" \
-			-t $THREADS \
-			-o "$OUTDIR/mapped" \
-			-r mapper
-		alignment::postprocess \
-			-S ${nofsel:=false} \
-			-s ${Sfsel:=false} \
-			-j index \
-			-t $THREADS \
-			-o "$OUTDIR/mapped" \
-			-r mapper
-		alignment::add4stats -r mapper
-		alignment::bamqc \
-			-S ${noqual:=false} \
-			-s ${Sfsel:=false} \
-			-t $THREADS \
-			-r mapper
-	}
-
-	${noidr:=false} || {
-		alignment::mkreplicates \
-			-S ${norep:=false} \
-			-s ${Srep:=false} \
-			-t $THREADS \
-			-o "$OUTDIR/mapped" \
-			-r mapper \
-			-n nidx \
-			-m nridx \
-			-i tidx \
-			-j ridx \
-			-k pidx
-	}
-
-	genome::mkdict \
-		-S ${normd:=false} \
-		-s ${Srmd:=false} \
-		-5 ${Smd5:=false} \
-		-i "$GENOME" \
-		-t $THREADS
-
 	pipeline::_slice ${normd:=false} ${Srmd:=false}
 	${normd:=false} || {
 		alignment::rmduplicates \
@@ -900,6 +865,7 @@ function pipeline::callpeak(){
 			-m $MEMORY \
 			-M $MAXMEMORY \
 			-o "$OUTDIR/peaks" \
+			-w ${BROAD:=false} \
 			-y ${POINTYPEAKS:=false} \
 			-z ${STRICTPEAKS:=false}
 
@@ -953,6 +919,27 @@ function pipeline::callpeak(){
 			-q ${RIPSEQ:=false} \
 			-z ${STRICTPEAKS:=false}
 
+		peaks::seacr \
+			-S ${noseacr:=false} \
+			-s ${Sseacr:=false} \
+			-a nidx \
+			-i tidx \
+			-r mapper \
+			-t $THREADS \
+			-o "$OUTDIR/peaks" \
+			-z ${STRICTPEAKS:=false}
+
+		peaks::gopeaks \
+			-S ${nogopeaks:=true} \
+			-s ${Sgopeaks:=false} \
+			-a nidx \
+			-i tidx \
+			-r mapper \
+			-t $THREADS \
+			-o "$OUTDIR/peaks" \
+			-w ${BROAD:=false} \
+			-z ${STRICTPEAKS:=false}
+
 		${RIPSEQ:=false} && [[ $tidx ]] && {
 			peaks::matk \
 				-S ${nomatk:=true} \
@@ -977,6 +964,18 @@ function pipeline::callpeak(){
 				-o "$OUTDIR/peaks"
 		}
 	else
+		alignment::mkreplicates \
+			-S ${norep:=false} \
+			-s ${Srep:=false} \
+			-t $THREADS \
+			-o "$OUTDIR/mapped" \
+			-r mapper \
+			-n nidx \
+			-m nridx \
+			-i tidx \
+			-j ridx \
+			-k pidx
+
 		peaks::macs_idr \
 			-S ${nomacs:=false} \
 			-s ${Smacs:=false} \
@@ -993,6 +992,7 @@ function pipeline::callpeak(){
 			-m $MEMORY \
 			-M $MAXMEMORY \
 			-o "$OUTDIR/peaks" \
+			-w ${BROAD:=false} \
 			-y ${POINTYPEAKS:=false} \
 			-z ${STRICTPEAKS:=false}
 
@@ -1053,6 +1053,19 @@ function pipeline::callpeak(){
 			-t $THREADS \
 			-o "$OUTDIR/peaks" \
 			-q ${RIPSEQ:=false} \
+			-z ${STRICTPEAKS:=false}
+
+		peaks::seacr_idr \
+			-S ${noseacr:=false} \
+			-s ${Sseacr:=false} \
+			-a nidx \
+			-b nridx \
+			-i tidx \
+			-j ridx \
+			-k pidx \
+			-r mapper \
+			-t $THREADS \
+			-o "$OUTDIR/peaks" \
 			-z ${STRICTPEAKS:=false}
 
 		${RIPSEQ:=false} && {
