@@ -156,7 +156,7 @@ fi
 checkfile(){
 	declare -n _idx=$2 _arr=$3
 	local f
-	if [[ $(readlink -e "$1" | file -b --mime-type -f - | grep -qF 'text') && -e "$(readlink -e $(head -1 "$1"))" ]]; then
+	if readlink -e "$1" | file -b --mime-type -f - | grep -qF 'text' && [[ -e "$(readlink -e $(head -1 "$1"))" ]]; then
 		unset IFS
 		while read -r f; do
 			readlink -e "$f" &> /dev/null || return 1
@@ -241,6 +241,10 @@ fi
 if [[ $FASTQ1 ]] && ${RRBS:=false}; then
 	BASHBONE_ERROR="rrbs data analysis requires adapter sequence input"
 	[[ ! $ADAPTER1 ]] && false
+fi
+
+if [[ ! $FASTQ2 ]]; then
+	nofsel=true;
 fi
 
 if [[ $FASTQ3 ]]; then
