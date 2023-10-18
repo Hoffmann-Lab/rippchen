@@ -158,9 +158,10 @@ function options::usage(){
 		                                        NOTE: given -no-qual and unless -no-stats option, intermediate per file analyses replaced by bulk analysis
 		-no-stats| --no-statistics            : disables statistics from read and alignment quality analyses
 		-no-mec  | --no-mecall                : disables calling of methylated CpGs plus downstream analyses
-		-no-medl | --no-methyldackel          : disables calling of methylated CpGs by methyldackel
-		-no-haarz| --no-haarz                 : disables calling of methylated CpGs by haarz
-		-no-dma  | --no-diffmeanalysis        : disables differential CpG methylation analysis from minimum 10x covered CpGs
+		-cx      | --context [string]         : regex of context to call methylation in. default: CG
+		-no-medl | --no-methyldackel          : disables calling of methylation by methyldackel
+		-no-haarz| --no-haarz                 : disables calling of methylation by haarz
+		-no-dma  | --no-diffmeanalysis        : disables differential methylation analysis from minimum 10x covered nucleotides
 		-md      | --min-data [value]         : require at least %/100 or an absolute value of CpG methylation rates per condition (see -c). default: 0.8
 		-md-cap  | --min-data-cap [value]     : caps/upper bounds required CpG methylation rates per condition (see -md). default: no capping
 
@@ -187,11 +188,12 @@ function options::usage(){
 
 		PEAK CALLING OPTIONS
 		-p       | --peakcalling [string]     : triggers peak calling. configure rippchen by keyword
-		                                        CHIP - search for asymmetry between sense/antisense mapped reads of a fragment
-		                                        CHIB - CHIP analysis for broad peaks like H3K27Ac/H3K4me1. affects macs and gopeaks
-		                                        ATAC - leads to calls up reads instead of fragments
-		                                        RIP  - calls up split-aligned reads from RNA *IP-Seq experiments (CLIP/m6a/meRIP) in a more narrow peak detection fashion
-		                                        NOTE: to detect peaks from more pointy DNA derived experiments like ChIP-exo see also -pp option
+		                                        CHIP  - search for asymmetry between sense/antisense mapped reads of fragments (TF and Histone ChIP)
+		                                        CHIPB - CHIP analysis for broad peaks like H3K4me1/H3K27me3/H3K36me3/H3K9me*/H3K79me*. affects macs and gopeaks
+												CUT   - search for more narrow asymmetry of mapped reads of fragments samller than 1000nt (CUT&TAG, ChIP-exo)
+												CUTB  - CUT analysis for broad peaks like H3K4me1/H3K27me3/H3K36me3/H3K9me*/H3K79me*. affects macs and gopeaks
+		                                        ATAC  - call up reads instead of fragments
+		                                        RIP   - call up split-aligned reads from RNA *IP-Seq experiments (CLIP/m6a/meRIP)
 		-no-idr  | --no-idr                   : disables pseudo-replicates/pool generation to filter loosely called peaks by irreproducible discovery rates
 		                                        NOTE: -nr* and -tr* options ignored. genrich and peakachu will use all given files as replicates
 		-g       | --genome [path]            : genome fasta input. without, only preprocessing is performed
@@ -222,7 +224,7 @@ function options::usage(){
 		-no-rrm  | --no-rrnafilter            : disables rRNA filter
 		-no-map  | --no-mapping               : disables read alignment and downstream analyses
 		-d       | --distance                 : maximum read alignment edit distance in %. default: 5
-		-i       | --insertsize               : maximum allowed insert for aligning mate pairs. default: 200000
+		-i       | --insertsize               : maximum allowed insert for aligning mate pairs. default: 1000 (200000 for RIP)
 		                                      : NOTE: does not affect bwa. for segemehl, only multiple alignments are filtered
 		-no-sege | --no-segemehl              : disables mapping by segemehl
 		-no-star | --no-star                  : disables mapping by STAR
@@ -236,23 +238,23 @@ function options::usage(){
 		-no-sort | --no-sort                  : disables sorting alignments
 		-bl      | --blacklist [path|string]  : bedfile of regions or reference/chromosome name to filter alignments for
 		-sf      | --sizefilter [value:value] : fragment size filtering of alignments by a given range
-		-no-rmd  | --no-removeduplicates      : disables removing duplicates - not recommended unless reads were mapped on a transcriptome
+		-rmd     | --removeduplicates         : in case of CUT/CUTB, enables removing duplicates
 		-rx      | --regex [string]           : regex of read name identifier with grouped tile information. default: \S+:(\d+):(\d+):(\d+).*
 		                                        NOTE: necessary for successful optical deduplication. to disable or if unavailable, set to null
+		-no-rmd  | --no-removeduplicates      : disables removing duplicates. not recommended unless reads were mapped on a transcriptome.
 		-cmo     | --clipmateoverlaps         : enables clipping of read mate overlaps
 		-fs      | --fragmentsize [value]     : estimated size of sequenced fragments. default: 200
-		-s       | --strandness [value]       : defines library strandness for all inputs. default: automatically inferred
+		-s       | --strandness [value]       : defines library strandness for all inputs. default: 0 (automatically inferred for RIP)
 		                                        0 - unstranded
 		                                        1 - stranded (fr second strand)
 		                                        2 - reversely stranded (fr first strand)
 		-no-call | --no-call                  : disables peak calling and downstream analyses
 		-no-macs | --no-macs                  : disables peak calling by macs
 		-no-gem  | --no-gem                   : disables peak calling by gem
-		-no-peaka| --no-peakachu              : disables peak calling by peakachu
 		-no-rich | --no-genrich               : disables peak calling by genrich
 		-no-seacr| --no-seacr                 : disables peak calling by seacr
-		-gopeaks | --gopeaks                  : enables peak calling by gopeaks
-		                                        NOTE: not applicable for idr
+		-no-gops | --no-gopeaks               : disables peak calling by gopeaks
+		-no-peaka| --no-peakachu              : disables peak calling by peakachu
 		-matk    | --matk                     : enables m6a peak calling by matk/deeprip
 		-m6a     | --m6aviewer                : enables m6a peak calling by m6aviewer - requieres user interaction
 
@@ -320,51 +322,53 @@ function options::developer(){
 		In case of restarting or to resume an analysis use the identifiers below, listed in processing order
 
 		DEVELOPER OPTIONS
-		md5   : check for md5sums and if necessary trigger genome indexing
-		fqual : input quality metrics
-		mspi  : mspi cutting site selection
-		trim  : trimming
-		clip  : adapter clipping (& simple trimming)
-		pclip : poly- mono-and di-nucleotide clipping
-		cor   : raw read correction
-		rrm   : rRNA filtering
+		md5     : check for md5sums and if necessary trigger genome indexing
+		fqual   : input quality metrics
+		mspi    : mspi cutting site selection
+		trim    : trimming
+		clip    : adapter clipping (& simple trimming)
+		pclip   : poly- mono-and di-nucleotide clipping
+		cor     : raw read correction
+		rrm     : rRNA filtering
 
-		arr   : Arriba gene fusion detection
-		sfus  : STAR-Fusion detection
+		arr     : Arriba gene fusion detection
+		sfus    : STAR-Fusion detection
 
-		sege  : segemehl mapping
-		star  : STAR mapping
-		bwa   : BWA mapping
-		mqual : mapping/input quality metrics
+		sege    : segemehl mapping
+		star    : STAR mapping
+		bwa     : BWA mapping
+		mqual   : mapping/input quality metrics
 
-		uniq  : extraction of properly paired and uniquely mapped reads
-		sort  : sorting and indexing of sam/bam files
-		blist : blacklist based alignment filtering
-		fsel  : fragment size based alignment selection
-		slice : better dont touch! slicing of bams for parallelization, needs -prevtmp | --previoustmp [path to rippchen.XXXXXXXXXX]
-		rmd   : removing duplicates
-		cmo   : clipping mate overlaps
-		stats : fastq preprocessing and mapping statistics
-		rep   : pooling/generating replicates
+		uniq    : extraction of properly paired and uniquely mapped reads
+		sort    : sorting and indexing of sam/bam files
+		blist   : blacklist based alignment filtering
+		fsel    : fragment size based alignment selection
+		slice   : better dont touch! slicing of bams for parallelization, needs -prevtmp | --previoustmp [path to rippchen.XXXXXXXXXX]
+		rmd     : removing duplicates
+		cmo     : clipping mate overlaps
+		stats   : fastq preprocessing and mapping statistics
+		rep     : pooling/generating replicates
 
-		macs  : peak calling by macs
-		gem   : peak calling by gem
-		peaka : peak calling by peakachu
-		rich  : peak calling by genrich
-		matk  : peak calling by matk
-		m6a   : peak calling by m6aViewer
+		macs    : peak calling by macs
+		gem     : peak calling by gem
+		rich    : peak calling by genrich
+		seacr   : peak calling by seacr
+		gopeaks : peak calling by gopeaks
+		peaka   : peak calling by peakachu
+		matk    : peak calling by matk
+		m6a     : peak calling by m6aViewer
 
-		medl  : methylation calling by methyldackel
-		haarz : methylation calling by haarz
-		dma   : differentially methylation analysis
+		medl    : methylation calling by methyldackel
+		haarz   : methylation calling by haarz
+		dma     : differentially methylation analysis
 
-		quant : read quantification
-		tpm   : TPM calculation
-		dsj   : differential splice junction analysis
-		dea   : pca and differential expression analysis
-		join  : counts joining
-		clust : coexpression clustering
-		go    : go enrichment
+		quant   : read quantification
+		tpm     : TPM calculation
+		dsj     : differential splice junction analysis
+		dea     : pca and differential expression analysis
+		join    : counts joining
+		clust   : coexpression clustering
+		go      : go enrichment
 	EOF
 	exit 0
 }
@@ -446,11 +450,13 @@ function options::checkopt(){
 		-no-idx   | --no-index) noidx=true;;
 		-no-stats | --no-statistics) nostats=true;;
 
-		-p        | --peakcalling) arg=true; PEAKS=true;
+		-p        | --peakcalling) arg=true; PEAKS=true; nosplitreads=true;
 					case $2 in
-						CHIP) RIPSEQ=false;;
-						CHIB) RIPSEQ=false; BROAD=true;;
-						ATAC) RIPSEQ=true;;
+						CUT) RIPSEQ=false; normd=true; POINTYPEAKS=true; INSERTSIZE=${INSERTSIZE:-1000}; STRANDNESS=${STRANDNESS:-0};;
+						CUTB) RIPSEQ=false; normd=true; POINTYPEAKS=true; BROAD=true; INSERTSIZE=${INSERTSIZE:-1000}; STRANDNESS=${STRANDNESS:-0};;
+						CHIP) RIPSEQ=false; INSERTSIZE=${INSERTSIZE:-1000}; STRANDNESS=${STRANDNESS:-0};;
+						CHIPB) RIPSEQ=false; BROAD=true; INSERTSIZE=${INSERTSIZE:-1000}; STRANDNESS=${STRANDNESS:-0};;
+						ATAC) RIPSEQ=true; STRANDNESS=${STRANDNESS:-0};;
 						RIP) RIPSEQ=true; POINTYPEAKS=true; nosplitreads=false;;
 						*) commander::printerr "illegal argument $2 for option $1"; return 1;;
 					esac
@@ -467,7 +473,7 @@ function options::checkopt(){
 		-no-peaka | --no-peakachu) nopeaka=true;;
 		-no-rich  | --no-genrich) norich=true;;
 		-no-seacr | --no-seacr) noseacr=true;;
-		-gopeaks  | --gopeaks) nogopeaks=false;;
+		-no-gops  | --no-gopeaks) nogopeaks=true;;
 		-matk     | --matk) nomatk=false;;
 		-m6a      | --m6aviewer) nom6a=false;;
 		-no-idr   | --no-idr) noidr=true; STRICTPEAKS=true;;
@@ -477,6 +483,7 @@ function options::checkopt(){
 		-b        | --bisulfite) arg=true; DIVERSITY="$2"; nopclip=${nopclip:-true}; BISULFITE=true; RRBS=false; nocor=true; norrm=true; [[ "$DIVERSITY" == "WGBS" ]] && { RRBS=false; normd=${normd:-false}; } || { RRBS=true; normd=${normd:-true}; };;
 		-no-mspi  | --no-mspiselection) nomspi=true;;
 		-no-mec   | --no-mecall) nohaarz=true; nomedl=true;;
+		-cx       | --context) arg=true; CONTEXT="$2";;
 		-no-medl  | --no-methyldackel) nomedl=true;;
 		-no-haarz | --no-haarz) nohaarz=true;;
 		-no-dma   | --no-diffmeanalysis) nodma=true;;
@@ -525,7 +532,7 @@ function options::skip(){
 	declare -a mapdata
 	mapfile -t -d ',' mapdata < <(printf '%s' "$1")
 	for x in "${mapdata[@]}"; do
-		for s in md5 fqual mspi trim clip pclip cor rrm arr sfus sege star bwa mqual uniq sort blist fsel slice rmd cmo rep stats macs gem peaka rich seacr gopeaks matk m6a medl haarz dma quant tpm dsj dea join clust go; do
+		for s in md5 fqual mspi trim clip pclip cor rrm arr sfus sege star bwa mqual uniq sort blist fsel slice rmd cmo rep stats macs gem rich seacr gopeaks peaka matk m6a medl haarz dma quant tpm dsj dea join clust go; do
 			[[ "$x" == "$s" ]] && eval "S$s=true"
 		done
 	done
@@ -535,11 +542,11 @@ function options::redo(){
 	local x s
 	declare -a mapdata
 	mapfile -t -d ',' mapdata < <(printf '%s' "$1")
-	for s in fqual mspi trim clip pclip cor rrm arr sfus sege star bwa mqual uniq sort blist fsel rmd cmo rep stats macs gem peaka rich seacr gopeaks matk m6a medl haarz dma quant tpm dsj dea join clust go; do
+	for s in fqual mspi trim clip pclip cor rrm arr sfus sege star bwa mqual uniq sort blist fsel rmd cmo rep stats macs gem rich seacr gopeaks peaka matk m6a medl haarz dma quant tpm dsj dea join clust go; do
 		eval "\${S$s:=true}" # unless (no|S)$s already set to false by -resume, do skip
 	done
 	for x in "${mapdata[@]}"; do
-		for s in fqual mspi trim clip pclip cor rrm arr sfus sege star bwa mqual uniq sort blist fsel rmd cmo rep stats macs gem peaka rich seacr gopeaks matk m6a medl haarz dma quant tpm dsj dea join clust go; do
+		for s in fqual mspi trim clip pclip cor rrm arr sfus sege star bwa mqual uniq sort blist fsel rmd cmo rep stats macs gem rich seacr gopeaks peaka matk m6a medl haarz dma quant tpm dsj dea join clust go; do
 			[[ "$x" == "$s" ]] && eval "S$s=false"
 		done
 	done
