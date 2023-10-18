@@ -539,6 +539,7 @@ function pipeline::bs(){
 		-s ${Smedl:=false} \
 		-t $THREADS \
 		-g "$GENOME" \
+		-x "${CONTEXT:-CG}" \
 		-r mapper \
 		-o "$OUTDIR/mecall" \
 
@@ -548,6 +549,7 @@ function pipeline::bs(){
 		-t $THREADS \
 		-M $MAXMEMORY \
 		-g "$GENOME" \
+		-x "${CONTEXT:-CG}" \
 		-r mapper \
 		-o "$OUTDIR/mecall"
 
@@ -885,6 +887,8 @@ function pipeline::callpeak(){
 			-s ${Sgem:=false} \
 			-q ${RIPSEQ:=false} \
 			-g "$GENOME" \
+			-c "$(${nomacs:=false} || echo "$OUTDIR/peaks")" \
+			-f $FRAGMENTSIZE \
 			-a nidx \
 			-i tidx \
 			-r mapper \
@@ -894,17 +898,6 @@ function pipeline::callpeak(){
 			-M $MAXMEMORY \
 			-o "$OUTDIR/peaks" \
 			-y ${POINTYPEAKS:=false} \
-			-z ${STRICTPEAKS:=false}
-
-		peaks::peakachu \
-			-S ${nopeaka:=false} \
-			-s ${Speaka:=false} \
-			-f $FRAGMENTSIZE \
-			-a nidx \
-			-i tidx \
-			-r mapper \
-			-t $THREADS \
-			-o "$OUTDIR/peaks" \
 			-z ${STRICTPEAKS:=false}
 
 		peaks::genrich \
@@ -917,11 +910,17 @@ function pipeline::callpeak(){
 			-t $THREADS \
 			-o "$OUTDIR/peaks" \
 			-q ${RIPSEQ:=false} \
+			-y ${POINTYPEAKS:=false} \
 			-z ${STRICTPEAKS:=false}
 
 		peaks::seacr \
 			-S ${noseacr:=false} \
 			-s ${Sseacr:=false} \
+			-c "$(${nomacs:=false} || echo "$OUTDIR/peaks")" \
+			-m $MEMORY \
+			-M $MAXMEMORY \
+			-f $FRAGMENTSIZE \
+			-g "$GENOME" \
 			-a nidx \
 			-i tidx \
 			-r mapper \
@@ -930,8 +929,13 @@ function pipeline::callpeak(){
 			-z ${STRICTPEAKS:=false}
 
 		peaks::gopeaks \
-			-S ${nogopeaks:=true} \
+			-S ${nogopeaks:=false} \
 			-s ${Sgopeaks:=false} \
+			-c "$(${nomacs:=false} || echo "$OUTDIR/peaks")" \
+			-m $MEMORY \
+			-M $MAXMEMORY \
+			-f $FRAGMENTSIZE \
+			-g "$GENOME" \
 			-a nidx \
 			-i tidx \
 			-r mapper \
@@ -940,10 +944,29 @@ function pipeline::callpeak(){
 			-w ${BROAD:=false} \
 			-z ${STRICTPEAKS:=false}
 
+		peaks::peakachu \
+			-S ${nopeaka:=false} \
+			-s ${Speaka:=false} \
+			-c "$(${nomacs:=false} || echo "$OUTDIR/peaks")" \
+			-g "$GENOME" \
+			-m $MEMORY \
+			-M $MAXMEMORY \
+			-f $FRAGMENTSIZE \
+			-a nidx \
+			-i tidx \
+			-r mapper \
+			-t $THREADS \
+			-o "$OUTDIR/peaks" \
+			-z ${STRICTPEAKS:=false}
+
 		${RIPSEQ:=false} && [[ $tidx ]] && {
 			peaks::matk \
 				-S ${nomatk:=true} \
 				-s ${Smatk:=false} \
+				-c "$(${nomacs:=false} || echo "$OUTDIR/peaks")" \
+				-m $MEMORY \
+				-f $FRAGMENTSIZE \
+				-g "$GENOME" \
 				-a nidx \
 				-i tidx \
 				-r mapper \
@@ -1011,6 +1034,8 @@ function pipeline::callpeak(){
 			-S ${nogem:=false} \
 			-s ${Sgem:=false} \
 			-q ${RIPSEQ:=false} \
+			-c "$(${nomacs:=false} || echo "$OUTDIR/peaks")" \
+			-f $FRAGMENTSIZE \
 			-g "$GENOME" \
 			-a nidx \
 			-b nridx \
@@ -1024,20 +1049,6 @@ function pipeline::callpeak(){
 			-M $MAXMEMORY \
 			-o "$OUTDIR/peaks" \
 			-y ${POINTYPEAKS:=false} \
-			-z ${STRICTPEAKS:=false}
-
-		peaks::peakachu_idr \
-			-S ${nopeaka:=false} \
-			-s ${Speaka:=false} \
-			-f $FRAGMENTSIZE \
-			-a nidx \
-			-b nridx \
-			-i tidx \
-			-j ridx \
-			-k pidx \
-			-r mapper \
-			-t $THREADS \
-			-o "$OUTDIR/peaks" \
 			-z ${STRICTPEAKS:=false}
 
 		peaks::genrich_idr \
@@ -1058,6 +1069,48 @@ function pipeline::callpeak(){
 		peaks::seacr_idr \
 			-S ${noseacr:=false} \
 			-s ${Sseacr:=false} \
+			-m $MEMORY \
+			-M $MAXMEMORY \
+			-c "$(${nomacs:=false} || echo "$OUTDIR/peaks")" \
+			-f $FRAGMENTSIZE \
+			-g "$GENOME" \
+			-a nidx \
+			-b nridx \
+			-i tidx \
+			-j ridx \
+			-k pidx \
+			-r mapper \
+			-t $THREADS \
+			-o "$OUTDIR/peaks" \
+			-z ${STRICTPEAKS:=false}
+
+		peaks::gopeaks_idr \
+			-S ${nogopeaks:=false} \
+			-s ${Sgopeaks:=false} \
+			-m $MEMORY \
+			-M $MAXMEMORY \
+			-c "$(${nomacs:=false} || echo "$OUTDIR/peaks")" \
+			-f $FRAGMENTSIZE \
+			-g "$GENOME" \
+			-a nidx \
+			-b nridx \
+			-i tidx \
+			-j ridx \
+			-k pidx \
+			-r mapper \
+			-t $THREADS \
+			-o "$OUTDIR/peaks" \
+			-w ${BROAD:=false} \
+			-z ${STRICTPEAKS:=false}
+
+		peaks::peakachu_idr \
+			-S ${nopeaka:=false} \
+			-s ${Speaka:=false} \
+			-c "$(${nomacs:=false} || echo "$OUTDIR/peaks")" \
+			-g "$GENOME" \
+			-m $MEMORY \
+			-M $MAXMEMORY \
+			-f $FRAGMENTSIZE \
 			-a nidx \
 			-b nridx \
 			-i tidx \
@@ -1072,6 +1125,11 @@ function pipeline::callpeak(){
 			peaks::matk_idr \
 				-S ${nomatk:=true} \
 				-s ${Smatk:=false} \
+				-m $MEMORY \
+				-M $MAXMEMORY \
+				-c "$(${nomacs:=false} || echo "$OUTDIR/peaks")" \
+				-f $FRAGMENTSIZE \
+				-g "$GENOME" \
 				-a nidx \
 				-b nridx \
 				-i tidx \
@@ -1079,7 +1137,6 @@ function pipeline::callpeak(){
 				-k pidx \
 				-r mapper \
 				-t $THREADS \
-				-M $MAXMEMORY \
 				-o "$OUTDIR/peaks"
 
 			peaks::m6aviewer_idr \
