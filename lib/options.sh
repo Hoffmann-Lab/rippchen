@@ -28,7 +28,7 @@ function options::usage(){
 		-r       | --remove                   : remove temporary and unnecessary files upon successful termination
 		-rr      | --remove-remove            : remove temporary and unnecessary files upon termination
 		-t       | --threads [value]          : number of threads. default: $THREADS
-		-xmem    | --max-memory [value]       : total amount of allocatable memory in MB. default: $MAXMEMORY MB i.e. currently available memory
+		-xmem    | --max-memory [value]       : fraction or total amount of allocatable memory in MB. default: $MAXMEMORY MB i.e. currently available memory
 		-mem     | --memory [value]           : allocatable memory per instance of memory greedy tools in MB. defines internal number of parallel instances
 		                                        default: $MEMORY which allows for $MTHREADS instances and $MTHREADS SAM/BAM slices according to -xmem
 		                                        NOTE: needs to be raised in case of GCThreads, HeapSize or OutOfMemory errors
@@ -87,7 +87,8 @@ function options::usage(){
 		-no-uniq | --no-uniqify               : disables extraction of properly paired and uniquely mapped reads
 		-no-sort | --no-sort                  : disables sorting alignments
 		-bl      | --blacklist [path|string]  : bedfile of regions or reference/chromosome name to filter alignments for
-		-sf      | --sizefilter [value:value] : fragment size filtering of alignments by a given range
+		-sf      | --sizefilter [value:value] : fragment size filtering for alignments to be kept by a given range
+		                                        NOTE: recommendation for DNA-seq derivatives is 0:1000
 		-rmd     | --removeduplicates         : enables removing duplicates
 		-rx      | --regex [string]           : regex of read name identifier with grouped tile information. default: \S+:(\d+):(\d+):(\d+)\s*.*
 		                                        NOTE: necessary for successful optical deduplication. to disable or if unavailable, set to null
@@ -148,7 +149,8 @@ function options::usage(){
 		-no-uniq | --no-uniqify               : disables extraction of properly paired and uniquely mapped reads
 		-no-sort | --no-sort                  : disables sorting alignments
 		-bl      | --blacklist [path|string]  : bedfile of regions or reference/chromosome name to filter alignments for
-		-sf      | --sizefilter [value:value] : fragment size filtering of alignments by a given range
+		-sf      | --sizefilter [value:value] : fragment size filtering for alignments to be kept by a given range
+		                                        NOTE: recommendation is 0:1000
 		-rmd     | --removeduplicates         : in case of RRBS, enables removing duplicates
 		-rx      | --regex [string]           : regex of read name identifier with grouped tile information. default: \S+:(\d+):(\d+):(\d+)\s*.*
 		                                        NOTE: necessary for successful optical deduplication. to disable or if unavailable, set to null
@@ -187,13 +189,13 @@ function options::usage(){
 
 
 		PEAK CALLING OPTIONS
-		-p       | --peakcalling [string]     : triggers peak calling. configure rippchen by keyword
-		                                        CHIP  - search for asymmetry between sense/antisense mapped reads of fragments (TF and Histone ChIP)
-		                                        CHIPB - CHIP analysis for broad peaks like H3K4me1/H3K27me3/H3K36me3/H3K9me*/H3K79me*. affects macs and gopeaks
-												CUT   - search for more narrow asymmetry of mapped reads of fragments samller than 1000nt (CUT&TAG, ChIP-exo)
-												CUTB  - CUT analysis for broad peaks like H3K4me1/H3K27me3/H3K36me3/H3K9me*/H3K79me*. affects macs and gopeaks
+		-p       | --peakcalling [string]     : triggers peak calling by keyword
+		                                        CHIP  - account for biomodal asymmetry between sense/antisense mapped reads (transcription factors, PolII,..)
+		                                        CHIPB - CHIP analysis for broad peaks (histones). affects macs and gopeaks
+												CUT   - account for more narrow biomodal asymmetry of sparsely mapped reads (CUT&TAG, ChIP-exo)
+												CUTB  - CUT analysis for broad peaks (histones). affects macs and gopeaks
 		                                        ATAC  - call up reads instead of fragments
-		                                        RIP   - call up split-aligned reads from RNA *IP-Seq experiments (CLIP/m6a/meRIP)
+		                                        RIP   - call up split-aligned reads from RNA *IP-Seq experiments (CLIP/m6A/meRIP)
 		-no-idr  | --no-idr                   : disables pseudo-replicates/pool generation to filter loosely called peaks by irreproducible discovery rates
 		                                        NOTE: -nr* and -tr* options ignored. genrich and peakachu will use all given files as replicates
 		-g       | --genome [path]            : genome fasta input. without, only preprocessing is performed
@@ -225,7 +227,7 @@ function options::usage(){
 		-no-map  | --no-mapping               : disables read alignment and downstream analyses
 		-d       | --distance                 : maximum read alignment edit distance in %. default: 5
 		-i       | --insertsize               : maximum allowed insert for aligning mate pairs. default: 1000 (200000 for RIP)
-		                                      : NOTE: does not affect bwa. for segemehl, only multiple alignments are filtered
+		                                        NOTE: does not affect bwa. for segemehl, only multiple alignments are filtered
 		-no-sege | --no-segemehl              : disables mapping by segemehl
 		-no-star | --no-star                  : disables mapping by STAR
 		-no-bwa  | --no-bwa                   : disables mapping by BWA unless given -split option
@@ -237,11 +239,22 @@ function options::usage(){
 		-no-uniq | --no-uniqify               : disables extraction of properly paired and uniquely mapped reads
 		-no-sort | --no-sort                  : disables sorting alignments
 		-bl      | --blacklist [path|string]  : bedfile of regions or reference/chromosome name to filter alignments for
-		-sf      | --sizefilter [value:value] : fragment size filtering of alignments by a given range
+		-sf      | --sizefilter [value:value] : fragment size filtering for alignments to be kept by a given range
+		                                        NOTE: relaxed or conservative recommendations
+		                                        0:120   or 0:100   - ATAC nucleosome free regions
+		                                        151:280 or 181-250 - ATAC mononucleosomes
+		                                        131:200            - MNase mononucleosomes
+		                                        311:480            - ATAC dinucleosomes
+		                                        501:650 or 551:620 - ATAC trinucleosomes
+		                                        0:120              - CUT&TAG or CUT&RUN transcription factors, PolII,..
+		                                        121:1000           - CUT&TAG histones
+		                                        151:1000           - CUT&RUN histones
+		                                        0:1000             - CHIP histones, transcription factors, PolII,..
 		-rmd     | --removeduplicates         : in case of CUT/CUTB, enables removing duplicates
 		-rx      | --regex [string]           : regex of read name identifier with grouped tile information. default: \S+:(\d+):(\d+):(\d+).*
 		                                        NOTE: necessary for successful optical deduplication. to disable or if unavailable, set to null
 		-no-rmd  | --no-removeduplicates      : disables removing duplicates. not recommended unless reads were mapped on a transcriptome.
+		-ct      | --cliptn5                  : enables +4/-5 soft-clipping to address Tn5 cutting site end-repair in e.g. ATAC and CUT&TAG experiments
 		-cmo     | --clipmateoverlaps         : enables clipping of read mate overlaps
 		-fs      | --fragmentsize [value]     : estimated size of sequenced fragments. default: 200
 		-s       | --strandness [value]       : defines library strandness for all inputs. default: 0 (automatically inferred for RIP)
@@ -345,6 +358,7 @@ function options::developer(){
 		fsel    : fragment size based alignment selection
 		slice   : better dont touch! slicing of bams for parallelization, needs -prevtmp | --previoustmp [path to rippchen.XXXXXXXXXX]
 		rmd     : removing duplicates
+		ctn5    : clipping tn5 end-repaired sites
 		cmo     : clipping mate overlaps
 		stats   : fastq preprocessing and mapping statistics
 		rep     : pooling/generating replicates
@@ -392,7 +406,7 @@ function options::checkopt(){
 		-v        | --verbosity) arg=true; VERBOSITY=$2;;
 		-t        | --threads) arg=true; THREADS=$2;;
 		-mem      | --memory) arg=true; MEMORY=$2;;
-		-xmem     | --max-memory) arg=true; MAXMEMORY=$2;;
+		-xmem     | --max-memory) arg=true; [[ ${2%.*} -ge 1 ]] && MAXMEMORY=${2%.*} || MAXMEMORY=$(grep -F MemTotal /proc/meminfo | awk -v i=$2 '{printf("%d",$2/1024*0.95*i)}');;
 
 		-x        | --index) INDEX=true;;
 		-g        | --genome) arg=true; GENOME="$2";;
@@ -465,9 +479,10 @@ function options::checkopt(){
 		-fs       | --fragmentsize) arg=true; FRAGMENTSIZE=$2;;
 		-bl       | --blacklist) arg=true; noblist=false; BLACKLIST=$2;;
 		-sf       | --sizefilter) arg=true; nofsel=false; FRAGMENTSIZERANGE=$2;;
+		-ct       | --cliptn5) noctn5=false;;
 		-sp       | --strict-peaks) STRICTPEAKS=true;;
 		-pp       | --pointy-peaks) POINTYPEAKS=true;;
-		-no-call  | --no-call) nomacs=true; nogem=true; nopeaka=true; nom6a=true; nomatk=true; noidr=true;;
+		-no-call  | --no-call) nomacs=true; nogem=true; nopeaka=true; nom6a=true; nomatk=true; noidr=true; norich=true; noseacr=true; nogopeaks=true;;
 		-no-macs  | --no-macs) nomacs=true;;
 		-no-gem   | --no-gem) nogem=true;;
 		-no-peaka | --no-peakachu) nopeaka=true;;
@@ -518,7 +533,7 @@ function options::checkopt(){
 function options::resume(){
 	local s enable=false
 	# don't Smd5, Sslice !
-	for s in fqual mspi trim clip pclip cor rrm arr sfus sege star bwa mqual uniq sort blist fsel rmd cmo stats rep macs gem peaka rich seacr gopeaks matk m6a medl haarz dma quant tpm dsj dea join clust go; do
+	for s in fqual mspi trim clip pclip cor rrm arr sfus sege star bwa mqual uniq sort blist fsel rmd ctn5 cmo stats rep macs gem rich seacr gopeaks peaka matk m6a medl haarz dma quant tpm dsj dea join clust go; do
 		eval "\${S$s:=true}" # unless S$s already set to false by -redo, do skip
 		$enable || [[ "$1" == "$s" ]] && {
 			enable=true
@@ -532,7 +547,7 @@ function options::skip(){
 	declare -a mapdata
 	mapfile -t -d ',' mapdata < <(printf '%s' "$1")
 	for x in "${mapdata[@]}"; do
-		for s in md5 fqual mspi trim clip pclip cor rrm arr sfus sege star bwa mqual uniq sort blist fsel slice rmd cmo rep stats macs gem rich seacr gopeaks peaka matk m6a medl haarz dma quant tpm dsj dea join clust go; do
+		for s in md5 fqual mspi trim clip pclip cor rrm arr sfus sege star bwa mqual uniq sort blist fsel slice rmd ctn5 cmo rep stats macs gem rich seacr gopeaks peaka matk m6a medl haarz dma quant tpm dsj dea join clust go; do
 			[[ "$x" == "$s" ]] && eval "S$s=true"
 		done
 	done
@@ -542,11 +557,11 @@ function options::redo(){
 	local x s
 	declare -a mapdata
 	mapfile -t -d ',' mapdata < <(printf '%s' "$1")
-	for s in fqual mspi trim clip pclip cor rrm arr sfus sege star bwa mqual uniq sort blist fsel rmd cmo rep stats macs gem rich seacr gopeaks peaka matk m6a medl haarz dma quant tpm dsj dea join clust go; do
+	for s in fqual mspi trim clip pclip cor rrm arr sfus sege star bwa mqual uniq sort blist fsel rmd ctn5 cmo rep stats macs gem rich seacr gopeaks peaka matk m6a medl haarz dma quant tpm dsj dea join clust go; do
 		eval "\${S$s:=true}" # unless (no|S)$s already set to false by -resume, do skip
 	done
 	for x in "${mapdata[@]}"; do
-		for s in fqual mspi trim clip pclip cor rrm arr sfus sege star bwa mqual uniq sort blist fsel rmd cmo rep stats macs gem rich seacr gopeaks peaka matk m6a medl haarz dma quant tpm dsj dea join clust go; do
+		for s in fqual mspi trim clip pclip cor rrm arr sfus sege star bwa mqual uniq sort blist fsel rmd ctn5 cmo rep stats macs gem rich seacr gopeaks peaka matk m6a medl haarz dma quant tpm dsj dea join clust go; do
 			[[ "$x" == "$s" ]] && eval "S$s=false"
 		done
 	done
