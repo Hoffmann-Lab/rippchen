@@ -820,6 +820,37 @@ function pipeline::callpeak(){
 			-r mapper
 	}
 
+	pipeline::_slice ${noctn5:=true} ${Sctn5:=false}
+	${noctn5:=true} || {
+		alignment::clip \
+			-S ${noctn5:=true} \
+			-s ${Sctn5:=false} \
+			-t $THREADS \
+			-m $MEMORY \
+			-M $MAXMEMORY \
+			-r mapper \
+			-c slicesinfo \
+			-g $GENOME \
+			-5 4 \
+			-3 0 \
+			-5 5 \
+			-3 0 \
+			-o "$OUTDIR/mapped"
+		alignment::postprocess \
+			-S ${noctn5:=true} \
+			-s ${Sctn5:=false} \
+			-j index \
+			-t $THREADS \
+			-o "$OUTDIR/mapped" \
+			-r mapper
+		alignment::add4stats -r mapper
+		alignment::bamqc \
+			-S ${noqual:=false} \
+			-s ${Sctn5:=false} \
+			-t $THREADS \
+			-r mapper
+	}
+
 	pipeline::_slice ${nocmo:=true} ${Scmo:=false}
 	${nocmo:=true} || {
 		alignment::clipmateoverlaps \
@@ -910,6 +941,7 @@ function pipeline::callpeak(){
 			-t $THREADS \
 			-o "$OUTDIR/peaks" \
 			-q ${RIPSEQ:=false} \
+			-w ${BROAD:=false} \
 			-y ${POINTYPEAKS:=false} \
 			-z ${STRICTPEAKS:=false}
 
@@ -1063,6 +1095,7 @@ function pipeline::callpeak(){
 			-r mapper \
 			-t $THREADS \
 			-o "$OUTDIR/peaks" \
+			-w ${BROAD:=false} \
 			-q ${RIPSEQ:=false} \
 			-z ${STRICTPEAKS:=false}
 
