@@ -941,6 +941,7 @@ function pipeline::callpeak(){
 			-t $THREADS \
 			-o "$OUTDIR/peaks" \
 			-q ${RIPSEQ:=false} \
+			-w ${BROAD:=false} \
 			-y ${POINTYPEAKS:=false} \
 			-z ${STRICTPEAKS:=false}
 
@@ -1094,6 +1095,7 @@ function pipeline::callpeak(){
 			-r mapper \
 			-t $THREADS \
 			-o "$OUTDIR/peaks" \
+			-w ${BROAD:=false} \
 			-q ${RIPSEQ:=false} \
 			-z ${STRICTPEAKS:=false}
 
