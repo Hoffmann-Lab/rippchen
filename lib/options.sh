@@ -495,7 +495,7 @@ function options::checkopt(){
 
 		-c        | --comparisons) arg=true; mapfile -t -d ',' COMPARISONS < <(printf '%s' "$2");;
 
-		-b        | --bisulfite) arg=true; DIVERSITY="$2"; nopclip=${nopclip:-true}; BISULFITE=true; RRBS=false; nocor=true; norrm=true; [[ "$DIVERSITY" == "WGBS" ]] && { RRBS=false; normd=${normd:-false}; } || { RRBS=true; normd=${normd:-true}; };;
+		-b        | --bisulfite) arg=true; DIVERSITY="$2"; BISULFITE=true; RRBS=false; nocor=true; norrm=true; [[ "$DIVERSITY" == "WGBS" ]] && { RRBS=false; normd=${normd:-false}; } || { RRBS=true; normd=${normd:-true}; };;
 		-no-mspi  | --no-mspiselection) nomspi=true;;
 		-no-mec   | --no-mecall) nohaarz=true; nomedl=true;;
 		-cx       | --context) arg=true; CONTEXT="$2";;
