@@ -66,6 +66,20 @@ function pipeline::index(){
 			-r NA1 \
 			-1 NA2
 		unset NA1 NA2
+		quantify::salmon \
+			-S ${nosalm:=true} \
+			-s true \
+			-t $THREADS \
+			-M $MAXMEMORY \
+			-r "$GENOME" \
+			-g "$GTF" \
+			-i ${TRANSCRIPTOME:=false} \
+			-x "$GENOME.salmon.idx" \
+			-o "$TMPDIR" \
+			-F \
+			-c NA1 \
+			-1 NA2
+		unset NA1 NA2
 		alignment::bwa \
 			-S ${nobwa:=false} \
 			-s true \
@@ -199,7 +213,6 @@ function pipeline::_preprocess(){
 				-s ${Spclip:=false} \
 				-t $THREADS \
 				-o "$OUTDIR/polyntclipped" \
-				-d $(${BISULFITE:=false} && echo false || echo true) \
 				-1 FASTQ1 \
 				-2 FASTQ2
 			preprocess::add4stats -r qualdirs -a "$OUTDIR/qualities/polyntclipped" -1 FASTQ1 -2 FASTQ2
@@ -265,7 +278,7 @@ function pipeline::_mapping(){
 				-o "$OUTDIR/mapped" \
 				-t $THREADS \
 				-a $((100-DISTANCE)) \
-				-i ${INSERTSIZE:=200000} \
+				-i ${INSERTSIZE:=1000} \
 				-g "$GENOME" \
 				-x "$GENOME.segemehl.ctidx" \
 				-y "$GENOME.segemehl.gaidx" \
@@ -349,6 +362,7 @@ function pipeline::_mapping(){
 		-s ${Suniq:=false} \
 		-j uniqify \
 		-t $THREADS \
+		-M $MAXMEMORY \
 		-o "$OUTDIR/mapped" \
 		-r mapper
 	! ${nouniq:=false} && ${nosort:=false} && {
@@ -365,6 +379,7 @@ function pipeline::_mapping(){
 		-s ${Ssort:=false} \
 		-j sort \
 		-t $THREADS \
+		-M $MAXMEMORY \
 		-o "$OUTDIR/mapped" \
 		-r mapper
 	alignment::postprocess \
@@ -372,6 +387,7 @@ function pipeline::_mapping(){
 		-s ${Ssort:=false} \
 		-j index \
 		-t $THREADS \
+		-M $MAXMEMORY \
 		-o "$OUTDIR/mapped" \
 		-r mapper
 	(${nouniq:=false} && ! ${nosort:=false}) || (! ${nouniq:=false} && ! ${nosort:=false}) && {
@@ -390,6 +406,7 @@ function pipeline::_mapping(){
 			-j blacklist \
 			-f "$BLACKLIST" \
 			-t $THREADS \
+			-M $MAXMEMORY \
 			-o "$OUTDIR/mapped" \
 			-r mapper
 		alignment::postprocess \
@@ -397,6 +414,7 @@ function pipeline::_mapping(){
 			-s ${Sblist:=false} \
 			-j index \
 			-t $THREADS \
+			-M $MAXMEMORY \
 			-o "$OUTDIR/mapped" \
 			-r mapper
 		alignment::add4stats -r mapper
@@ -414,12 +432,14 @@ function pipeline::_mapping(){
 			-j sizeselect \
 			-f "$FRAGMENTSIZERANGE" \
 			-t $THREADS \
+			-M $MAXMEMORY \
 			-o "$OUTDIR/mapped" \
 			-r mapper
 		alignment::postprocess \
 			-S ${nofsel:=false} \
 			-s ${Sfsel:=false} \
 			-j index \
+			-M $MAXMEMORY \
 			-t $THREADS \
 			-o "$OUTDIR/mapped" \
 			-r mapper
@@ -475,22 +495,23 @@ function pipeline::bs(){
 
 	pipeline::_slice ${normd:=false} ${Srmd:=false}
 	${normd:=false} || {
-		alignment::rmduplicates \
+		bisulfite::rmduplicates \
 			-S ${normd:=false} \
 			-s ${Srmd:=false} \
 			-t $THREADS \
 			-m $MEMORY \
 			-M $MAXMEMORY \
+			-g "$GENOME" \
 			-r mapper \
 			-3 FASTQ3 \
 			-c slicesinfo \
-			-x "$REGEX" \
 			-o "$OUTDIR/mapped"
 		alignment::postprocess \
 			-S ${normd:=false} \
 			-s ${Srmd:=false} \
 			-j index \
 			-t $THREADS \
+			-M $MAXMEMORY \
 			-o "$OUTDIR/mapped" \
 			-r mapper
 		alignment::add4stats -r mapper
@@ -517,14 +538,15 @@ function pipeline::bs(){
 			-s ${Scmo:=false} \
 			-j index \
 			-t $THREADS \
+			-M $MAXMEMORY \
 			-o "$OUTDIR/mapped" \
 			-r mapper
-		alignment::add4stats -r mapper
-		alignment::bamqc \
-			-S ${noqual:=false} \
-			-s ${Scmo:=false} \
-			-t $THREADS \
-			-r mapper
+		# alignment::add4stats -r mapper
+		# alignment::bamqc \
+		# 	-S ${noqual:=false} \
+		# 	-s ${Scmo:=false} \
+		# 	-t $THREADS \
+		# 	-r mapper
 	}
 
 	alignment::qcstats \
@@ -539,7 +561,7 @@ function pipeline::bs(){
 		-s ${Smedl:=false} \
 		-t $THREADS \
 		-g "$GENOME" \
-		-x "${CONTEXT:-CG}" \
+		-x "$CONTEXT" \
 		-r mapper \
 		-o "$OUTDIR/mecall" \
 
@@ -549,7 +571,7 @@ function pipeline::bs(){
 		-t $THREADS \
 		-M $MAXMEMORY \
 		-g "$GENOME" \
-		-x "${CONTEXT:-CG}" \
+		-x "$CONTEXT" \
 		-r mapper \
 		-o "$OUTDIR/mecall"
 
@@ -590,89 +612,125 @@ function pipeline::dea(){
 
 	pipeline::_preprocess
 	pipeline::_mapping
-	[[ ${#mapper[@]} -eq 0 ]] && return 0
+	if [[ ${#mapper[@]} -gt 0 ]]; then
 
-	pipeline::_slice ${normd:=true} ${Srmd:=false}
-	${normd:=true} || {
-		alignment::rmduplicates \
-			-S ${normd:=true} \
-			-s ${Srmd:=false} \
-			-t $THREADS \
-			-m $MEMORY \
-			-M $MAXMEMORY \
+		pipeline::_slice ${normd:=true} ${Srmd:=false}
+		${normd:=true} || {
+			alignment::rmduplicates \
+				-S ${normd:=true} \
+				-s ${Srmd:=false} \
+				-t $THREADS \
+				-m $MEMORY \
+				-M $MAXMEMORY \
+				-r mapper \
+				-3 FASTQ3 \
+				-c slicesinfo \
+				-x "$REGEX" \
+				-o "$OUTDIR/mapped"
+			alignment::postprocess \
+				-S ${normd:=true} \
+				-s ${Srmd:=false} \
+				-j index \
+				-t $THREADS \
+				-M $MAXMEMORY \
+				-o "$OUTDIR/mapped" \
+				-r mapper
+			alignment::add4stats -r mapper
+			alignment::bamqc \
+				-S ${noqual:=false} \
+				-s ${Srmd:=false} \
+				-t $THREADS \
+				-r mapper
+		}
+
+		pipeline::_slice ${nocmo:=true} ${Scmo:=false}
+		${nocmo:=true} || {
+			alignment::clipmateoverlaps \
+				-S ${nocmo:=true} \
+				-s ${Scmo:=false} \
+				-t $THREADS \
+				-m $MEMORY \
+				-M $MAXMEMORY \
+				-r mapper \
+				-c slicesinfo \
+				-o "$OUTDIR/mapped"
+			alignment::postprocess \
+				-S ${nocmo:=true} \
+				-s ${Scmo:=false} \
+				-j index \
+				-t $THREADS \
+				-M $MAXMEMORY \
+				-o "$OUTDIR/mapped" \
+				-r mapper
+			# alignment::add4stats -r mapper
+			# alignment::bamqc \
+			# 	-S ${noqual:=false} \
+			# 	-s ${Scmo:=false} \
+			# 	-t $THREADS \
+			# 	-r mapper
+		}
+
+		alignment::qcstats \
+			-S ${nostats:=false} \
+			-s ${Sstats:=false} \
 			-r mapper \
-			-3 FASTQ3 \
-			-c slicesinfo \
-			-x "$REGEX" \
-			-o "$OUTDIR/mapped"
-		alignment::postprocess \
-			-S ${normd:=true} \
-			-s ${Srmd:=false} \
-			-j index \
 			-t $THREADS \
-			-o "$OUTDIR/mapped" \
-			-r mapper
-		alignment::add4stats -r mapper
-		alignment::bamqc \
-			-S ${noqual:=false} \
-			-s ${Srmd:=false} \
-			-t $THREADS \
-			-r mapper
-	}
+			-o "$OUTDIR/stats"
 
-	pipeline::_slice ${nocmo:=true} ${Scmo:=false}
-	${nocmo:=true} || {
-		alignment::clipmateoverlaps \
-			-S ${nocmo:=true} \
-			-s ${Scmo:=false} \
+		alignment::inferstrandness \
+			-S $( (${noquant:-false} && ${nodsj:-false}) && echo true || echo false) \
+			-s $([[ $STRANDNESS ]] && echo true || { (${nodsj:-false} || ${Sdsj:-false}) && (${noquant:-false} || ${Squant:-false}) && echo true || echo false; }) \
+			-d "$STRANDNESS" \
 			-t $THREADS \
-			-m $MEMORY \
-			-M $MAXMEMORY \
 			-r mapper \
-			-c slicesinfo \
-			-o "$OUTDIR/mapped"
-		alignment::postprocess \
-			-S ${nocmo:=true} \
-			-s ${Scmo:=false} \
-			-j index \
+			-x strandness \
+			-g "$GTF" \
+			-l ${QUANTIFYFLEVEL:=exon}
+
+		quantify::featurecounts \
+			-S ${noquant:=false} \
+			-s ${Squant:=false} \
 			-t $THREADS \
-			-o "$OUTDIR/mapped" \
-			-r mapper
-		alignment::add4stats -r mapper
-		alignment::bamqc \
-			-S ${noqual:=false} \
-			-s ${Scmo:=false} \
+			-M $MAXMEMORY \
+			-g "$GTF" \
+			-i ${TRANSCRIPTOME:=false} \
+			-l ${QUANTIFYFLEVEL:=exon} \
+			-f ${QUANTIFYFEATURE:=gene} \
+			-o "$OUTDIR/counted" \
+			-r mapper \
+			-x strandness
+	fi
+
+	if ! ${nosplitreads:=false} && [[ $COMPARISONS ]]; then
+		expression::diego \
+			-S ${nodsj:=false} \
+			-s ${Sdsj:=false} \
+			-5 ${Smd5:=false} \
 			-t $THREADS \
-			-r mapper
-	}
+			-r mapper \
+			-x strandness \
+			-g "$GTF" \
+			-c COMPARISONS \
+			-i "$OUTDIR/counted" \
+			-o "$OUTDIR/diego"
+	fi
 
-	alignment::qcstats \
-		-S ${nostats:=false} \
-		-s ${Sstats:=false} \
-		-r mapper \
-		-t $THREADS \
-		-o "$OUTDIR/stats"
-
-	alignment::inferstrandness \
-		-S $( (${noquant:=false} && ${nodsj:=false}) && echo true || echo false) \
-		-s $([[ $STRANDNESS ]] && echo true || { (${nodsj:=false} || ${Sdsj:=false}) && (${noquant:=false} || ${Squant:=false}) && echo true || echo false; }) \
-		-d "$STRANDNESS" \
-		-t $THREADS \
-		-r mapper \
-		-x strandness \
-		-g "$GTF" \
-		-l ${QUANTIFYFLEVEL:=exon}
-
-	quantify::featurecounts \
-		-S ${noquant:=false} \
-		-s ${Squant:=false} \
-		-t $THREADS \
-		-g "$GTF" \
-		-l ${QUANTIFYFLEVEL:=exon} \
-		-f ${QUANTIFYFEATURE:=gene} \
+	# run after diego and misuse mapper array to store count file paths in
+	quantify::salmon \
+		-S $(${noquant:-false} || ${nosalm:-true} && echo true || echo false) \
+		-s ${Ssalm:=false} \
+		-5 ${Smd5:=false} \
+		-1 FASTQ1 \
+		-2 FASTQ2 \
 		-o "$OUTDIR/counted" \
-		-r mapper \
-		-x strandness
+		-t $THREADS \
+		-M $MAXMEMORY \
+		-f ${QUANTIFYFEATURE:=gene} \
+		-r "$GENOME" \
+		-g "$GTF" \
+		-i ${TRANSCRIPTOME:=false} \
+		-x "$GENOME.salmon.idx" \
+		-c mapper
 
 	quantify::tpm \
 		-S ${noquant:=false} \
@@ -686,7 +744,7 @@ function pipeline::dea(){
 
 	if [[ $COMPARISONS ]]; then
 		expression::join \
-			-S $(${nodea:=false} && echo false || echo true) \
+			-S $(${nodea:-false} && echo false || echo true) \
 			-s ${Sjoin:=false} \
 			-t $THREADS \
 			-r mapper \
@@ -694,18 +752,6 @@ function pipeline::dea(){
 			-f ${QUANTIFYFEATURE:=gene} \
 			-i "$OUTDIR/counted" \
 			-o "$OUTDIR/counted"
-
-		expression::diego \
-			-S ${nodsj:=false} \
-			-s ${Sdsj:=false} \
-			-5 ${Smd5:=false} \
-			-t $THREADS \
-			-r mapper \
-			-x strandness \
-			-g "$GTF" \
-			-c COMPARISONS \
-			-i "$OUTDIR/counted" \
-			-o "$OUTDIR/diego"
 
 	 	expression::deseq \
 			-S ${nodea:=false} \
@@ -734,7 +780,7 @@ function pipeline::dea(){
 			-S ${noclust:=false} \
 			-s ${Sclust:=false} \
 			-n ${CLUSTERFILTER:=04} \
-			-b ${CLUSTERBIOTYPE:="."} \
+			-b ${FEATUREBIOTYPE:="protein_coding"} \
 			-g "$GTF" \
 			-f ${QUANTIFYFEATURE:=gene} \
 			-t $THREADS \
@@ -753,7 +799,10 @@ function pipeline::dea(){
 			-r mapper \
 			-c COMPARISONS \
 			-l coexpressions \
-			-g "$GO" \
+			-d "$GO" \
+			-g "$GTF" \
+			-b ${FEATUREBIOTYPE:="protein_coding"} \
+			-f ${QUANTIFYFEATURE:=gene} \
 			-i "$OUTDIR/deseq" \
 			-j "$OUTDIR/counted"
 	else
@@ -761,7 +810,7 @@ function pipeline::dea(){
 			-S ${noclust:=false} \
 			-s ${Sclust:=false} \
 			-n ${CLUSTERFILTER:=4} \
-			-b ${CLUSTERBIOTYPE:="."} \
+			-b ${FEATUREBIOTYPE:="protein_coding"} \
 			-g "$GTF" \
 			-f ${QUANTIFYFEATURE:=gene} \
 			-t $THREADS \
@@ -777,7 +826,10 @@ function pipeline::dea(){
 			-t $THREADS \
 			-r mapper \
 			-l coexpressions \
-			-g "$GO" \
+			-d "$GO" \
+			-g "$GTF" \
+			-b ${FEATUREBIOTYPE:="protein_coding"} \
+			-f ${QUANTIFYFEATURE:=gene} \
 			-j "$OUTDIR/counted"
 	fi
 
@@ -810,6 +862,7 @@ function pipeline::callpeak(){
 			-s ${Srmd:=false} \
 			-j index \
 			-t $THREADS \
+			-M $MAXMEMORY \
 			-o "$OUTDIR/mapped" \
 			-r mapper
 		alignment::add4stats -r mapper
@@ -841,14 +894,15 @@ function pipeline::callpeak(){
 			-s ${Sctn5:=false} \
 			-j index \
 			-t $THREADS \
+			-M $MAXMEMORY \
 			-o "$OUTDIR/mapped" \
 			-r mapper
-		alignment::add4stats -r mapper
-		alignment::bamqc \
-			-S ${noqual:=false} \
-			-s ${Sctn5:=false} \
-			-t $THREADS \
-			-r mapper
+		# alignment::add4stats -r mapper
+		# alignment::bamqc \
+		# 	-S ${noqual:=false} \
+		# 	-s ${Sctn5:=false} \
+		# 	-t $THREADS \
+		# 	-r mapper
 	}
 
 	pipeline::_slice ${nocmo:=true} ${Scmo:=false}
@@ -867,14 +921,15 @@ function pipeline::callpeak(){
 			-s ${Scmo:=false} \
 			-j index \
 			-t $THREADS \
+			-M $MAXMEMORY \
 			-o "$OUTDIR/mapped" \
 			-r mapper
 		alignment::add4stats -r mapper
-		alignment::bamqc \
-			-S ${noqual:=false} \
-			-s ${Scmo:=false} \
-			-t $THREADS \
-			-r mapper
+		# alignment::bamqc \
+		# 	-S ${noqual:=false} \
+		# 	-s ${Scmo:=false} \
+		# 	-t $THREADS \
+		# 	-r mapper
 	}
 
 	alignment::qcstats \
@@ -905,7 +960,7 @@ function pipeline::callpeak(){
 		${RIPSEQ:=false} && {
 			alignment::inferstrandness \
 				-S ${nogem:=false} \
-				-s $([[ $STRANDNESS ]] && echo true || echo ${Sgem:=false}) \
+				-s $([[ $STRANDNESS ]] && echo true || echo ${Sgem:-false}) \
 				-d "$STRANDNESS" \
 				-t $THREADS \
 				-r mapper \
@@ -918,7 +973,7 @@ function pipeline::callpeak(){
 			-s ${Sgem:=false} \
 			-q ${RIPSEQ:=false} \
 			-g "$GENOME" \
-			-c "$(${nomacs:=false} || echo "$OUTDIR/peaks")" \
+			-c "$(${nomacs:-false} || echo "$OUTDIR/peaks")" \
 			-f $FRAGMENTSIZE \
 			-a nidx \
 			-i tidx \
@@ -928,6 +983,25 @@ function pipeline::callpeak(){
 			-m $MEMORY \
 			-M $MAXMEMORY \
 			-o "$OUTDIR/peaks" \
+			-y ${POINTYPEAKS:=false} \
+			-z ${STRICTPEAKS:=false}
+
+		peaks::homer \
+			-S ${nohomer:=false} \
+			-s ${Shomer:=false} \
+			-q ${RIPSEQ:=false} \
+			-g "$GENOME" \
+			-c "$(${nomacs:-false} || echo "$OUTDIR/peaks")" \
+			-f $FRAGMENTSIZE \
+			-a nidx \
+			-i tidx \
+			-r mapper \
+			-x strandness \
+			-t $THREADS \
+			-m $MEMORY \
+			-M $MAXMEMORY \
+			-o "$OUTDIR/peaks" \
+			-w ${BROAD:=false} \
 			-y ${POINTYPEAKS:=false} \
 			-z ${STRICTPEAKS:=false}
 
@@ -948,7 +1022,7 @@ function pipeline::callpeak(){
 		peaks::seacr \
 			-S ${noseacr:=false} \
 			-s ${Sseacr:=false} \
-			-c "$(${nomacs:=false} || echo "$OUTDIR/peaks")" \
+			-c "$(${nomacs:-false} || echo "$OUTDIR/peaks")" \
 			-m $MEMORY \
 			-M $MAXMEMORY \
 			-f $FRAGMENTSIZE \
@@ -963,7 +1037,7 @@ function pipeline::callpeak(){
 		peaks::gopeaks \
 			-S ${nogopeaks:=false} \
 			-s ${Sgopeaks:=false} \
-			-c "$(${nomacs:=false} || echo "$OUTDIR/peaks")" \
+			-c "$(${nomacs:-false} || echo "$OUTDIR/peaks")" \
 			-m $MEMORY \
 			-M $MAXMEMORY \
 			-f $FRAGMENTSIZE \
@@ -979,7 +1053,7 @@ function pipeline::callpeak(){
 		peaks::peakachu \
 			-S ${nopeaka:=false} \
 			-s ${Speaka:=false} \
-			-c "$(${nomacs:=false} || echo "$OUTDIR/peaks")" \
+			-c "$(${nomacs:-false} || echo "$OUTDIR/peaks")" \
 			-g "$GENOME" \
 			-m $MEMORY \
 			-M $MAXMEMORY \
@@ -995,7 +1069,7 @@ function pipeline::callpeak(){
 			peaks::matk \
 				-S ${nomatk:=true} \
 				-s ${Smatk:=false} \
-				-c "$(${nomacs:=false} || echo "$OUTDIR/peaks")" \
+				-c "$(${nomacs:-false} || echo "$OUTDIR/peaks")" \
 				-m $MEMORY \
 				-f $FRAGMENTSIZE \
 				-g "$GENOME" \
@@ -1054,7 +1128,7 @@ function pipeline::callpeak(){
 		${RIPSEQ:=false} && {
 			alignment::inferstrandness \
 				-S ${nogem:=false} \
-				-s $([[ $STRANDNESS ]] && echo true || echo ${Sgem:=false}) \
+				-s $([[ $STRANDNESS ]] && echo true || echo ${Sgem:-false}) \
 				-d "$STRANDNESS" \
 				-t $THREADS \
 				-r mapper \
@@ -1066,7 +1140,7 @@ function pipeline::callpeak(){
 			-S ${nogem:=false} \
 			-s ${Sgem:=false} \
 			-q ${RIPSEQ:=false} \
-			-c "$(${nomacs:=false} || echo "$OUTDIR/peaks")" \
+			-c "$(${nomacs:-false} || echo "$OUTDIR/peaks")" \
 			-f $FRAGMENTSIZE \
 			-g "$GENOME" \
 			-a nidx \
@@ -1080,6 +1154,28 @@ function pipeline::callpeak(){
 			-m $MEMORY \
 			-M $MAXMEMORY \
 			-o "$OUTDIR/peaks" \
+			-y ${POINTYPEAKS:=false} \
+			-z ${STRICTPEAKS:=false}
+
+		peaks::homer_idr \
+			-S ${nohomer:=false} \
+			-s ${Shomer:=false} \
+			-q ${RIPSEQ:=false} \
+			-c "$(${nomacs:-false} || echo "$OUTDIR/peaks")" \
+			-f $FRAGMENTSIZE \
+			-g "$GENOME" \
+			-a nidx \
+			-b nridx \
+			-i tidx \
+			-j ridx \
+			-k pidx \
+			-r mapper \
+			-x strandness \
+			-t $THREADS \
+			-m $MEMORY \
+			-M $MAXMEMORY \
+			-o "$OUTDIR/peaks" \
+			-w ${BROAD:=false} \
 			-y ${POINTYPEAKS:=false} \
 			-z ${STRICTPEAKS:=false}
 
@@ -1104,7 +1200,7 @@ function pipeline::callpeak(){
 			-s ${Sseacr:=false} \
 			-m $MEMORY \
 			-M $MAXMEMORY \
-			-c "$(${nomacs:=false} || echo "$OUTDIR/peaks")" \
+			-c "$(${nomacs:-false} || echo "$OUTDIR/peaks")" \
 			-f $FRAGMENTSIZE \
 			-g "$GENOME" \
 			-a nidx \
@@ -1122,7 +1218,7 @@ function pipeline::callpeak(){
 			-s ${Sgopeaks:=false} \
 			-m $MEMORY \
 			-M $MAXMEMORY \
-			-c "$(${nomacs:=false} || echo "$OUTDIR/peaks")" \
+			-c "$(${nomacs:-false} || echo "$OUTDIR/peaks")" \
 			-f $FRAGMENTSIZE \
 			-g "$GENOME" \
 			-a nidx \
@@ -1139,7 +1235,7 @@ function pipeline::callpeak(){
 		peaks::peakachu_idr \
 			-S ${nopeaka:=false} \
 			-s ${Speaka:=false} \
-			-c "$(${nomacs:=false} || echo "$OUTDIR/peaks")" \
+			-c "$(${nomacs:-false} || echo "$OUTDIR/peaks")" \
 			-g "$GENOME" \
 			-m $MEMORY \
 			-M $MAXMEMORY \
@@ -1160,7 +1256,7 @@ function pipeline::callpeak(){
 				-s ${Smatk:=false} \
 				-m $MEMORY \
 				-M $MAXMEMORY \
-				-c "$(${nomacs:=false} || echo "$OUTDIR/peaks")" \
+				-c "$(${nomacs:-false} || echo "$OUTDIR/peaks")" \
 				-f $FRAGMENTSIZE \
 				-g "$GENOME" \
 				-a nidx \
