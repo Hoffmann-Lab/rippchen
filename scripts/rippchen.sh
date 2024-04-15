@@ -12,7 +12,7 @@ cleanup() {
 		find -L "$CLEANUP_TMPDIR" -type f -name "cleanup.*" -exec rm -f "{}" \; &> /dev/null || true
 		find -L "$CLEANUP_TMPDIR" -depth -type d -name "cleanup.*" -exec rm -rf "{}" \; &> /dev/null || true
 	}
-	[[ $1 -eq 0 ]] && ${CLEANUP:=false} || ${FORCECLEANUP:=false} && {
+	${CLEANUP:=true} && {
 		[[ -e "$CLEANUP_TMPDIR" ]] && {
 			find -L "$CLEANUP_TMPDIR" -type f -exec rm -f "{}" \; &> /dev/null || true
 			find -L "$CLEANUP_TMPDIR" -depth -type d -exec rm -rf "{}" \; &> /dev/null || true
@@ -51,7 +51,8 @@ VERBOSITY=0
 OUTDIR="$PWD/results"
 TMPDIR="${TMPDIR:-$OUTDIR}"
 DISTANCE=5
-FRAGMENTSIZE=200
+FRAGMENTSIZE=150
+CONTEXT='CG'
 FASTQ1=() # all idx of FASTQ1[.] are equal to MAPPED[.]
 FASTQ2=()
 FASTQ3=()
@@ -114,8 +115,10 @@ if [[ $GTF ]]; then
 else
 	if ! ${BISULFITE:=false}; then # does not require gtf, even for indexing
 		if ${INDEX:=false}; then
+			BASHBONE_ERROR="salmon index generation from $GENOME requires gtf"
+			${nosalm:=true} || ${TRANSCRIPTOME:=false}
 			commander::warn "gtf file missing. star index generation without prior knowledge"
-			#nostar=true
+			commander::warn "gtf file missing. salmon index generation from $GENOME without prior transcript extraction"
 			commander::warn "gtf file missing. proceeding without diego"
 			nodsj=true
 		elif [[ $FUSIONS ]]; then
@@ -126,12 +129,15 @@ else
 				commander::warn "gtf file missing. proceeding without gem"
 				nogem=true
 			}
-		else
+		elif ${nosalm:=true}; then
 			commander::warn "gtf file missing. proceeding without quantification"
 			noquant=true
 			nodsj=true
 			noclust=true
 			nogo=true
+		else
+			commander::warn "gtf file missing."
+			nodsj=true
 		fi
 	fi
 fi
@@ -287,15 +293,5 @@ else
 	fi
 fi
 unset BASHBONE_ERROR
-
-${Smd5:=false} || {
-	commander::printinfo "finally updating genome and annotation md5 sums" | tee -ia "$LOG"
-	thismd5genome=$(md5sum "$GENOME" | cut -d ' ' -f 1)
-	[[ "$md5genome" != "$thismd5genome" ]] && sed -i "s/md5genome=.*/md5genome=$thismd5genome/" "$GENOME.md5.sh"
-	[[ $GTF ]] && {
-		thismd5gtf=$(md5sum "$GTF" | cut -d ' ' -f 1)
-		[[ "$md5gtf" != "$thismd5gtf" ]] && sed -i "s/md5gtf=.*/md5gtf=$thismd5gtf/" "$GENOME.md5.sh"
-	}
-}
 
 exit 0
