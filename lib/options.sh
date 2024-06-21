@@ -43,8 +43,9 @@ function options::usage(){
 		-g       | --genome [path]            : genome fasta input
 		-gtf     | --gtf [path]               : annotation gtf input
 		                                        NOTE: no gtf file implies star index creation without splice junctions database
-		-it      | --is-transcriptome         : fasta and gtf input is actually a transcriptome converted. uses -no-dsj
-		                                        NOTE: requires transcript_id as sequence ids and tags in gtf to sum up fractional counts. see genome2transcriptome.pl
+		-it      | --is-transcriptome         : fasta and gtf input is actually a transcriptome converted (see genome2transcriptome.pl)
+		                                        NOTE: uses -no-dsj
+		                                        NOTE: requires transcript_id as sequence ids and tags in gtf to sum up fractional counts
 		-go      | --go [path]                : annotation go input
 		                                        NOTE: no go file implies disabled creation of org.db from semantically clustered gene ontology terms
 		-no-sege | --no-segemehl              : disables indexing for segemehl
@@ -60,8 +61,9 @@ function options::usage(){
 		                                        NOTE: no file implies -no-dsj -no-dea -no-go -no-clust. see below for format information
 		-g       | --genome [path]            : genome fasta input. without, only preprocessing is performed
 		                                        NOTE: no fasta file implies -no-map
-		-it      | --is-transcriptome         : fasta and gtf input is actually a transcriptome converted. uses -no-split, -no-uniq and -no-dsj
-		                                        NOTE: requires transcript_id as sequence ids and tags in gtf to sum up fractional counts. see genome2transcriptome.pl
+		-it      | --is-transcriptome         : fasta and gtf input is actually a transcriptome converted (see genome2transcriptome.pl)
+		                                        NOTE: uses -no-split, -no-uniq and -no-dsj
+		                                        NOTE: requires transcript_id as sequence ids and tags in gtf to sum up fractional counts
 		-gtf     | --gtf [path]               : annotation gtf input
 		                                        NOTE: no gtf file implies -no-quant
 		-go      | --go [path]                : annotation go input
@@ -102,6 +104,9 @@ function options::usage(){
 		-no-quant| --no-quantification        : disables per feature read quantification and TPM calculation plus downstream analyses
 		-salm    | --salmon                   : enables quantification from quasi-mappings by Salmon
 		                                        NOTE: unless -it option, converts genome into transcriptome implicitly, thus requires transcript_id tag in gtf
+		-saln    | --salmon-aln               : enables quantification of transcriptomic alignments by Salmon instead of fractional counting by featureCounts.
+		                                        NOTE: uses -no-split, -no-uniq and -no-dsj
+		                                        NOTE: unless -it option and given a gtf file for indexing, uses -no-seqe, because STAR implicitly maps on transcripts
 		-qf      | --quantifyfeature [string] : switch to other feature with [string]_id tag in gtf for quantification. default: gene, with tag gene_id
 		-ql      | --quantifylevel [string]   : switch to other feature level for quantification. default: exon
 		-s       | --strandness [value]       : defines library strandness for all inputs. default: automatically inferred
@@ -168,7 +173,7 @@ function options::usage(){
 		                                        NOTE: given -no-qual and unless -no-stats option, intermediate per file analyses replaced by bulk analysis
 		-no-stats| --no-statistics            : disables statistics from read and alignment quality analyses
 		-no-mec  | --no-mecall                : disables calling of methylated CpGs plus downstream analyses
-		-cx      | --context [string]         : regex of context to call methylation in. default: CG
+		-cx      | --context [string]         : IUPAC of di/tri-nucleotide context to call cytosine methylation in (e.g. CHH, CHG, CNN, CWH). default: CG
 		-no-medl | --no-methyldackel          : disables calling of methylation by methyldackel
 		-no-haarz| --no-haarz                 : disables calling of methylation by haarz
 		-no-dma  | --no-diffmeanalysis        : disables differential methylation analysis from minimum 10x covered nucleotides
@@ -392,14 +397,14 @@ function options::developer(){
 
 		medl    : methylation calling by methyldackel
 		haarz   : methylation calling by haarz
-		dma     : differentially methylation analysis
-
 		quant   : read quantification
 		dsj     : differential splice junction analysis
+		saln    : salmon read quantification
 		salm    : salmon mapping/quantification
 		tpm     : TPM calculation
 		dea     : pca and differential expression analysis
 		join    : counts joining
+		dma     : differentially methylation analysis
 		clust   : coexpression clustering
 		go      : go enrichment
 	EOF
@@ -535,6 +540,7 @@ function options::checkopt(){
 		-fb       | --featurebiotype) arg=true; FEATUREBIOTYPE="$2";;
 		-no-quant | --no-quantification) noquant=true; nodsj=true; nodea=true; noclust=true; nogo=true;;
 		-salm     | --salmon) nosalm=false;;
+		-saln     | --salmon-aln) nosaln=false; EMQUANT=true; nouniq=true; nodsj=true;;
 		-no-dsj   | --no-diffsplicejunctions) nodsj=true;;
 		-no-dea   | --no-diffexanalysis) nodea=true; noclust=true; nogo=true;;
 		-no-clust | --no-clustering) noclust=true;;
@@ -557,7 +563,7 @@ function options::checkopt(){
 function options::resume(){
 	local s enable=false
 	# don't Smd5, Sslice !
-	for s in fqual mspi trim clip pclip cor rrm arr sfus sege star bwa mqual uniq sort blist fsel rmd ctn5 cmo stats rep macs gem homer rich seacr gopeaks peaka matk m6a medl haarz dma quant dsj salm tpm dea join clust go; do
+	for s in fqual mspi trim clip pclip cor rrm arr sfus sege star bwa mqual uniq sort blist fsel rmd ctn5 cmo stats rep macs gem homer rich seacr gopeaks peaka matk m6a medl haarz quant dsj saln salm tpm dea join dma clust go; do
 		eval "\${S$s:=true}" # unless S$s already set to false by -redo, do skip
 		$enable || [[ "$1" == "$s" ]] && {
 			enable=true
@@ -571,7 +577,7 @@ function options::skip(){
 	declare -a mapdata
 	mapfile -t -d ',' mapdata < <(printf '%s' "$1")
 	for x in "${mapdata[@]}"; do
-		for s in md5 fqual mspi trim clip pclip cor rrm arr sfus sege star bwa mqual uniq sort blist fsel slice rmd ctn5 cmo rep stats macs gem homer rich seacr gopeaks peaka matk m6a medl haarz dma quant dsj salm tpm dea join clust go; do
+		for s in md5 fqual mspi trim clip pclip cor rrm arr sfus sege star bwa mqual uniq sort blist fsel slice rmd ctn5 cmo rep stats macs gem homer rich seacr gopeaks peaka matk m6a medl haarz quant dsj saln salm tpm dea join dma clust go; do
 			[[ "$x" == "$s" ]] && eval "S$s=true"
 		done
 	done
@@ -581,11 +587,11 @@ function options::redo(){
 	local x s
 	declare -a mapdata
 	mapfile -t -d ',' mapdata < <(printf '%s' "$1")
-	for s in fqual mspi trim clip pclip cor rrm arr sfus sege star bwa mqual uniq sort blist fsel rmd ctn5 cmo rep stats macs gem homer rich seacr gopeaks peaka matk m6a medl haarz dma quant dsj salm tpm dea join clust go; do
+	for s in fqual mspi trim clip pclip cor rrm arr sfus sege star bwa mqual uniq sort blist fsel rmd ctn5 cmo rep stats macs gem homer rich seacr gopeaks peaka matk m6a medl haarz quant dsj saln salm tpm dea join dma clust go; do
 		eval "\${S$s:=true}" # unless (no|S)$s already set to false by -resume, do skip
 	done
 	for x in "${mapdata[@]}"; do
-		for s in fqual mspi trim clip pclip cor rrm arr sfus sege star bwa mqual uniq sort blist fsel rmd ctn5 cmo rep stats macs gem homer rich seacr gopeaks peaka matk m6a medl haarz dma quant dsj salm tpm dea join clust go; do
+		for s in fqual mspi trim clip pclip cor rrm arr sfus sege star bwa mqual uniq sort blist fsel rmd ctn5 cmo rep stats macs gem homer rich seacr gopeaks peaka matk m6a medl haarz quant dsj saln salm tpm dea join dma clust go; do
 			[[ "$x" == "$s" ]] && eval "S$s=false"
 		done
 	done
