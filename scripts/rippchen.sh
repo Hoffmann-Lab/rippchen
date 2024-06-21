@@ -23,13 +23,13 @@ cleanup() {
 			for f in "${FASTQ1[@]}"; do
 				readlink -e "$f" | file -b --mime-type -f - | grep -qF -e 'gzip' -e 'bzip2' && b=$(basename "$f" | rev | cut -d '.' -f 3- | rev) || b=$(basename "$f" | rev | cut -d '.' -f 2- | rev)
 				find -L "$OUTDIR" -depth -type d -name "$b*._STAR*" -exec rm -rf {} \; &> /dev/null || true
-				find -L "$OUTDIR" -type f -name "$b*.sorted.bam" -exec bash -c '[[ -s "$1" ]] && rm -f "$(dirname "$1")/$(basename "$1" .sorted.bam).bam"' bash {} \; &> /dev/null || true
+				# find -L "$OUTDIR" -type f -name "$b*.sorted.bam" -exec bash -c '[[ -s "$1" ]] && rm -f "$(dirname "$1")/$(basename "$1" .sorted.bam).bam"' bash {} \; &> /dev/null || true
 				find -L "$OUTDIR" -type f -name "$b*.*.gz" -exec bash -c '[[ -s "$1" ]] && rm -f "$(dirname "$1")/$(basename "$1" .gz)"' bash {} \; &> /dev/null || true
 			done
 			for f in "${MAPPED[@]}"; do
 				b=$(basename "$f" | rev | cut -d '.' -f 2- | rev)
 				find -L "$OUTDIR" -depth -type d -name "$b*._STAR*" -exec rm -rf "{}" \; &> /dev/null || true
-				find -L "$OUTDIR" -type f -name "$b*.sorted.bam" -exec bash -c '[[ -s "$1" ]] && rm -f "$(dirname "$1")/$(basename "$1" .sorted.bam).bam"' bash {} \; &> /dev/null || true
+				# find -L "$OUTDIR" -type f -name "$b*.sorted.bam" -exec bash -c '[[ -s "$1" ]] && rm -f "$(dirname "$1")/$(basename "$1" .sorted.bam).bam"' bash {} \; &> /dev/null || true
 				find -L "$OUTDIR" -type f -name "$b*.*.gz" -exec bash -c '[[ -s "$1" ]] && rm -f "$(dirname "$1")/$(basename "$1" .gz)"' bash {} \; &> /dev/null || true
 			done
 			# find -L . "$OUTDIR" -type f -name "*.annotated.*" -exec bash -c 'rm -f "$(sed -E "s@(.*)\.annotated@\1@" <<< "$1")"' bash {} \;
@@ -129,17 +129,26 @@ else
 				commander::warn "gtf file missing. proceeding without gem"
 				nogem=true
 			}
-		elif ${nosalm:=true}; then
-			commander::warn "gtf file missing. proceeding without quantification"
+		else
 			noquant=true
-			nodsj=true
 			noclust=true
 			nogo=true
-		else
-			commander::warn "gtf file missing."
-			nodsj=true
+			if ! ${TRANSCRIPTOME:=false}; then
+				nosaln=true
+				nosalm=true
+			fi
+			${nosaln:=true} && ${nosalm:=true} && nodea=true
+			if ! ${nosaln:=true} || ! ${nosalm:=true}; then
+				commander::warn "gtf file missing"
+			else
+				commander::warn "gtf file missing. proceeding without quantification"
+			fi
 		fi
 	fi
+fi
+
+if ${EMQUANT:=false}; then
+	${TRANSCRIPTOME:=false} || nosege=true
 fi
 
 if [[ $GO ]]; then
