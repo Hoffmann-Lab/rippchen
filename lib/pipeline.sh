@@ -140,6 +140,27 @@ function pipeline::_preprocess(){
 			-2 FASTQ2 \
 			$params
 
+		if [[ $FASTQ3 ]] && ! ${nosalm:=true}; then
+			preprocess::dedup \
+				-S ${normd:=true} \
+				-s ${Sfrmd:=false} \
+				-t $THREADS \
+				-o "$OUTDIR/deduplicated" \
+				-M $MAXMEMORY \
+				-1 FASTQ1 \
+				-2 FASTQ2 \
+				-3 FASTQ3
+			preprocess::add4stats -r qualdirs -a "$OUTDIR/qualities/deduplicated" -1 FASTQ1 -2 FASTQ2
+			preprocess::fastqc \
+				-S ${noqual:=false} \
+				-s ${Sfrmd:=false} \
+				-t $THREADS \
+				-M $MAXMEMORY \
+				-o "$OUTDIR/qualities/deduplicated" \
+				-1 FASTQ1 \
+				-2 FASTQ2
+		fi
+
 		${RRBS:=false} && ! ${nomspi:=false} && {
 			bisulfite::mspicut \
 				-S ${nomspi:=false} \
@@ -542,17 +563,6 @@ function pipeline::bs(){
 		${nomedl:=false} || params+=" -d methyldackel"
 		${nohaarz:=false} || params+=" -d haarz"
 
-		bisulfite::join \
-			-S ${nojoin:=false} \
-			-s ${Sjoin:=false} \
-			-t $THREADS \
-			-r mapper \
-			-c COMPARISONS \
-			-x "$CONTEXT" \
-			-i "$OUTDIR/mecall" \
-			-o "$OUTDIR/mecall" \
-			$params
-
 		bisulfite::metilene \
 			-S ${nodma:=false} \
 			-s ${Sdma:=false} \
@@ -565,6 +575,17 @@ function pipeline::bs(){
 			-i "$OUTDIR/mecall" \
 			-o "$OUTDIR/metilene" \
 			$params
+
+		bisulfite::join \
+			-S ${nojoin:=false} \
+			-s ${Sjoin:=false} \
+			-t $THREADS \
+			-r mapper \
+			-c COMPARISONS \
+			-x "$CONTEXT" \
+			-i "$OUTDIR/mecall" \
+			-o "$OUTDIR/mecall" \
+			$params
 	fi
 
 	return 0
@@ -576,6 +597,7 @@ function pipeline::dea(){
 
 	pipeline::_preprocess
 	pipeline::_mapping
+
 	if [[ ${#mapper[@]} -gt 0 ]]; then
 
 		pipeline::_slice ${normd:=true} ${Srmd:=false}
