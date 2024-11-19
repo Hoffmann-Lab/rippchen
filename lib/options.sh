@@ -115,6 +115,7 @@ function options::usage(){
 		                                        2 - reversely stranded (fr first strand)
 		-no-dsj  | --no-diffsplicejunctions   : disables differential splice junction analysis
 		-no-dea  | --no-diffexanalysis        : disables differential feature expression analysis plus downstream analyses
+		-no-join | --no-join                  : disables joining of read quantification data, calulating condition means and z-scores
 		-fb      | --featurebiotype [string]  : regex of features with matching [-qf]_(bio)type tag in gtf for clustering and enrichments. default: protein_coding
 		-no-go   | --no-geneontology          : disables gene ontology enrichment analyses for differentially expressed features and co-expression clusters
 		-no-clust| --no-clustering            : disables feature co-expression clustering
@@ -177,7 +178,8 @@ function options::usage(){
 		-no-medl | --no-methyldackel          : disables calling of methylation by methyldackel
 		-no-haarz| --no-haarz                 : disables calling of methylation by haarz
 		-no-dma  | --no-diffmeanalysis        : disables differential methylation analysis from minimum 10x covered nucleotides
-		-md      | --min-data [value]         : require at least %/100 or an absolute value of CpG methylation rates per condition (see -c). default: 0.8
+		-no-join | --no-join                  : disables joining of methylation rates, calulating condition means and z-scores
+		-md      | --min-data [value]         : require at least this fraction or number of inner condition methylation rates per CpG (see -c). default: 0.8
 		-md-cap  | --min-data-cap [value]     : caps/upper bounds required CpG methylation rates per condition (see -md). default: no capping
 
 
@@ -253,10 +255,10 @@ function options::usage(){
 		-no-sort | --no-sort                  : disables sorting alignments
 		-bl      | --blacklist [path|string]  : bedfile of regions or reference/chromosome name to filter alignments for
 		-sf      | --sizefilter [value:value] : fragment size filtering for alignments to be kept by a given range
-		                                        NOTE: relaxed or conservative recommendations
+		                                        NOTE: relaxed or conservative (DOI: 10.1038/nmeth.2688) recommendations
 		                                        0:120   or 0:100   - ATAC nucleosome free regions
 		                                        151:280 or 181:250 - ATAC mononucleosomes
-		                                        131:200            - MNase mononucleosomes
+		                                        131:200            - MNase mononucleosomes (by deepTools)
 		                                        311:480            - ATAC dinucleosomes
 		                                        501:650 or 551:620 - ATAC trinucleosomes
 		                                        0:120              - CUT&TAG or CUT&RUN transcription factors, PolII,..
@@ -269,6 +271,7 @@ function options::usage(){
 		-no-rmd  | --no-removeduplicates      : disables removing duplicates. not recommended unless reads were mapped on a transcriptome.
 		-ct      | --cliptn5                  : enables +4/-5 soft-clipping to address Tn5 cutting site end-repair in e.g. ATAC and CUT&TAG experiments
 		-cmo     | --clipmateoverlaps         : enables clipping of read mate overlaps
+		-no-stats| --no-statistics            : disables statistics from read and alignment quality analyses
 		-fs      | --fragmentsize [value]     : estimated size of sequenced fragments. default: 150
 		-s       | --strandness [value]       : defines library strandness for all inputs. default: 0 (automatically inferred for RIP)
 		                                        0 - unstranded
@@ -359,6 +362,7 @@ function options::developer(){
 		DEVELOPER OPTIONS
 		md5     : check for md5sums and if necessary trigger genome indexing
 		fqual   : input quality metrics
+		frmd    : removing duplicates from fastq if salmon is part of the pipeline
 		mspi    : mspi cutting site selection
 		trim    : trimming
 		clip    : adapter clipping (& simple trimming)
@@ -428,8 +432,8 @@ function options::checkopt(){
 		-k        | --keep) CLEANUP=false;;
 		-v        | --verbosity) arg=true; VERBOSITY=$2;;
 		-t        | --threads) arg=true; THREADS=$2;;
-		-mem      | --memory) arg=true; MEMORY=$2;;
-		-xmem     | --max-memory) arg=true; [[ ${2%.*} -ge 1 ]] && MAXMEMORY=${2%.*} || MAXMEMORY=$(grep -F MemTotal /proc/meminfo | awk -v i=$2 '{printf("%d",$2/1024*0.95*i)}');;
+		-mem      | --memory) arg=true; [[ ${2%.*} -gt 1 ]] && MEMORY=${2%.*} || MEMORY=$(grep -F MemTotal /proc/meminfo | awk -v i=$2 '{printf("%d",$2/1024*0.95*i)}');;
+		-xmem     | --max-memory) arg=true; [[ ${2%.*} -gt 1 ]] && MAXMEMORY=${2%.*} || MAXMEMORY=$(grep -F MemTotal /proc/meminfo | awk -v i=$2 '{printf("%d",$2/1024*0.95*i)}');;
 
 		-x        | --index) INDEX=true;;
 		-g        | --genome) arg=true; GENOME="$2";;
@@ -529,6 +533,7 @@ function options::checkopt(){
 		-cx       | --context) arg=true; CONTEXT="$2";;
 		-no-medl  | --no-methyldackel) nomedl=true;;
 		-no-haarz | --no-haarz) nohaarz=true;;
+		-no-join  | --no-join) nojoin=true;;
 		-no-dma   | --no-diffmeanalysis) nodma=true;;
 		-md       | --min-data) arg=true; MINDATA=$2;;
 		-md-cap   | --min-data-cap) arg=true; MINDATACAP=$2;;
@@ -563,7 +568,7 @@ function options::checkopt(){
 function options::resume(){
 	local s enable=false
 	# don't Smd5, Sslice !
-	for s in fqual mspi trim clip pclip cor rrm arr sfus sege star bwa mqual uniq sort blist fsel rmd ctn5 cmo stats rep macs gem homer rich seacr gopeaks peaka matk m6a medl haarz quant dsj saln salm tpm dea join dma clust go; do
+	for s in fqual frmd mspi trim clip pclip cor rrm arr sfus sege star bwa mqual uniq sort blist fsel rmd ctn5 cmo stats rep macs gem homer rich seacr gopeaks peaka matk m6a medl haarz quant dsj saln salm tpm dea join dma clust go; do
 		eval "\${S$s:=true}" # unless S$s already set to false by -redo, do skip
 		$enable || [[ "$1" == "$s" ]] && {
 			enable=true
@@ -577,7 +582,7 @@ function options::skip(){
 	declare -a mapdata
 	mapfile -t -d ',' mapdata < <(printf '%s' "$1")
 	for x in "${mapdata[@]}"; do
-		for s in md5 fqual mspi trim clip pclip cor rrm arr sfus sege star bwa mqual uniq sort blist fsel slice rmd ctn5 cmo rep stats macs gem homer rich seacr gopeaks peaka matk m6a medl haarz quant dsj saln salm tpm dea join dma clust go; do
+		for s in md5 fqual frmd mspi trim clip pclip cor rrm arr sfus sege star bwa mqual uniq sort blist fsel slice rmd ctn5 cmo rep stats macs gem homer rich seacr gopeaks peaka matk m6a medl haarz quant dsj saln salm tpm dea join dma clust go; do
 			[[ "$x" == "$s" ]] && eval "S$s=true"
 		done
 	done
@@ -587,11 +592,11 @@ function options::redo(){
 	local x s
 	declare -a mapdata
 	mapfile -t -d ',' mapdata < <(printf '%s' "$1")
-	for s in fqual mspi trim clip pclip cor rrm arr sfus sege star bwa mqual uniq sort blist fsel rmd ctn5 cmo rep stats macs gem homer rich seacr gopeaks peaka matk m6a medl haarz quant dsj saln salm tpm dea join dma clust go; do
+	for s in fqual frmd mspi trim clip pclip cor rrm arr sfus sege star bwa mqual uniq sort blist fsel rmd ctn5 cmo rep stats macs gem homer rich seacr gopeaks peaka matk m6a medl haarz quant dsj saln salm tpm dea join dma clust go; do
 		eval "\${S$s:=true}" # unless (no|S)$s already set to false by -resume, do skip
 	done
 	for x in "${mapdata[@]}"; do
-		for s in fqual mspi trim clip pclip cor rrm arr sfus sege star bwa mqual uniq sort blist fsel rmd ctn5 cmo rep stats macs gem homer rich seacr gopeaks peaka matk m6a medl haarz quant dsj saln salm tpm dea join dma clust go; do
+		for s in fqual frmd mspi trim clip pclip cor rrm arr sfus sege star bwa mqual uniq sort blist fsel rmd ctn5 cmo rep stats macs gem homer rich seacr gopeaks peaka matk m6a medl haarz quant dsj saln salm tpm dea join dma clust go; do
 			[[ "$x" == "$s" ]] && eval "S$s=false"
 		done
 	done
