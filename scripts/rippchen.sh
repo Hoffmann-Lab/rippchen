@@ -253,13 +253,13 @@ elif [[ $ridx ]]; then
 	[[ ${#ridx[@]} -eq ${#tidx[@]} ]] || false
 fi
 
-if [[ $FASTQ1 ]] && ${RRBS:=false}; then
-	BASHBONE_ERROR="rrbs data analysis requires adapter sequence input"
-	[[ ! $ADAPTER1 ]] && false
-fi
+# if [[ $FASTQ1 ]] && ${RRBS:=false}; then
+# 	BASHBONE_ERROR="rrbs data analysis requires adapter sequence input"
+# 	[[ ! $ADAPTER1 ]] && false
+# fi
 
-if [[ ! $FASTQ2 ]]; then
-	nofsel=true;
+if [[ $FASTQ1 ]] && [[ ! $FASTQ2 ]]; then
+	nofsel=true
 fi
 
 if [[ $FASTQ3 ]]; then
