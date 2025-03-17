@@ -514,23 +514,15 @@ function pipeline::bs(){
 	}
 
 	pipeline::_slice ${nocmo:=false} ${Scmo:=false}
-	${nocmo:=false} || {
-		alignment::clipmateoverlaps \
-			-S ${nocmo:=false} \
-			-s ${Scmo:=false} \
-			-t $THREADS \
-			-m $MEMORY \
-			-M $MAXMEMORY \
-			-r mapper \
-			-c slicesinfo \
-			-o "$OUTDIR/mapped"
-		# alignment::add4stats -r mapper
-		# alignment::bamqc \
-		# 	-S ${noqual:=false} \
-		# 	-s ${Scmo:=false} \
-		# 	-t $THREADS \
-		# 	-r mapper
-	}
+	alignment::clipmateoverlaps \
+		-S ${nocmo:=false} \
+		-s ${Scmo:=false} \
+		-t $THREADS \
+		-m $MEMORY \
+		-M $MAXMEMORY \
+		-r mapper \
+		-c slicesinfo \
+		-o "$OUTDIR/mapped"
 
 	alignment::qcstats \
 		-S ${nostats:=false} \
@@ -567,6 +559,7 @@ function pipeline::bs(){
 			-S ${nodma:=false} \
 			-s ${Sdma:=false} \
 			-t $THREADS \
+			-g "$GENOME" \
 			-c COMPARISONS \
 			-x "$CONTEXT" \
 			-m ${MINDATA:=0.8} \
@@ -580,6 +573,7 @@ function pipeline::bs(){
 			-S ${nojoin:=false} \
 			-s ${Sjoin:=false} \
 			-t $THREADS \
+			-g "$GENOME" \
 			-r mapper \
 			-c COMPARISONS \
 			-x "$CONTEXT" \
@@ -622,23 +616,15 @@ function pipeline::dea(){
 		}
 
 		pipeline::_slice ${nocmo:=true} ${Scmo:=false}
-		${nocmo:=true} || {
-			alignment::clipmateoverlaps \
-				-S ${nocmo:=true} \
-				-s ${Scmo:=false} \
-				-t $THREADS \
-				-m $MEMORY \
-				-M $MAXMEMORY \
-				-r mapper \
-				-c slicesinfo \
-				-o "$OUTDIR/mapped"
-			# alignment::add4stats -r mapper
-			# alignment::bamqc \
-			# 	-S ${noqual:=false} \
-			# 	-s ${Scmo:=false} \
-			# 	-t $THREADS \
-			# 	-r mapper
-		}
+		alignment::clipmateoverlaps \
+			-S ${nocmo:=true} \
+			-s ${Scmo:=false} \
+			-t $THREADS \
+			-m $MEMORY \
+			-M $MAXMEMORY \
+			-r mapper \
+			-c slicesinfo \
+			-o "$OUTDIR/mapped"
 
 		alignment::qcstats \
 			-S ${nostats:=false} \
@@ -867,47 +853,31 @@ function pipeline::callpeak(){
 	}
 
 	pipeline::_slice ${noctn5:=true} ${Sctn5:=false}
-	${noctn5:=true} || {
-		alignment::clip \
-			-S ${noctn5:=true} \
-			-s ${Sctn5:=false} \
-			-t $THREADS \
-			-m $MEMORY \
-			-M $MAXMEMORY \
-			-r mapper \
-			-c slicesinfo \
-			-g $GENOME \
-			-5 4 \
-			-3 0 \
-			-5 5 \
-			-3 0 \
-			-o "$OUTDIR/mapped"
-		# alignment::add4stats -r mapper
-		# alignment::bamqc \
-		# 	-S ${noqual:=false} \
-		# 	-s ${Sctn5:=false} \
-		# 	-t $THREADS \
-		# 	-r mapper
-	}
+	alignment::clip \
+		-S ${noctn5:=true} \
+		-s ${Sctn5:=false} \
+		-t $THREADS \
+		-m $MEMORY \
+		-M $MAXMEMORY \
+		-r mapper \
+		-c slicesinfo \
+		-g $GENOME \
+		-5 4 \
+		-3 0 \
+		-5 5 \
+		-3 0 \
+		-o "$OUTDIR/mapped"
 
 	pipeline::_slice ${nocmo:=true} ${Scmo:=false}
-	${nocmo:=true} || {
-		alignment::clipmateoverlaps \
-			-S ${nocmo:=true} \
-			-s ${Scmo:=false} \
-			-t $THREADS \
-			-m $MEMORY \
-			-M $MAXMEMORY \
-			-r mapper \
-			-c slicesinfo \
-			-o "$OUTDIR/mapped"
-		alignment::add4stats -r mapper
-		# alignment::bamqc \
-		# 	-S ${noqual:=false} \
-		# 	-s ${Scmo:=false} \
-		# 	-t $THREADS \
-		# 	-r mapper
-	}
+	alignment::clipmateoverlaps \
+		-S ${nocmo:=true} \
+		-s ${Scmo:=false} \
+		-t $THREADS \
+		-m $MEMORY \
+		-M $MAXMEMORY \
+		-r mapper \
+		-c slicesinfo \
+		-o "$OUTDIR/mapped"
 
 	alignment::qcstats \
 		-S ${nostats:=false} \
@@ -915,6 +885,92 @@ function pipeline::callpeak(){
 		-r mapper \
 		-t $THREADS \
 		-o "$OUTDIR/stats"
+
+	if [[ $SPIKEINGENOME ]]; then
+		commander::printinfo "analyzing spikeins"
+		# form add4stats derived collection stage 0
+		alignment::tofastq \
+			-S ${nospin:=true} \
+			-s ${Sspin:=false} \
+			-t $THREADS \
+			-1 FASTQ1 \
+			-2 FASTQ2 \
+			-3 FASTQ3 \
+			-r mapper \
+			-i 0 \
+			-u \
+			-o "$OUTDIR/spikein/fastq"
+
+		local i tdir="$(mktemp -d -p "${TMPDIR:-/tmp}" cleanup.XXXXXXXXXX.spikein)"
+		printf "%s\n" "${FASTQ1[@]}" > "$tdir/R1.spikein.lst"
+		printf "%s\n" "${FASTQ2[@]}" > "$tdir/R2.spikein.lst"
+		printf "%s\n" "${FASTQ3[@]}" > "$tdir/UMI.spikein.lst"
+
+		rippchen.sh \
+			-v 2 \
+			-t $THREADS \
+			-xmem $MAXMEMORY \
+			-mem $MEMORY \
+			-tmp "$TMPDIR" \
+			-o "$OUTDIR/spikein" \
+			-l "$OUTDIR/spikein/run.log" \
+			-g "$SPIKEINGENOME" \
+			-p $PEAKS \
+			-t1 "$tdir/R1.spikein.lst" \
+			-t2 "$tdir/R2.spikein.lst" \
+			-t3 "$tdir/UMI.spikein.lst" \
+			-no-qual \
+			-no-trim \
+			-no-clip \
+			-no-pclip \
+			-no-cor \
+			-no-rrm \
+			-d $DISTANCE \
+			-i $INSERTSIZE \
+			$(${nosege:=false} && echo "-no-sege" || true) \
+			$(${nostar:=false} && echo "-no-star" || true) \
+			$(${nobwa:=false} && echo "-no-bwa" || true) \
+			$(${noblist:=true} || echo "-bl dummy") \
+			$(${nofsel:=true} || echo "-sf 0:1000") \
+			$(${normd:=false} && echo "-no-rmd" || echo "-rmd") \
+			$([[ $REGEX ]] && echo "-rx '$REGEX'" || true) \
+			$(${noctn5:=false} || echo "-ct") \
+			$(${nocmo:=false} && echo "-no-cmo" || echo "-cmo") \
+			$(${nostats:=false} && echo "-no-stats" || true) \
+			-no-call \
+			$(${Sspin:=false} && echo "-resume call" || true) \
+			$(${Smd5:=false} && echo "-skip md5" || true)
+
+		declare -a mapper_spikein
+		local m
+		for m in "${mapper[@]}"; do
+			declare -a ${m}_spikein
+			declare -n _m_spikein=${m}_spikein
+			mapper_spikein+=("${m}_spikein")
+
+			declare -n _b_mapper=$m
+			for f in "${_b_mapper[@]}"; do
+				_m_spikein+=("$OUTDIR/spikein/mapped/$m/$(basename "$f")")
+			done
+		done
+
+		alignment::scale \
+			-S ${noscale:=true} \
+			-s ${Sscale:=false} \
+			-t $THREADS \
+			-r mapper \
+			-z mapper_spikein \
+			-o "$OUTDIR/mapped" \
+			-j $SCALE
+	else
+		alignment::scale \
+			-S ${noscale:=true} \
+			-s ${Sscale:=false} \
+			-t $THREADS \
+			-r mapper \
+			-o "$OUTDIR/mapped" \
+			-j $SCALE
+	fi
 
 	if ${noidr:=false}; then
 		peaks::macs \
@@ -1169,6 +1225,7 @@ function pipeline::callpeak(){
 			-t $THREADS \
 			-o "$OUTDIR/peaks" \
 			-w ${BROAD:=false} \
+			-y ${POINTYPEAKS:=false} \
 			-q ${RIPSEQ:=false} \
 			-z ${STRICTPEAKS:=false}
 

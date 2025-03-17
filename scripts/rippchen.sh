@@ -53,6 +53,7 @@ TMPDIR="${TMPDIR:-$OUTDIR}"
 DISTANCE=5
 FRAGMENTSIZE=150
 CONTEXT='CG'
+SCALE=1000000
 FASTQ1=() # all idx of FASTQ1[.] are equal to MAPPED[.]
 FASTQ2=()
 FASTQ3=()
@@ -67,12 +68,15 @@ BASHBONE_ERROR="parameterization issue"
 options::parse "$@"
 bashbone -c
 
-BASHBONE_ERROR="cannot access $OUTDIR"
-mkdir -p "$OUTDIR"
-OUTDIR="$(readlink -e "$OUTDIR")"
 [[ ! $LOG ]] && LOG="$OUTDIR/run.log"
 BASHBONE_ERROR="cannot access $LOG"
 mkdir -p "$(dirname "$LOG")"
+commander::printinfo "rippchen $VERSION utilizing bashbone $BASHBONE_VERSION started with command: $CMD" | tee -i "$LOG"
+LOG="$(realpath -se "$LOG")"
+
+BASHBONE_ERROR="cannot access $OUTDIR"
+mkdir -p "$OUTDIR"
+OUTDIR="$(realpath -se "$OUTDIR")"
 
 BASHBONE_ERROR="cannot access $TMPDIR"
 if [[ $PREVIOUSTMPDIR ]]; then
@@ -171,13 +175,16 @@ fi
 checkfile(){
 	declare -n _idx=$2 _arr=$3
 	local f
-	if readlink -e "$1" | file -b --mime-type -f - | grep -qF 'text' && [[ -e "$(readlink -e $(head -1 "$1"))" ]]; then
+	if readlink -e "$1" | file -b --mime-type -f - | grep -qF 'text' && [[ -e "$(readlink -e "$(head -1 "$1")")" ]]; then
 		unset IFS
 		while read -r f; do
 			readlink -e "$f" &> /dev/null || return 1
 			_arr[((++i))]="$(cd -P "$(dirname "$f")"; echo "$PWD/$(basename "$f")")"
 			_idx+=($i)
 		done < "$1"
+	elif readlink -e "$1" | file -b --mime-type -f - | grep -qF 'stream'; then
+		# empty file
+		return 0
 	else
 		f="$1"
 		readlink -e "$f" &> /dev/null || return 1
@@ -238,7 +245,7 @@ else
 		BASHBONE_ERROR="umi fastq file does not exists $f"
 		checkfile "$f" foo FASTQ3
 	done
-	BASHBONE_ERROR="unequal number of read and umi fastq files"
+	BASHBONE_ERROR="unequal number of read and umi fastq files $FASTQ3"
 	[[ $FASTQ3 ]] && { [[ ${#FASTQ1[@]} -eq ${#FASTQ3[@]} ]] || false; }
 fi
 unset IFS
@@ -266,7 +273,6 @@ if [[ $FASTQ3 ]]; then
 	normd=false
 fi
 
-commander::printinfo "rippchen $VERSION utilizing bashbone $BASHBONE_VERSION started with command: $CMD" | tee -i "$LOG"
 commander::printinfo "temporary files go to: $HOSTNAME:$TMPDIR" | tee -ia "$LOG"
 commander::printinfo "date: $(date)" | tee -ia "$LOG"
 x=$(ulimit -Hn)
@@ -281,7 +287,7 @@ if ${INDEX:=false}; then
 	progress::log -v $VERBOSITY -o "$LOG" -f pipeline::index
 else
 	if [[ $tfq1 || $tmap ]]; then
-		if ! ${PEAKS:=false}; then
+		if [[ $PEAKS ]]; then
 			${RIPSEQ:=false} && nosplitreads=${nosplitreads:-false} || nosplitreads=${nosplitreads:-true}
 		fi
 		BASHBONE_ERROR="peak calling pipeline failed"
