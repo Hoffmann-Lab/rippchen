@@ -61,13 +61,13 @@ function options::usage(){
 		                                        NOTE: no file implies -no-dsj -no-dea -no-go -no-clust. see below for format information
 		-g       | --genome [path]            : genome fasta input. without, only preprocessing is performed
 		                                        NOTE: no fasta file implies -no-map
-		-it      | --is-transcriptome         : fasta and gtf input is actually a transcriptome converted (see genome2transcriptome.pl)
-		                                        NOTE: uses -no-split, -no-uniq and -no-dsj
-		                                        NOTE: requires transcript_id as sequence ids and tags in gtf to sum up fractional counts
 		-gtf     | --gtf [path]               : annotation gtf input
 		                                        NOTE: no gtf file implies -no-quant
 		-go      | --go [path]                : annotation go input
 		                                        NOTE: no go file implies -no-go
+		-it      | --is-transcriptome         : fasta and gtf input is actually a transcriptome (see genome2transcriptome.pl)
+		                                        NOTE: uses -no-split, -no-uniq and -no-dsj
+		                                        NOTE: requires sequence ids to match the gtf transcript_id tag to sum up fractional counts per gene_id tag
 		-1       | --fq1 [path,..]            : fastq input. single or first mate. comma separated or a file with all paths
 		-2       | --fq2 [path,..]            : fastq input. mate pair. comma separated or a file with all paths
 		-3       | --fq3 [path,..]            : fastq input. UMI sequences. comma separated or a file with all paths
@@ -75,7 +75,7 @@ function options::usage(){
 		                                        NOTE: given -no-qual and unless -no-stats option, intermediate per file analyses replaced by bulk analysis
 		-no-trim | --no-trimming              : disables quality trimming utilizing a conservative sliding window approach and simple 5' quality trimming
 		-no-clip | --no-clipping              : disables clipping off leading and trailing N's as well as adapter sequences when used with -a
-		                                      : NOTE: clipping also includes simple 3' quality trimming
+		                                        NOTE: clipping also includes simple 3' quality trimming
 		-no-pclip| --no-polyntclipping        : disables removal of trailing mono-nucleotide sequences i.e. poly-(A|C|G|T)
 		-a1      | --adapter1 [string,..]     : adapter sequence(s) of single or first mate. comma separated. default: automatically inferred unless -no-qual option
 		-a2      | --adapter2 [string,..]     : adapter sequence(s) of mate pair. comma separated. default: automatically inferred unless -no-qual option
@@ -84,7 +84,7 @@ function options::usage(){
 		-no-map  | --no-mapping               : disables read alignment and downstream analyses
 		-d       | --distance                 : maximum read alignment edit distance in %. default: 5
 		-i       | --insertsize               : maximum allowed insert size for aligning mate pairs. default: 200000 (1000 for -is-transcriptome and -no-split)
-		                                      : NOTE: does not affect bwa. for segemehl, only multiple alignments are filtered
+		                                        NOTE: does not affect bwa. for segemehl, only multiple alignments are filtered
 		-no-split| --no-split                 : disables split read mapping. sets default insertsize to 1000
 		-no-sege | --no-segemehl              : disables mapping by segemehl
 		-no-star | --no-star                  : disables mapping by STAR
@@ -104,9 +104,9 @@ function options::usage(){
 		-no-quant| --no-quantification        : disables per feature read quantification and TPM calculation plus downstream analyses
 		-salm    | --salmon                   : enables quantification from quasi-mappings by Salmon
 		                                        NOTE: unless -it option, converts genome into transcriptome implicitly, thus requires transcript_id tag in gtf
-		-saln    | --salmon-aln               : enables quantification of transcriptomic alignments by Salmon instead of fractional counting by featureCounts.
+		-saln    | --salmon-aln               : enables quantification of transcriptomic alignments by Salmon
 		                                        NOTE: uses -no-split, -no-uniq and -no-dsj
-		                                        NOTE: unless -it option and given a gtf file for indexing, uses -no-seqe, because STAR implicitly maps on transcripts
+		                                        NOTE: unless -it option and given a gtf file, triggers STAR integrated transcriptome mode for guided quantification
 		-qf      | --quantifyfeature [string] : switch to other feature with [string]_id tag in gtf for quantification. default: gene, with tag gene_id
 		-ql      | --quantifylevel [string]   : switch to other feature level for quantification. default: exon
 		-s       | --strandness [value]       : defines library strandness for all inputs. default: automatically inferred
@@ -144,18 +144,18 @@ function options::usage(){
 		                                        NOTE: given -no-qual and unless -no-stats option, intermediate per file analyses replaced by bulk analysis
 		-no-mspi | --no-mspiselection         : in case of RRBS, disables selection of MspI digested reads (use in case of multi-digestion enzymes)
 		-no-trim | --no-trimming              : disables quality trimming utilizing a conservative sliding window approach
-		                                      : NOTE: in addition, simple 5' clipping is conducted for WGBS data
+		                                        NOTE: in addition, simple 5' clipping is conducted for WGBS data
 		-no-clip | --no-clipping              : disables clipping off leading and trailing N's as well as adapter sequences when used with -a
-		                                      : NOTE: clipping also includes simple 3' quality trimming
+		                                        NOTE: clipping also includes simple 3' quality trimming
 		-no-pclip| --no-polyntclipping        : disables removal of trailing mono-nucleotide sequences i.e. poly-(A|C|G|T)
 		-a1      | --adapter1 [string,..]     : adapter sequence(s) of single or first mate. comma separated. default: automatically inferred unless -no-qual option
-		                                      : NOTE: in case of RRBS internally prefixed by NN to address MspI cutting site end-repair bias
+		                                        NOTE: in case of RRBS internally prefixed by NN to address MspI cutting site end-repair bias
 		-a2      | --adapter2 [string,..]     : adapter sequence(s) of mate pair. comma separated. default: automatically inferred unless -no-qual option
-		                                      : NOTE: in case of RRBS, R2 is also 5' clipped by two nucleotides to address MspI cutting site end-repair bias
+		                                        NOTE: in case of RRBS, R2 is also 5' clipped by two nucleotides to address MspI cutting site end-repair bias
 		-no-map  | --no-mapping               : disables read alignment and downstream analyses
 		-d       | --distance                 : maximum read alignment edit distance in %. default: 5
 		-i       | --insertsize               : maximum allowed insert for aligning mate pairs. default: 1000
-		                                      : NOTE: does not affect bwa. for segemehl, only multiple alignments are filtered
+		                                        NOTE: does not affect bwa. for segemehl, only multiple alignments are filtered
 		-no-sege | --no-segemehl              : disables mapping by segemehl
 		-no-bwa  | --no-bwa                   : disables mapping by BWA
 		-m       | --mapped [path,..]         : SAM/BAM input. comma separated or a file with all paths (replaces fastq input and processing)
@@ -192,7 +192,7 @@ function options::usage(){
 		                                        NOTE: given -no-qual and unless -no-stats option, intermediate per file analyses replaced by bulk analysis
 		-no-trim | --no-trimming              : disables quality trimming utilizing a conservative sliding window approach and simple 5' quality trimming
 		-no-clip | --no-clipping              : disables clipping off leading and trailing N's as well as adapter sequences when used with -a
-		                                      : NOTE: clipping also includes simple 3' quality trimming
+		                                        NOTE: clipping also includes simple 3' quality trimming
 		-no-pclip| --no-polyntclipping        : disables removal of trailing mono-nucleotide sequences i.e. poly-(A|C|G|T)
 		-a1      | --adapter1 [string,..]     : adapter sequence(s) of single or first mate. comma separated. default: automatically inferred unless -no-qual option
 		-a2      | --adapter2 [string,..]     : adapter sequence(s) of mate pair. comma separated. default: automatically inferred unless -no-qual option
@@ -216,7 +216,7 @@ function options::usage(){
 		-g       | --genome [path]            : genome fasta input. without, only preprocessing is performed
 		                                        NOTE: no fasta file implies -no-map
 		-gtf     | --gtf [path]               : annotation gtf input
-		                                        NOTE: required by gem for RNA based *IP-Seq experiments unless given by -s option
+		-sg      | --spikein-genome [path]    : spike-in fasta input to align unmapped reads to
 		-n1      | --normal-fq1 [path,..]     : optional, normal fastq input. single or first mate. comma separated or a file with all paths
 		-n2      | --normal-fq2 [path,..]     : optional, normal fastq input. mate pair. comma separated or a file with all paths
 		-n3      | --normal-fq3 [path,..]     : optional, normal fastq input. UMI sequences. comma separated or a file with all paths
@@ -233,7 +233,7 @@ function options::usage(){
 		                                        NOTE: given -no-qual and unless -no-stats option, intermediate per file analyses replaced by bulk analysis
 		-no-trim | --no-trimming              : disables quality trimming utilizing a conservative sliding window approach and simple 5' quality trimming
 		-no-clip | --no-clipping              : disables clipping off leading and trailing N's as well as adapter sequences when used with -a
-		                                      : NOTE: clipping also includes simple 3' quality trimming
+		                                        NOTE: clipping also includes simple 3' quality trimming
 		-no-pclip| --no-polyntclipping        : disables removal of trailing mono-nucleotide sequences i.e. poly-(A|C|G|T)
 		-a1      | --adapter1 [string,..]     : adapter sequence(s) of single or first mate. comma separated. default: automatically inferred unless -no-qual option
 		-a2      | --adapter2 [string,..]     : adapter sequence(s) of mate pair. comma separated. default: automatically inferred unless -no-qual option
@@ -254,7 +254,7 @@ function options::usage(){
 		-no-uniq | --no-uniqify               : disables extraction of properly paired and uniquely mapped reads
 		-no-sort | --no-sort                  : disables sorting alignments
 		-bl      | --blacklist [path|string]  : bedfile of regions or reference/chromosome name to filter alignments for
-		-sf      | --sizefilter [value:value] : fragment size filtering for alignments to be kept by a given range
+		-sf      | -- [value:value] : fragment size filtering for alignments to be kept by a given range
 		                                        NOTE: relaxed or conservative (DOI: 10.1038/nmeth.2688) recommendations
 		                                        0:120   or 0:100   - ATAC nucleosome free regions
 		                                        151:280 or 181:250 - ATAC mononucleosomes
@@ -272,11 +272,14 @@ function options::usage(){
 		-ct      | --cliptn5                  : enables +4/-5 soft-clipping to address Tn5 cutting site end-repair in e.g. ATAC and CUT&TAG experiments
 		-cmo     | --clipmateoverlaps         : enables clipping of read mate overlaps
 		-no-stats| --no-statistics            : disables statistics from read and alignment quality analyses
+		-sc      | --scale [value|string]     : scale alignment files (up-/downsample) to a fixed reference value or the [min|mean|geom|median|max] of input data
+		                                      : NOTE: with -sg option, size factors are derived from spike-in alignments. typical value is 1.000.000
 		-fs      | --fragmentsize [value]     : estimated size of sequenced fragments. default: 150
 		-s       | --strandness [value]       : defines library strandness for all inputs. default: 0 (automatically inferred for RIP)
 		                                        0 - unstranded
 		                                        1 - stranded (fr second strand)
 		                                        2 - reversely stranded (fr first strand)
+
 		-no-call | --no-call                  : disables peak calling and downstream analyses
 		-no-macs | --no-macs                  : disables peak calling by macs
 		-no-gem  | --no-gem                   : disables peak calling by gem
@@ -366,7 +369,7 @@ function options::developer(){
 		mspi    : mspi cutting site selection
 		trim    : trimming
 		clip    : adapter clipping (& simple trimming)
-		pclip   : poly- mono-and di-nucleotide clipping
+		pclip   : poly-mono-nucleotide clipping
 		cor     : raw read correction
 		rrm     : rRNA filtering
 
@@ -387,6 +390,8 @@ function options::developer(){
 		ctn5    : clipping tn5 end-repaired sites
 		cmo     : clipping mate overlaps
 		stats   : fastq preprocessing and mapping statistics
+		spin    : bams to fastq and spike-in mapping
+		scale   : scaling bams according to spike-ins
 		rep     : pooling/generating replicates
 
 		macs    : peak calling by macs
@@ -437,6 +442,8 @@ function options::checkopt(){
 
 		-x        | --index) INDEX=true;;
 		-g        | --genome) arg=true; GENOME="$2";;
+		-sg       | --spikein-genome) arg=true; SPIKEINGENOME="$2"; nospin=false;;
+		-sc       | --scale) arg=true; SCALE=$2; noscale=false;;
 		-it       | --is-transcriptome) nosplitreads=true; INSERTSIZE=${INSERTSIZE:-1000}; nouniq=true; nodsj=true; TRANSCRIPTOME=true;;
 		-gtf      | --gtf) arg=true; GTF="$2";;
 		-go       | --go) arg=true; GO="$2";;
@@ -492,8 +499,8 @@ function options::checkopt(){
 		-no-idx   | --no-index) noidx=true;;
 		-no-stats | --no-statistics) nostats=true;;
 
-		-p        | --peakcalling) arg=true; PEAKS=true; nosplitreads=true;
-					case $2 in
+		-p        | --peakcalling) arg=true; PEAKS=$2; nosplitreads=true;
+					case $PEAKS in
 						CUT) RIPSEQ=false; normd=true; POINTYPEAKS=true; INSERTSIZE=${INSERTSIZE:-1000}; STRANDNESS=${STRANDNESS:-0};;
 						CUTB) RIPSEQ=false; normd=true; POINTYPEAKS=true; BROAD=true; INSERTSIZE=${INSERTSIZE:-1000}; STRANDNESS=${STRANDNESS:-0};;
 						CHIP) RIPSEQ=false; INSERTSIZE=${INSERTSIZE:-1000}; STRANDNESS=${STRANDNESS:-0};;
@@ -568,7 +575,7 @@ function options::checkopt(){
 function options::resume(){
 	local s enable=false
 	# don't Smd5, Sslice !
-	for s in fqual frmd mspi trim clip pclip cor rrm arr sfus sege star bwa mqual uniq sort blist fsel rmd ctn5 cmo stats rep macs gem homer rich seacr gopeaks peaka matk m6a medl haarz quant dsj saln salm tpm dea join dma clust go; do
+	for s in fqual frmd mspi trim clip pclip cor rrm arr sfus sege star bwa mqual uniq sort blist fsel rmd ctn5 cmo stats spin scale rep macs gem homer rich seacr gopeaks peaka matk m6a medl haarz quant dsj saln salm tpm dea join dma clust go; do
 		eval "\${S$s:=true}" # unless S$s already set to false by -redo, do skip
 		$enable || [[ "$1" == "$s" ]] && {
 			enable=true
@@ -582,7 +589,7 @@ function options::skip(){
 	declare -a mapdata
 	mapfile -t -d ',' mapdata < <(printf '%s' "$1")
 	for x in "${mapdata[@]}"; do
-		for s in md5 fqual frmd mspi trim clip pclip cor rrm arr sfus sege star bwa mqual uniq sort blist fsel slice rmd ctn5 cmo rep stats macs gem homer rich seacr gopeaks peaka matk m6a medl haarz quant dsj saln salm tpm dea join dma clust go; do
+		for s in md5 fqual frmd mspi trim clip pclip cor rrm arr sfus sege star bwa mqual uniq sort blist fsel slice rmd ctn5 cmo stats spin scale rep macs gem homer rich seacr gopeaks peaka matk m6a medl haarz quant dsj saln salm tpm dea join dma clust go; do
 			[[ "$x" == "$s" ]] && eval "S$s=true"
 		done
 	done
@@ -592,11 +599,11 @@ function options::redo(){
 	local x s
 	declare -a mapdata
 	mapfile -t -d ',' mapdata < <(printf '%s' "$1")
-	for s in fqual frmd mspi trim clip pclip cor rrm arr sfus sege star bwa mqual uniq sort blist fsel rmd ctn5 cmo rep stats macs gem homer rich seacr gopeaks peaka matk m6a medl haarz quant dsj saln salm tpm dea join dma clust go; do
+	for s in fqual frmd mspi trim clip pclip cor rrm arr sfus sege star bwa mqual uniq sort blist fsel rmd ctn5 cmo stats spin scale rep macs gem homer rich seacr gopeaks peaka matk m6a medl haarz quant dsj saln salm tpm dea join dma clust go; do
 		eval "\${S$s:=true}" # unless (no|S)$s already set to false by -resume, do skip
 	done
 	for x in "${mapdata[@]}"; do
-		for s in fqual frmd mspi trim clip pclip cor rrm arr sfus sege star bwa mqual uniq sort blist fsel rmd ctn5 cmo rep stats macs gem homer rich seacr gopeaks peaka matk m6a medl haarz quant dsj saln salm tpm dea join dma clust go; do
+		for s in fqual frmd mspi trim clip pclip cor rrm arr sfus sege star bwa mqual uniq sort blist fsel rmd ctn5 cmo stats spin scale rep macs gem homer rich seacr gopeaks peaka matk m6a medl haarz quant dsj saln salm tpm dea join dma clust go; do
 			[[ "$x" == "$s" ]] && eval "S$s=false"
 		done
 	done
