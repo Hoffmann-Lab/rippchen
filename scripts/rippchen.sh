@@ -84,7 +84,7 @@ if [[ $PREVIOUSTMPDIR ]]; then
 else
 	mkdir -p "$TMPDIR"
 	TMPDIR="$(realpath -se "$TMPDIR")"
-	TMPDIR="$(mktemp -d -p "$TMPDIR" rippchen.XXXXXXXXXX)"
+	TMPDIR="$(command mktemp -d -p "$TMPDIR" rippchen.XXXXXXXXXX)"
 fi
 CLEANUP_TMPDIR="$TMPDIR"
 

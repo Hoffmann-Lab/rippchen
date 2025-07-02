@@ -432,15 +432,43 @@ function pipeline::_mapping(){
 	}
 
 	${nofsel:=true} || {
-		alignment::postprocess \
-			-S ${nofsel:=false} \
-			-s ${Sfsel:=false} \
-			-j sizeselect \
-			-f "$FRAGMENTSIZERANGE" \
-			-t $THREADS \
-			-M $MAXMEMORY \
-			-o "$OUTDIR/mapped" \
-			-r mapper
+		if [[ $TREATFRAGMENTSIZERANGE ]]; then
+			declare -A insertsizes
+			local m i
+			for m in "${mapper[@]}"; do
+				declare -n _bams=$m
+				for i in "${!tidx[@]}"; do
+					insertsizes["${_bams[${tidx[$i]}]}"]="$TREATFRAGMENTSIZERANGE"
+					if [[ ${nidx[$i]} ]]; then
+						insertsizes["${_bams[${nidx[$i]}]}"]="${FRAGMENTSIZERANGE:-"0:1000"}"
+					fi
+				done
+			done
+			alignment::sizeselect \
+				-S ${nofsel:=false} \
+				-s ${Sfsel:=false} \
+				-x insertsizes \
+				-t $THREADS \
+				-o "$OUTDIR/mapped" \
+				-r mapper
+		else
+			# alignment::postprocess \
+			# 	-S ${nofsel:=false} \
+			# 	-s ${Sfsel:=false} \
+			# 	-j sizeselect \
+			# 	-f "${FRAGMENTSIZERANGE:-"0:1000"}" \
+			# 	-t $THREADS \
+			# 	-M $MAXMEMORY \
+			# 	-o "$OUTDIR/mapped" \
+			# 	-r mapper
+			alignment::sizeselect \
+				-S ${nofsel:=false} \
+				-s ${Sfsel:=false} \
+				-d "${FRAGMENTSIZERANGE:-"0:1000"}" \
+				-t $THREADS \
+				-o "$OUTDIR/mapped" \
+				-r mapper
+		fi
 		alignment::add4stats -r mapper
 		alignment::bamqc \
 			-S ${noqual:=false} \
@@ -530,6 +558,64 @@ function pipeline::bs(){
 		-r mapper \
 		-t $THREADS \
 		-o "$OUTDIR/stats"
+
+	if [[ $SPIKEINGENOME ]]; then
+		commander::printinfo "analyzing spikeins"
+		# form add4stats derived collection stage 0
+		alignment::tofastq \
+			-S ${nospin:=true} \
+			-s ${Sspin:=false} \
+			-t $THREADS \
+			-1 FASTQ1 \
+			-2 FASTQ2 \
+			-3 FASTQ3 \
+			-r mapper \
+			-i 0 \
+			-u \
+			-o "$OUTDIR/spikein/fastq"
+
+		local i tdir="$(mktemp -d -p "${TMPDIR:-/tmp}" cleanup.XXXXXXXXXX.spikein)"
+		printf "%s\n" "${FASTQ1[@]}" > "$tdir/R1.spikein.lst"
+		printf "%s\n" "${FASTQ2[@]}" > "$tdir/R2.spikein.lst"
+		printf "%s\n" "${FASTQ3[@]}" > "$tdir/UMI.spikein.lst"
+
+		rippchen.sh \
+			-v 2 \
+			-t $THREADS \
+			-xmem $MAXMEMORY \
+			-mem $MEMORY \
+			-tmp "$TMPDIR" \
+			-o "$OUTDIR/spikein" \
+			-l "$(dirname "$LOG")/spikein.$(basename "$LOG")" \
+			-g "$SPIKEINGENOME" \
+			-b $DIVERSITY \
+			-1 "$tdir/R1.spikein.lst" \
+			-2 "$tdir/R2.spikein.lst" \
+			-3 "$tdir/UMI.spikein.lst" \
+			-no-qual \
+			-no-trim \
+			-no-mspi \
+			-no-clip \
+			-no-pclip \
+			-no-cor \
+			-no-rrm \
+			-d $DISTANCE \
+			-i $INSERTSIZE \
+			$(${nosege:=false} && echo "-no-sege" || true) \
+			$(${nobwa:=false} && echo "-no-bwa" || true) \
+			$(${noblist:=true} || echo "-bl dummy") \
+			$(${nofsel:=true} || echo "-sf 0:1000") \
+			$(${normd:=false} && echo "-no-rmd" || echo "-rmd") \
+			$([[ $REGEX ]] && echo "-rx '$REGEX'" || true) \
+			$(${nocmo:=false} && echo "-no-cmo" || echo "-cmo") \
+			$(${nostats:=false} && echo "-no-stats" || echo "-redo stats") \
+			-cx CNN \
+			$(${nomedl:=false} && echo "-no-medl" || true) \
+			$(${nohaarz:=false} && echo "-no-haarz" || true) \
+			-no-dma \
+			$(${Sspin:=false} && echo "-resume dma" || true) \
+			$(${Smd5:=false} && echo "-skip md5" || true)
+	fi
 
 	bisulfite::methyldackel \
 		-S ${nomedl:=false} \
@@ -913,7 +999,7 @@ function pipeline::callpeak(){
 			-mem $MEMORY \
 			-tmp "$TMPDIR" \
 			-o "$OUTDIR/spikein" \
-			-l "$OUTDIR/spikein/run.log" \
+			-l "$(dirname "$LOG")/spikein.$(basename "$LOG")" \
 			-g "$SPIKEINGENOME" \
 			-p $PEAKS \
 			-t1 "$tdir/R1.spikein.lst" \
@@ -936,7 +1022,7 @@ function pipeline::callpeak(){
 			$([[ $REGEX ]] && echo "-rx '$REGEX'" || true) \
 			$(${noctn5:=false} || echo "-ct") \
 			$(${nocmo:=false} && echo "-no-cmo" || echo "-cmo") \
-			$(${nostats:=false} && echo "-no-stats" || true) \
+			$(${nostats:=false} && echo "-no-stats" || echo "-redo stats") \
 			-no-call \
 			$(${Sspin:=false} && echo "-resume call" || true) \
 			$(${Smd5:=false} && echo "-skip md5" || true)
